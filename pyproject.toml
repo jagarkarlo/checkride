@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "checkride"
+dynamic = ["version"]
+description = "Automated restore drills that prove Kubernetes and PostgreSQL applications can recover."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Karlo Jagar" }]
+keywords = [
+  "kubernetes",
+  "postgresql",
+  "backup",
+  "disaster-recovery",
+  "restore-testing",
+  "rto",
+  "rpo",
+]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Environment :: Console",
+  "Intended Audience :: System Administrators",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Database",
+  "Topic :: System :: Archiving :: Backup",
+  "Topic :: System :: Recovery Tools",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+checkride = "checkride.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/jagarkarlo/checkride"
+Issues = "https://github.com/jagarkarlo/checkride/issues"
+
+[tool.hatch.version]
+path = "src/checkride/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/checkride"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
