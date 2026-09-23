@@ -108,14 +108,14 @@ Checkride builds on these tools and is evaluated against them:
 
 ## Roadmap
 
-| Milestone | Target | Exit criteria |
-|---|---|---|
-| M0 Pilot | Oct 2026 | Timed namespace-loss and cluster-loss drills on k3d |
-| M1 Harness | Jan 2027 | Five scenarios automated; at least 30 unattended drills per night, 90% valid |
-| M2 Failure study | Mar 2027 | Failure classes from real incidents reproduced and measured at V0-V4 |
-| M3 Analyzer | May 2027 | Pre-drill failure prediction evaluated against baselines |
-| M4 Copilot | Jul 2027 | Drill-verified LLM repair evaluated |
-| M5 Studio and Gate | Sep 2027 | Web UI and CI gate usable end to end |
+| Milestone | Exit criteria |
+|---|---|
+| M0 Pilot |  Timed namespace-loss and cluster-loss drills on k3d |
+| M1 Harness | Five scenarios automated; at least 30 unattended drills per night, 90% valid |
+| M2 Failure study |  Failure classes from real incidents reproduced and measured at V0-V4 |
+| M3 Analyzer |  Pre-drill failure prediction evaluated against baselines |
+| M4 Copilot |  Drill-verified LLM repair evaluated |
+| M5 Studio and Gate |  Web UI and CI gate usable end to end |
 
 ## Contributing
 
