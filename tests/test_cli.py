@@ -52,3 +52,63 @@ def test_validate_reports_invalid_yaml(tmp_path: Path, capsys: pytest.CaptureFix
 def test_schema_command_prints_json(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["schema"]) == 0
     assert json.loads(capsys.readouterr().out)["title"] == "DrillSpec"
+
+
+def write_acks(tmp_path: Path) -> Path:
+    csv_file = tmp_path / "acks.csv"
+    csv_file.write_text(
+        "# write_id,acked_at\n"
+        "w1,2026-10-01T10:00:00Z\n"
+        "w2,2026-10-01T10:00:01Z\n"
+        "w3,2026-10-01T10:00:02+00:00\n"
+    )
+    ledger = tmp_path / "run.ledger.db"
+    assert main(["import-acks", "--ledger", str(ledger), str(csv_file)]) == 0
+    return ledger
+
+
+def test_rpo_command_reports_tail_loss(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    ledger = write_acks(tmp_path)
+    present = tmp_path / "present.txt"
+    present.write_text("w1\nw2\n")
+    capsys.readouterr()
+    command = ["rpo", "--ledger", str(ledger), "--present", str(present)]
+    assert main([*command, "--failure-at", "2026-10-01T10:00:03Z", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert (report["lost"], report["holes"], report["rpoSeconds"]) == (1, 0, 2.0)
+
+
+def test_rpo_command_fails_on_holes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    ledger = write_acks(tmp_path)
+    present = tmp_path / "present.txt"
+    present.write_text("w1\nw3\n")
+    command = ["rpo", "--ledger", str(ledger), "--present", str(present)]
+    assert main([*command, "--failure-at", "2026-10-01T10:00:03Z"]) == 1
+    assert "holes           1" in capsys.readouterr().out
+
+
+def test_rpo_command_needs_an_existing_ledger(tmp_path: Path) -> None:
+    missing = str(tmp_path / "missing.db")
+    command = ["rpo", "--ledger", missing, "--present", "-", "--failure-at", "2026-10-01T10:00Z"]
+    assert main(command) == 2
+
+
+def test_rpo_command_rejects_naive_failure_time(tmp_path: Path) -> None:
+    command = ["rpo", "--ledger", "x.db", "--present", "-", "--failure-at", "2026-10-01T10:00"]
+    with pytest.raises(SystemExit) as exit_info:
+        main(command)
+    assert exit_info.value.code == 2
+
+
+def test_import_acks_reports_bad_rows(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    csv_file = tmp_path / "acks.csv"
+    csv_file.write_text("w1,2026-10-01T10:00:00Z\nw2,yesterday\n")
+    assert main(["import-acks", "--ledger", str(tmp_path / "run.ledger.db"), str(csv_file)]) == 1
+    assert f"error {csv_file}:2: invalid ISO 8601 timestamp" in capsys.readouterr().err
+
+
+def test_import_acks_rejects_duplicates(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    csv_file = tmp_path / "acks.csv"
+    csv_file.write_text("w1,2026-10-01T10:00:00Z\nw1,2026-10-01T10:00:01Z\n")
+    assert main(["import-acks", "--ledger", str(tmp_path / "run.ledger.db"), str(csv_file)]) == 1
+    assert "duplicate write id 'w1'" in capsys.readouterr().err

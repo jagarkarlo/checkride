@@ -1,13 +1,40 @@
 import argparse
+import csv
 import json
-from collections.abc import Sequence
+import sqlite3
+import sys
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from datetime import datetime
+from pathlib import Path
+from typing import Any, TextIO
 
 import yaml
 from pydantic import ValidationError
 
 from checkride import __version__
+from checkride.ledger import Ledger, RpoReport, measure_rpo
 from checkride.levels import LEVELS
 from checkride.spec import describe_errors, drill_schema, lint, load_drill
+
+
+def _timestamp(text: str) -> datetime:
+    try:
+        moment = datetime.fromisoformat(text.strip())
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(f"invalid ISO 8601 timestamp {text!r}") from error
+    if moment.utcoffset() is None:
+        raise argparse.ArgumentTypeError(f"timestamp {text!r} needs a UTC offset such as Z")
+    return moment
+
+
+@contextmanager
+def _open_input(name: str) -> Iterator[TextIO]:
+    if name == "-":
+        yield sys.stdin
+    else:
+        with Path(name).open(encoding="utf-8", newline="") as handle:
+            yield handle
 
 
 def _cmd_version(_: argparse.Namespace) -> int:
@@ -48,6 +75,78 @@ def _cmd_schema(_: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_import_acks(args: argparse.Namespace) -> int:
+    imported = 0
+    with Ledger(args.ledger) as ledger, _open_input(args.file) as handle:
+        for line, row in enumerate(csv.reader(handle), start=1):
+            if not row or row[0].startswith("#"):
+                continue
+            try:
+                if len(row) != 2:
+                    raise ValueError(f"expected write_id,acked_at but got {len(row)} columns")
+                ledger.record(row[0], _timestamp(row[1]))
+            except sqlite3.IntegrityError:
+                print(f"error {args.file}:{line}: duplicate write id {row[0]!r}", file=sys.stderr)
+                return 1
+            except (ValueError, argparse.ArgumentTypeError) as error:
+                print(f"error {args.file}:{line}: {error}", file=sys.stderr)
+                return 1
+            imported += 1
+    print(f"imported {imported} acknowledged writes into {args.ledger}")
+    return 0
+
+
+def _report_json(report: RpoReport) -> dict[str, Any]:
+    def iso(moment: datetime | None) -> str | None:
+        return moment.isoformat() if moment else None
+
+    resolution = report.resolution
+    return {
+        "failureAt": iso(report.failure_at),
+        "acknowledged": report.acknowledged,
+        "recovered": report.recovered,
+        "lost": report.lost,
+        "holes": report.holes,
+        "unexpected": report.unexpected,
+        "consistent": report.consistent,
+        "recoveryPoint": iso(report.recovery_point),
+        "firstLostAt": iso(report.first_lost_at),
+        "rpoSeconds": report.rpo.total_seconds(),
+        "resolutionSeconds": resolution.total_seconds() if resolution else None,
+    }
+
+
+def _cmd_rpo(args: argparse.Namespace) -> int:
+    if not Path(args.ledger).is_file():
+        print(f"error: ledger {args.ledger} does not exist", file=sys.stderr)
+        return 2
+    with Ledger(args.ledger) as ledger:
+        acks = ledger.acks()
+    with _open_input(args.present) as handle:
+        present = [line.strip() for line in handle if line.strip()]
+    report = measure_rpo(acks, present, args.failure_at)
+
+    if args.json:
+        print(json.dumps(_report_json(report), indent=2))
+    else:
+        rpo = f"{report.rpo.total_seconds():.3f}s"
+        if report.resolution is not None:
+            rpo += f" (true value within {report.resolution.total_seconds():.3f}s)"
+        rows = [
+            ("acknowledged", report.acknowledged),
+            ("recovered", report.recovered),
+            ("lost", report.lost),
+            ("holes", report.holes),
+            ("unexpected", report.unexpected),
+            ("recovery point", report.recovery_point.isoformat() if report.recovery_point else "-"),
+            ("first lost", report.first_lost_at.isoformat() if report.first_lost_at else "-"),
+            ("rpo", rpo),
+        ]
+        for label, value in rows:
+            print(f"{label:<15} {value}")
+    return 0 if report.consistent else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="checkride",
@@ -68,6 +167,27 @@ def build_parser() -> argparse.ArgumentParser:
 
     schema = commands.add_parser("schema", help="print the drill spec JSON Schema")
     schema.set_defaults(handler=_cmd_schema)
+
+    import_acks = commands.add_parser(
+        "import-acks", help="load acknowledged writes (CSV: write_id,acked_at) into a ledger"
+    )
+    import_acks.add_argument("--ledger", required=True, help="ledger database to append to")
+    import_acks.add_argument("file", metavar="CSV", help="CSV file, or - for standard input")
+    import_acks.set_defaults(handler=_cmd_import_acks)
+
+    rpo = commands.add_parser("rpo", help="measure the exact RPO of a restore")
+    rpo.add_argument("--ledger", required=True, help="ledger of acknowledged writes")
+    rpo.add_argument(
+        "--present",
+        required=True,
+        metavar="FILE",
+        help="write IDs found in the restored database, one per line, or - for standard input",
+    )
+    rpo.add_argument(
+        "--failure-at", required=True, type=_timestamp, help="failure time, e.g. 2026-10-01T10:00Z"
+    )
+    rpo.add_argument("--json", action="store_true", help="print the report as JSON")
+    rpo.set_defaults(handler=_cmd_rpo)
 
     return parser
 
