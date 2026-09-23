@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node (Studio)
+node_modules/
+
+# Local lab and drill output
+*.kubeconfig
+.lab/
+runs/
+*.ledger.db
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
