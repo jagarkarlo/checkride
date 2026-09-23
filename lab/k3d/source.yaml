@@ -1,0 +1,10 @@
+# Source cluster: runs the application under test and produces the backups.
+# K3s 1.35 is inside both the CloudNativePG 1.30 support window and the
+# versions Velero 1.18 is tested on.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: checkride-source
+servers: 1
+agents: 1
+image: rancher/k3s:v1.35.8-k3s1

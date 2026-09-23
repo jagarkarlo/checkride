@@ -1,0 +1,9 @@
+# Restore cluster: a separate cluster with its own API server, network and
+# storage, so a drill cannot borrow CRDs, operators or Secrets from the source.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: checkride-restore
+servers: 1
+agents: 1
+image: rancher/k3s:v1.35.8-k3s1
