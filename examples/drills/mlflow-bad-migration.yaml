@@ -1,0 +1,18 @@
+apiVersion: checkride/v1alpha1
+kind: Drill
+metadata:
+  name: mlflow-bad-migration
+spec:
+  scenario: bad-migration
+  target:
+    namespace: mlflow
+    cnpgCluster: mlflow-db
+  restore:
+    into: separate-cluster
+    pointInTime: "2026-10-01T11:59:00+02:00"
+  verify:
+    upTo: V4
+    ledger: true
+  objectives:
+    rto: 20m
+    rpo: 1m

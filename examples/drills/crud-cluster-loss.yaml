@@ -1,0 +1,15 @@
+apiVersion: checkride/v1alpha1
+kind: Drill
+metadata:
+  name: crud-cluster-loss
+spec:
+  scenario: cluster-loss
+  target:
+    namespace: crud
+    argocdApplication: crud
+    cnpgCluster: crud-db
+  verify:
+    upTo: V3
+  objectives:
+    rto: 30m
+    rpo: 5m

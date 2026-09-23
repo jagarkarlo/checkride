@@ -33,7 +33,7 @@ classifiers = [
   "Topic :: System :: Archiving :: Backup",
   "Topic :: System :: Recovery Tools",
 ]
-dependencies = []
+dependencies = ["pydantic>=2.8,<3", "PyYAML>=6.0,<7"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]

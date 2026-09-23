@@ -1,0 +1,25 @@
+apiVersion: checkride/v1alpha1
+kind: Drill
+metadata:
+  name: mlflow-namespace-loss
+spec:
+  scenario: namespace-loss
+  target:
+    namespace: mlflow
+    argocdApplication: mlflow
+    cnpgCluster: mlflow-db
+  restore:
+    into: separate-cluster
+  verify:
+    upTo: V4
+    ledger: true
+    invariants:
+      - name: every-run-has-an-experiment
+        sql: >-
+          SELECT count(*) FROM runs r
+          LEFT JOIN experiments e ON e.experiment_id = r.experiment_id
+          WHERE e.experiment_id IS NULL
+        expect: 0
+  objectives:
+    rto: 15m
+    rpo: 5m
