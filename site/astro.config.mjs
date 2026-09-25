@@ -8,7 +8,7 @@ export default defineConfig({
     social: [{ icon: 'github', label: 'Source code', href: 'https://github.com/jagarkarlo/checkride' }],
     sidebar: [
       { label: 'Start here', items: [
-        { label: 'Overview', slug: 'index' },
+        { label: 'Overview', link: '/docs/' },
         { label: 'Run locally', slug: 'start' },
       ] },
       { label: 'Understand', items: [
