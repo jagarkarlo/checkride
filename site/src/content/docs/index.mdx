@@ -1,0 +1,36 @@
+---
+title: Checkride
+description: Local recovery-drill validation and an open-source path toward verified Kubernetes restores.
+---
+
+> **Pre-alpha:** The validator checks a drill specification. Checkride does not yet execute a restore or certify recovery.
+
+Checkride is an open-source project for testing recovery of Kubernetes applications, including their data. Start with the local validator, then use the [verification levels](/levels/) to understand which evidence a restore would need to establish.
+
+## Start a local session
+
+In one terminal, start the Go validation API:
+
+```bash
+go run ./cmd/checkride-api
+```
+
+In another, start the interactive Studio:
+
+```bash
+cd studio
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`. Import or edit a JSON drill, run validation, inspect errors or warnings, and download the edited file. The Studio sends the document only to the local API. It does not connect to a cluster.
+
+## Explore the project
+
+| Task | Start here |
+| --- | --- |
+| Validate bundled YAML examples from the CLI | [Run locally](/start/) |
+| Understand what V0-V4 actually prove | [Verification levels](/levels/) |
+| Compare the proposed approach with backup and sandbox-restore tools | [Comparison](/comparison/) |
+
+The acknowledged-write ledger can compute exact RPO from test data today. Automatic restore orchestration, isolation and evidence reports are planned. The [source repository](https://github.com/jagarkarlo/checkride) is temporarily private during a security cleanup; this local site remains available for review.

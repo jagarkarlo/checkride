@@ -125,6 +125,21 @@ cd studio && npm ci && npm run dev
 Open `http://127.0.0.1:5173`. The development server proxies `/api` and
 `/healthz` requests to the Go API on port 8080.
 
+The project reference site uses the free [Astro Starlight](https://astro.build/themes/details/starlight/)
+theme. It documents the current capabilities, local walkthrough, verification
+levels, and how the intended approach compares with backup tools. Run it locally:
+
+```bash
+cd site && npm ci && npm run dev
+```
+
+Open `http://127.0.0.1:4321`. The site is reference documentation; the
+interactive Studio remains a local app backed by the Go API. Checkride is
+pre-alpha and does not yet execute automated restore drills. A paid enterprise
+edition is not planned until the open-source restore workflow works reliably
+end to end and operators validate a concrete need for supported deployments,
+policy controls, or fleet-wide reporting.
+
 ## Related projects
 
 Checkride builds on these tools and is evaluated against them:
