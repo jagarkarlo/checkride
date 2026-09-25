@@ -1,19 +1,16 @@
 import {
-  Activity,
   AlertTriangle,
   Check,
   CheckCircle2,
-  ChevronRight,
-  CircleHelp,
   Clock3,
   Code2,
   FileCheck2,
-  History,
   LoaderCircle,
+  Download,
   Play,
   RotateCcw,
   Server,
-  ShieldCheck,
+  Upload,
   XCircle,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -35,13 +32,13 @@ interface ValidationRun extends APIValidationResult {
 const exampleDrill = {
   apiVersion: "checkride/v1alpha1",
   kind: "Drill",
-  metadata: { name: "mlflow-namespace-loss" },
+  metadata: { name: "shop-namespace-loss" },
   spec: {
     scenario: "namespace-loss",
     target: {
-      namespace: "mlflow",
-      argocdApplication: "mlflow",
-      cnpgCluster: "mlflow-db",
+      namespace: "demo-shop",
+      argocdApplication: "demo-shop",
+      cnpgCluster: "shop-db",
     },
     restore: { into: "separate-cluster" },
     verify: {
@@ -49,8 +46,8 @@ const exampleDrill = {
       ledger: true,
       invariants: [
         {
-          name: "every-run-has-an-experiment",
-          sql: "SELECT count(*) FROM runs r LEFT JOIN experiments e ON e.experiment_id = r.experiment_id WHERE e.experiment_id IS NULL",
+          name: "every-order-has-a-customer",
+          sql: "SELECT count(*) FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE c.id IS NULL",
           expect: 0,
         },
       ],
@@ -88,6 +85,7 @@ function App() {
   const [editorError, setEditorError] = useState("");
   const [requestError, setRequestError] = useState("");
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function checkAPI() {
     setAPIState("checking");
@@ -168,83 +166,47 @@ function App() {
     setResult(null);
   }
 
+  async function importDefinition(file: File | undefined) {
+    if (!file) return;
+    setDefinition(await file.text());
+    setResult(null);
+    setEditorError("");
+    setRequestError("");
+  }
+
+  function downloadDefinition() {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([definition], { type: "application/json" }));
+    link.download = "drill.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
   const lineCount = definition.split("\n").length;
   const byteCount = new TextEncoder().encode(definition).length;
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <a className="brand" href="#workspace" aria-label="Checkride Studio home">
-          <span className="brand-icon"><ShieldCheck size={22} strokeWidth={2.1} /></span>
-          <span className="brand-copy">
-            <strong>CHECKRIDE</strong>
-            <small>RECOVERY STUDIO</small>
-          </span>
-        </a>
-
-        <div className="sidebar-nav-label">WORKSPACE</div>
-        <nav className="primary-nav" aria-label="Primary navigation">
-          <a className="nav-item" href="#overview" aria-disabled="true" onClick={(event) => event.preventDefault()}>
-            <Activity size={17} />
-            <span>Overview</span>
-          </a>
-          <a className="nav-item active" href="#workspace" aria-current="page">
-            <FileCheck2 size={17} />
-            <span>Validate drill</span>
-            <span className="nav-current-mark" />
-          </a>
-          <a className="nav-item disabled" href="#history" aria-disabled="true" onClick={(event) => event.preventDefault()}>
-            <History size={17} />
-            <span>Run history</span>
-            <span className="nav-soon">SOON</span>
-          </a>
-        </nav>
-
-        <div className="sidebar-bottom">
-          <div className="sidebar-lab-heading">LOCAL CONTROL PLANE</div>
-          <div className="sidebar-api-status">
-            <span className={`connection-dot ${apiState}`} />
-            <span>{apiState === "checking" ? "Checking API" : apiState === "online" ? "API reachable" : "API unavailable"}</span>
-            <span className="mono-port">:8080</span>
-          </div>
-          <div className="sidebar-build">CHECKRIDE · PRE-ALPHA</div>
-        </div>
-      </aside>
-
       <main className="main-area" id="workspace">
         <header className="topbar">
-          <div className="breadcrumbs">
-            <span>Studio</span>
-            <ChevronRight size={14} />
-            <strong>Drill validation</strong>
+          <div className="masthead">
+            <span className="brand-symbol" aria-hidden="true">C<span>/</span></span>
+            <span className="masthead-title">CHECKRIDE <span> / STUDIO</span></span>
           </div>
           <div className="topbar-actions">
-            <div className={`api-badge ${apiState}`} aria-live="polite">
+            <button className={`api-badge ${apiState}`} type="button" onClick={() => void checkAPI()} title="Check API connection" aria-live="polite">
               <span className={`connection-dot ${apiState}`} />
-              <span>{apiState === "checking" ? "CONNECTING" : apiState === "online" ? "API ONLINE" : "API OFFLINE"}</span>
-            </div>
-            <span className="topbar-divider" />
-            <a className="help-link" href="https://github.com/jagarkarlo/checkride/blob/main/README.md" target="_blank" rel="noreferrer">
-              <CircleHelp size={16} />
-              <span>Help</span>
-            </a>
+              <span>{apiState === "checking" ? "Checking local API" : apiState === "online" ? "Local API connected" : "Local API offline · retry"}</span>
+            </button>
           </div>
         </header>
 
         <div className="workspace-content">
           <section className="page-heading">
             <div>
-              <div className="eyebrow-row">
-                <span className="eyebrow">DRILL BUILDER</span>
-                <span className="eyebrow-separator" />
-                <span className="schema-version">CHECKRIDE/V1ALPHA1</span>
-              </div>
-              <h1>Validate a recovery drill</h1>
-              <p>Check the specification and recovery evidence before running a drill.</p>
-            </div>
-            <div className="preflight-count" aria-label="One preflight check available">
-              <span className="preflight-number">01</span>
-              <span>PRE-FLIGHT<br />CHECK</span>
+              <span className="eyebrow">SPECIFICATION / 01</span>
+              <h1>Drill validation</h1>
+              <p>Review the recovery plan before a drill. Nothing is submitted to a cluster.</p>
             </div>
           </section>
 
@@ -252,13 +214,16 @@ function App() {
             <form className="editor-panel" onSubmit={validateDrill}>
               <div className="panel-heading editor-heading">
                 <div className="panel-title-group">
-                  <span className="panel-icon editor-panel-icon"><Code2 size={17} /></span>
+                  <span className="panel-icon editor-panel-icon"><FileCheck2 size={17} /></span>
                   <div>
                     <h2>Drill definition</h2>
-                    <p>JSON document</p>
+                    <p>checkride/v1alpha1 · JSON</p>
                   </div>
                 </div>
                 <div className="editor-tools">
+                  <input ref={fileInputRef} type="file" accept=".json,application/json" hidden onChange={(event) => { void importDefinition(event.target.files?.[0]); event.target.value = ""; }} />
+                  <button className="icon-tool" type="button" onClick={() => fileInputRef.current?.click()} title="Import JSON file" aria-label="Import JSON file"><Upload size={15} /></button>
+                  <button className="icon-tool" type="button" onClick={downloadDefinition} title="Download JSON file" aria-label="Download JSON file"><Download size={15} /></button>
                   <button className="text-tool" type="button" onClick={formatDefinition} title="Format JSON">
                     <Code2 size={15} />
                     <span>Format</span>
@@ -306,7 +271,6 @@ function App() {
                 <button className="validate-button" type="submit" disabled={isValidating}>
                   {isValidating ? <LoaderCircle className="spin" size={16} /> : <Play size={15} fill="currentColor" />}
                   <span>{isValidating ? "Checking" : "Validate drill"}</span>
-                  {!isValidating && <span className="button-shortcut">↵</span>}
                 </button>
               </div>
             </form>
@@ -314,7 +278,7 @@ function App() {
             <section className="result-panel" aria-labelledby="result-title" aria-live="polite">
               <div className="panel-heading result-heading">
                 <div className="panel-title-group">
-                  <span className="panel-icon result-panel-icon"><Activity size={17} /></span>
+                  <span className="panel-icon result-panel-icon"><CheckCircle2 size={17} /></span>
                   <div>
                     <h2 id="result-title">Preflight result</h2>
                     <p>Specification checks</p>
@@ -375,15 +339,9 @@ function App() {
                 </div>
               ) : (
                 <div className="result-empty">
-                  <span className="empty-icon"><ShieldCheck size={21} /></span>
-                  <h3>Awaiting preflight</h3>
-                  <p>Validation checks the document contract and reports missing recovery evidence.</p>
-                  <div className="empty-rule" />
-                  <div className="result-capabilities">
-                    <span><Check size={13} />Schema and field validation</span>
-                    <span><Check size={13} />Verification-level requirements</span>
-                    <span><Check size={13} />Recovery objective warnings</span>
-                  </div>
+                  <span className="empty-icon"><Code2 size={20} /></span>
+                  <h3>No result yet</h3>
+                  <p>Import a drill or edit the example, then run validation to see errors and warnings here.</p>
                 </div>
               )}
 
@@ -394,15 +352,7 @@ function App() {
             </section>
           </div>
 
-          <footer className="workspace-footer">
-            <div className="footer-scope">
-              <span className="footer-scope-label">THIS PASS COVERS</span>
-              <span><Check size={13} />Spec contract</span>
-              <span><Check size={13} />Evidence requirements</span>
-              <span><Check size={13} />RTO / RPO format</span>
-            </div>
-            <span className="footer-note">No cluster credentials used</span>
-          </footer>
+          <footer className="workspace-footer">LOCAL WORKSPACE <span>SPECIFICATION CHECK ONLY · NO CLUSTER ACTION</span></footer>
         </div>
       </main>
     </div>
