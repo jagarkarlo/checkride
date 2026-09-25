@@ -68,6 +68,9 @@ jobs:
         working-directory: studio
     steps:
       - uses: actions/checkout@v7
+      - name: Verify public package sources
+        run: |
+          node -e 'const lock = require("./package-lock.json"); const invalid = Object.values(lock.packages).filter(pkg => pkg.resolved && new URL(pkg.resolved).origin !== "https://registry.npmjs.org"); if (invalid.length) { console.error(`${invalid.length} packages use a non-public registry`); process.exit(1); }'
       - uses: actions/setup-node@v6
         with:
           node-version: 22
