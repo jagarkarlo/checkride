@@ -115,6 +115,16 @@ It returns `200` with `valid`, `errors` and `warnings` for valid documents,
 `413` for bodies over 1 MiB, and `415` for other media types. The API currently
 validates the core drill contract; it does not create or execute a drill.
 
+To use the Studio locally, start the API and Studio in separate terminals:
+
+```bash
+go run ./cmd/checkride-api
+cd studio && npm ci && npm run dev
+```
+
+Open `http://127.0.0.1:5173`. The development server proxies `/api` and
+`/healthz` requests to the Go API on port 8080.
+
 ## Related projects
 
 Checkride builds on these tools and is evaluated against them:
