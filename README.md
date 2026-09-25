@@ -123,7 +123,10 @@ cd studio && npm ci && npm run dev
 ```
 
 Open `http://127.0.0.1:5173`. The development server proxies `/api` and
-`/healthz` requests to the Go API on port 8080.
+`/healthz` requests to the Go API on port 8080. Start from a scenario template
+or import a JSON drill; the drill plan and V0-V4 depth update as you edit,
+syntax errors show their line, and selecting a validation problem jumps to its
+field. `Ctrl+Enter` validates. Run the Studio unit tests with `npm test`.
 
 The project reference site uses the free [Astro Starlight](https://astro.build/themes/details/starlight/)
 theme. It documents the current capabilities, local walkthrough, verification
