@@ -10,8 +10,9 @@ stay fixed.
 
 ## Decision
 
-- Python 3.12+ for the CLI, orchestrator, verifier, analyzer and API, using
-  Pydantic for specs.
+- Python 3.12+ for the CLI, drill-spec validation and the initial write ledger,
+  using Pydantic for specs. The HTTP control plane is implemented in Go; see
+  [ADR 0004](0004-go-control-plane.md).
 - TypeScript and React for the Studio web UI.
 - PostgreSQL to store drill results; the ledger itself is a local SQLite file
   kept outside the clusters under test.

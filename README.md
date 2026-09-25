@@ -68,6 +68,7 @@ flowchart LR
 |---|---|---|
 | Drill spec | Declarative YAML description of a drill | Started |
 | Ledger | Records acknowledged writes outside the cluster and computes exact RPO | Started |
+| API | Go HTTP control plane; initial health and readiness endpoints | Started |
 | Lab | Disposable k3d source and restore clusters | Started |
 | Orchestrator | Runs drills, times every phase, cleans up | Planned |
 | Verifier | Runs V0-V4 checks against the restored application | Planned |
@@ -88,6 +89,18 @@ checkride levels
 checkride validate examples/drills/*.yaml
 pytest
 ```
+
+The Go API is in early development. From the repository root:
+
+```bash
+go test -race ./...
+go run ./cmd/checkride-api
+```
+
+It listens on `:8080` by default. Set `CHECKRIDE_ADDR` to change the address;
+`GET /healthz` and `GET /readyz` return `204 No Content` while the process is
+healthy. Readiness will become dependency-aware as the API gains external
+services.
 
 ## Related projects
 
