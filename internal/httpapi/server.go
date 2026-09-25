@@ -12,6 +12,7 @@ func NewHandler() http.Handler {
 	}
 	mux.HandleFunc("GET /healthz", probe)
 	mux.HandleFunc("GET /readyz", probe)
+	mux.HandleFunc("POST /api/v1/drills/validate", validateDrillHandler)
 	return mux
 }
 

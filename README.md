@@ -102,6 +102,19 @@ It listens on `:8080` by default. Set `CHECKRIDE_ADDR` to change the address;
 healthy. Readiness will become dependency-aware as the API gains external
 services.
 
+The first Studio-facing endpoint validates a JSON drill document:
+
+```bash
+curl -sS http://localhost:8080/api/v1/drills/validate \
+  -H 'Content-Type: application/json' \
+  --data-binary @drill.json
+```
+
+It returns `200` with `valid`, `errors` and `warnings` for valid documents,
+`422` for well-formed but invalid drills, `400` for malformed or unknown JSON,
+`413` for bodies over 1 MiB, and `415` for other media types. The API currently
+validates the core drill contract; it does not create or execute a drill.
+
 ## Related projects
 
 Checkride builds on these tools and is evaluated against them:
