@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:checkride:schema:drillrun:v1alpha1",
+  "title": "Checkride DrillRun",
+  "description": "Recorded evidence for one restore drill. This document describes observations; it does not prove that the reported runner is truthful.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec", "status"],
+  "properties": {
+    "apiVersion": {"const": "checkride/v1alpha1"},
+    "kind": {"const": "DrillRun"},
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+        "drill": {"type": "string", "maxLength": 63, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"}
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {"type": "string", "minLength": 1},
+        "upTo": {"oneOf": [{"type": "integer", "minimum": 0, "maximum": 4}, {"type": "string", "enum": ["V0", "V1", "V2", "V3", "V4", "v0", "v1", "v2", "v3", "v4", "0", "1", "2", "3", "4"]}]},
+        "v4Evidence": {"type": "object", "additionalProperties": false, "properties": {"invariants": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}}},
+        "objectives": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rto": {"$ref": "#/$defs/duration"},
+            "rpo": {"$ref": "#/$defs/duration"}
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["failureAt", "completedAt"],
+      "properties": {
+        "failureAt": {"type": "string", "format": "date-time"},
+        "completedAt": {"type": "string", "format": "date-time", "description": "When the recovery attempt reached its terminal state; used for RTO even if no phase completed."},
+        "phases": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "startedAt", "endedAt"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "startedAt": {"type": "string", "format": "date-time"},
+              "endedAt": {"type": "string", "format": "date-time"}
+            }
+          }
+        },
+        "checks": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["level", "name", "passed"],
+            "properties": {
+              "level": {"$ref": "#/$defs/level"},
+              "name": {"type": "string", "minLength": 1},
+              "passed": {"type": "boolean"},
+              "detail": {"type": "string"}
+            }
+          }
+        },
+        "ledger": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["acks", "present"],
+          "properties": {
+            "acks": {
+              "type": "array",
+              "maxItems": 200000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["writeId", "ackedAt"],
+                "properties": {
+                  "writeId": {"type": "string", "minLength": 1},
+                  "ackedAt": {"type": "string", "format": "date-time"}
+                }
+              }
+            },
+            "present": {"type": "array", "maxItems": 200000, "items": {"type": "string"}}
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "level": {"oneOf": [{"type": "integer", "minimum": 0, "maximum": 4}, {"type": "string", "enum": ["V0", "V1", "V2", "V3", "V4", "v0", "v1", "v2", "v3", "v4", "0", "1", "2", "3", "4"]}]},
+    "duration": {"oneOf": [{"type": "integer", "minimum": 0}, {"type": "string", "pattern": "^(?:(?:[0-9]+h)?(?:[0-9]+m)?(?:[0-9]+s)?)$", "minLength": 1}]}
+  }
+}
