@@ -25,6 +25,8 @@ jobs:
         run: go test -race ./...
       - name: Build
         run: go build ./...
+      - name: Report API smoke test
+        run: scripts/ci/report-api-smoke.sh
 
   test:
     name: Test (Python ${{ matrix.python-version }})
@@ -98,3 +100,6 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - run: npm ci
       - run: npm run build
+      - name: Verify rendered product routes and assets
+        working-directory: .
+        run: scripts/ci/site-smoke.sh site
