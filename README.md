@@ -66,14 +66,16 @@ flowchart LR
 
 | Component | Purpose | State |
 |---|---|---|
-| Drill spec | Declarative YAML description of a drill | Started |
-| Ledger | Records acknowledged writes outside the cluster and computes exact RPO | Started |
-| API | Go HTTP control plane; initial health and readiness endpoints | Started |
+| Drill spec | Declarative YAML description of a drill | Validation in Python, Go API and Studio |
+| Ledger | Records acknowledged writes outside the cluster and computes exact RPO | Python ledger; Go report evaluation |
+| DrillRun | Bounded JSON evidence document with a published JSON Schema | Available; provenance not authenticated |
+| Verifier | Evaluates recorded V0-V4 checks, RTO phases and RPO ledger | Available for submitted evidence; no restore execution |
+| API | Go HTTP control plane, validation, schema and report endpoints | Available locally |
+| Report CLI | Evaluates DrillRun files and returns gate-friendly exit codes | Available as `go run ./cmd/checkride-report` |
 | Lab | Disposable k3d source and restore clusters | Started |
 | Orchestrator | Runs drills, times every phase, cleans up | Planned |
-| Verifier | Runs V0-V4 checks against the restored application | Planned |
 | Analyzer | Predicts restore failures before a drill from manifests and configuration | Planned |
-| Studio | Web UI: drill timeline, dependency graph, point-in-time data diff, readiness board, evidence export | Planned |
+| Studio | Drill specification workbench and evidence report UI with JSON/Markdown export | Available locally |
 | Copilot | LLM that diagnoses failed drills and proposes fixes that must pass a re-run | Planned |
 | Gate | CI check that fails when the last verified restore is too old or failed | Planned |
 
@@ -115,6 +117,21 @@ It returns `200` with `valid`, `errors` and `warnings` for valid documents,
 `413` for bodies over 1 MiB, and `415` for other media types. The API currently
 validates the core drill contract; it does not create or execute a drill.
 
+Recorded evidence can be evaluated through `POST /api/v1/runs/report` or the
+standalone Go command:
+
+```bash
+go run ./cmd/checkride-report examples/runs/mlflow-namespace-loss.run.json
+```
+
+The API accepts up to 16 MiB and evaluates at most four reports concurrently.
+`GET /api/v1/schemas/drillrun` returns the versioned JSON Schema. The command
+prints a JSON report and exits `0` for verified, `1` for failed, and `2` for
+incomplete or invalid evidence. Example runs are synthetic. The evaluator
+checks submitted claims; it does not execute restores or authenticate who
+recorded the evidence. `V4` requires a write ledger or a declared invariant
+with a matching check; ledger loss must also meet any declared RPO objective.
+
 To use the Studio locally, start the API and Studio in separate terminals:
 
 ```bash
@@ -123,14 +140,16 @@ cd studio && npm ci && npm run dev
 ```
 
 Open `http://127.0.0.1:5173`. The development server proxies `/api` and
-`/healthz` requests to the Go API on port 8080. Start from a scenario template
-or import a JSON drill; the drill plan and V0-V4 depth update as you edit,
-syntax errors show their line, and selecting a validation problem jumps to its
-field. `Ctrl+Enter` validates. Run the Studio unit tests with `npm test`.
+`/healthz` requests to the Go API on port 8080. The **Design drill** view
+starts from a scenario template or imported JSON; the plan and V0-V4 depth
+update as you edit. Syntax errors show their line, and selecting a validation
+problem jumps to its field. `Ctrl+Enter` validates. The **Evidence report**
+view imports a DrillRun, plots recovery phases and ledger outcomes, and exports
+JSON or Markdown. Run Studio tests with `npm test`.
 
-The project reference site uses the free [Astro Starlight](https://astro.build/themes/details/starlight/)
-theme. It documents the current capabilities, local walkthrough, verification
-levels, and how the intended approach compares with backup tools. Run it locally:
+The Astro site now has separate overview, product, evidence and roadmap pages,
+with Astro view transitions and a persistent Starlight documentation section.
+Run it locally:
 
 ```bash
 cd site && npm ci && npm run dev
