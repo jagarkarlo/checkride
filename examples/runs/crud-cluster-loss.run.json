@@ -1,0 +1,90 @@
+{
+  "apiVersion": "checkride/v1alpha1",
+  "kind": "DrillRun",
+  "metadata": {
+    "name": "crud-cluster-loss-20261002",
+    "drill": "crud-cluster-loss"
+  },
+  "spec": {
+    "scenario": "cluster-loss",
+    "upTo": "V3",
+    "objectives": {
+      "rto": "30m",
+      "rpo": "5m"
+    }
+  },
+  "status": {
+    "failureAt": "2026-10-02T14:30:00.000Z",
+    "phases": [
+      {
+        "name": "detect-and-declare",
+        "startedAt": "2026-10-02T14:30:00.000Z",
+        "endedAt": "2026-10-02T14:31:35.000Z"
+      },
+      {
+        "name": "provision-restore-cluster",
+        "startedAt": "2026-10-02T14:31:35.000Z",
+        "endedAt": "2026-10-02T14:40:10.000Z"
+      },
+      {
+        "name": "sync-gitops-state",
+        "startedAt": "2026-10-02T14:40:10.000Z",
+        "endedAt": "2026-10-02T14:47:02.000Z"
+      },
+      {
+        "name": "restore-database-pitr",
+        "startedAt": "2026-10-02T14:49:48.000Z",
+        "endedAt": "2026-10-02T15:06:44.000Z"
+      },
+      {
+        "name": "verify",
+        "startedAt": "2026-10-02T15:06:44.000Z",
+        "endedAt": "2026-10-02T15:09:31.000Z"
+      }
+    ],
+    "checks": [
+      {
+        "level": "V0",
+        "name": "base backup completed",
+        "passed": true,
+        "detail": "velero: Completed"
+      },
+      {
+        "level": "V1",
+        "name": "CNPG cluster restored",
+        "passed": true,
+        "detail": "crud-db: healthy"
+      },
+      {
+        "level": "V1",
+        "name": "Argo CD application synced",
+        "passed": true,
+        "detail": "crud: Synced"
+      },
+      {
+        "level": "V2",
+        "name": "pods ready",
+        "passed": true,
+        "detail": "4/4 pods ready"
+      },
+      {
+        "level": "V2",
+        "name": "HTTP /healthz",
+        "passed": true,
+        "detail": "200"
+      },
+      {
+        "level": "V3",
+        "name": "table row counts",
+        "passed": false,
+        "detail": "orders: 0 rows, source had 18,402"
+      },
+      {
+        "level": "V3",
+        "name": "schema checksum",
+        "passed": true,
+        "detail": "migrations at 0042"
+      }
+    ]
+  }
+}
