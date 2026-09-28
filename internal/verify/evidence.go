@@ -84,16 +84,22 @@ type ValidationError struct{ Problems []string }
 
 func (e *ValidationError) Error() string { return strings.Join(e.Problems, "; ") }
 
+// DecodeError means the document is not well-formed DrillRun JSON: a syntax
+// error, a wrong field type or an unknown field.
+type DecodeError struct{ Err error }
+
+func (e *DecodeError) Error() string { return "invalid JSON: " + e.Err.Error() }
+
 // ParseEvidence strictly decodes and validates a DrillRun document.
 func ParseEvidence(data []byte) (*Evidence, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	var evidence Evidence
 	if err := decoder.Decode(&evidence); err != nil {
-		return nil, &ValidationError{Problems: []string{fmt.Sprintf("invalid JSON: %v", err)}}
+		return nil, &DecodeError{Err: err}
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return nil, &ValidationError{Problems: []string{"document must contain exactly one JSON value"}}
+		return nil, &DecodeError{Err: errors.New("document must contain exactly one JSON value")}
 	}
 	if problems := evidence.validate(); len(problems) > 0 {
 		return nil, &ValidationError{Problems: problems}
