@@ -11,12 +11,24 @@ import (
 
 // Ledgers of a few hundred thousand writes fit; larger drills should sample.
 const maxRunRequestBytes = 16 << 20
+const maxConcurrentReports = 4
+
+var reportSlots = make(chan struct{}, maxConcurrentReports)
 
 type reportProblem struct {
 	Errors []string `json:"errors"`
 }
 
 func runReportHandler(writer http.ResponseWriter, request *http.Request) {
+	select {
+	case reportSlots <- struct{}{}:
+		defer func() { <-reportSlots }()
+	default:
+		writer.Header().Set("Retry-After", "1")
+		writeJSON(writer, http.StatusServiceUnavailable, reportProblem{Errors: []string{"report capacity reached; retry shortly"}})
+		return
+	}
+
 	mediaType, _, err := mime.ParseMediaType(request.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		writeJSON(writer, http.StatusUnsupportedMediaType, reportProblem{Errors: []string{"Content-Type must be application/json"}})
