@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file=$(mktemp)
+verified_report=$(mktemp)
+failed_report=$(mktemp)
+api_pid=""
+cleanup() {
+  if [[ -n "$api_pid" ]]; then
+    kill "$api_pid" 2>/dev/null || true
+    wait "$api_pid" 2>/dev/null || true
+  fi
+  rm -f "$log_file" "$verified_report" "$failed_report"
+}
+trap cleanup EXIT
+
+go run ./cmd/checkride-api >"$log_file" 2>&1 &
+api_pid=$!
+curl --fail --silent --show-error --retry 20 --retry-delay 1 --retry-connrefused \
+  http://127.0.0.1:8080/healthz >/dev/null
+
+curl --fail --silent --show-error \
+  -H 'Content-Type: application/json' \
+  --data-binary @examples/runs/mlflow-namespace-loss.run.json \
+  http://127.0.0.1:8080/api/v1/runs/report >"$verified_report"
+jq -e '
+  .verdict == "verified" and
+  .requestedLevel == "V4" and
+  .deepestPassed == "V4" and
+  .rto.seconds == 703 and
+  .rpo.seconds == 38 and
+  .rpo.lost == 75
+' "$verified_report" >/dev/null
+
+curl --fail --silent --show-error \
+  -H 'Content-Type: application/json' \
+  --data-binary @examples/runs/crud-cluster-loss.run.json \
+  http://127.0.0.1:8080/api/v1/runs/report >"$failed_report"
+jq -e '
+  .verdict == "failed" and
+  .firstFailed == "V3" and
+  .rto.met == false and
+  (.findings | map(.message) | any(contains("table row counts")))
+' "$failed_report" >/dev/null
+
+schema_headers=$(mktemp)
+curl --fail --silent --show-error -D "$schema_headers" \
+  http://127.0.0.1:8080/api/v1/schemas/drillrun >/tmp/checkride-drillrun-schema.json
+trap 'rm -f "$schema_headers" /tmp/checkride-drillrun-schema.json; cleanup' EXIT
+grep -qi '^Content-Type: application/schema+json' "$schema_headers"
+jq -e '.title == "Checkride DrillRun" and .properties.status.required | index("completedAt")' \
+  /tmp/checkride-drillrun-schema.json >/dev/null
+
+set +e
+go run ./cmd/checkride-report examples/runs/crud-cluster-loss.run.json >/dev/null
+failed_exit=$?
+go run ./cmd/checkride-report examples/runs/mlflow-namespace-loss.run.json >/dev/null
+verified_exit=$?
+set -e
+test "$failed_exit" -eq 1
+test "$verified_exit" -eq 0
+
+printf '%s\n' 'Checkride report API smoke checks passed.'
