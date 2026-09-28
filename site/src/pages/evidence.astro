@@ -1,0 +1,18 @@
+---
+import ProductLayout from "../layouts/ProductLayout.astro";
+const description = "How Checkride grades restore evidence from V0 backup status through V4 application data correctness, RTO, exact acknowledged-write RPO and evidence limits.";
+const levels = [
+  ["V0", "Backup reported success", "Backup tool status, backup identity and archived WAL."],
+  ["V1", "Restore reported success", "Restore job completion and recovery point selected."],
+  ["V2", "Workload is healthy", "Ready pods, HTTP and TCP health checks."],
+  ["V3", "Data is structurally intact", "Tables, row counts and checksums."],
+  ["V4", "Application data is correct", "Business invariants, acknowledged-write ledger and cross-store consistency."],
+];
+---
+<ProductLayout title="Evidence" description={description} current="evidence">
+  <section class="subhero evidence-hero"><div class="page-wrap"><p class="kicker"><span class="pulse-dot"></span> 03 / VERIFICATION MODEL</p><h1>How deep did the<br /><span>recovery actually go?</span></h1><p>Five ordered levels make restore claims comparable. Checkride reports the deepest contiguous level passed and the first check that failed; passing V0 does not imply V1 through V4.</p><a class="action-primary" href="/levels/">Read the verification reference <span>↗</span></a></div></section>
+  <section class="evidence-band"><div class="page-wrap"><div class="evidence-scale">{levels.map(([id, title, evidence], i) => <article class:list={["evidence-level", { final: i === 4 }]}><div class="evidence-level-head"><strong>{id}</strong><span>{i < 4 ? `0${i + 1} / 05` : "DEEPEST"}</span></div><h2>{title}</h2><p>{evidence}</p><div class="evidence-gain"><span>WHAT THIS ADDS</span><i style={`--gain:${[22, 39, 57, 78, 100][i]}%`}></i></div></article>)}</div></div></section>
+  <section class="workbench-band"><div class="page-wrap"><div class="section-heading"><div><p class="section-index">THE REPORT / STUDIO 02</p><h2>One verdict. Every reason behind it.</h2></div><a class="under-link" href="/start/">Build a report locally <span>↗</span></a></div><figure class="studio-shot"><img src="/images/studio-report.png" alt="Checkride Studio evidence report for a synthetic MLflow namespace-loss drill: verified to V4, 11 minutes 43 seconds recovery time, 38 second data loss window, recovery phase timeline" width="1440" height="900" loading="lazy" /><figcaption><span>SYNTHETIC SAMPLE EVIDENCE</span><span>Evaluated by the local Go API. Not a recorded production restore.</span></figcaption></figure></div></section>
+  <section class="metrics-band"><div class="page-wrap metrics-grid"><article><p class="section-index">RTO / RECOVERY TIME</p><h2>Failure to finished.</h2><p>Measured from failure injection to recorded recovery completion. Each phase can be plotted against that same clock; gaps stay visible instead of disappearing between steps.</p></article><article><p class="section-index">RPO / DATA LOSS</p><h2>A measured window, not a guess.</h2><p>The ledger compares every acknowledged write before the failure with IDs found after recovery. The loss window runs from the last recovered write to the failure time; the gap to the first lost write describes measurement resolution.</p></article></div></section>
+  <section class="caveat-band"><div class="page-wrap caveat-grid"><span class="caveat-mark">!</span><div><p class="section-index">EVIDENCE BOUNDARY</p><h2>A report evaluates supplied claims. It cannot authenticate them.</h2><p>DrillRun currently accepts recorded check outcomes and write IDs. Until a trusted orchestrator obtains those observations directly, report integrity depends on whoever captured the evidence. Reports are not compliance certifications.</p></div></div></section>
+</ProductLayout>
