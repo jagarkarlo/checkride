@@ -3,9 +3,9 @@ title: Project overview
 description: Local recovery-drill validation and an open-source path toward verified Kubernetes restores.
 ---
 
-> **Pre-alpha:** The validator checks a drill specification. Checkride does not yet execute a restore or certify recovery.
+> **Pre-alpha:** Checkride can validate drill specifications and evaluate recorded DrillRun evidence. It does not execute restores, establish evidence provenance or certify recovery.
 
-Checkride is an open-source project for testing recovery of Kubernetes applications, including their data. Start with the local validator, then use the [verification levels](/levels/) to understand which evidence a restore would need to establish.
+Checkride is an open-source project for testing recovery of Kubernetes applications, including their data. Explore the [product overview](/), [system design](/product/) and [evidence model](/evidence/) before using the [local walkthrough](/start/).
 
 ## Start a local session
 
@@ -34,3 +34,5 @@ Open `http://127.0.0.1:5173`. Import or edit a JSON drill, run validation, inspe
 | Compare the proposed approach with backup and sandbox-restore tools | [Comparison](/comparison/) |
 
 The acknowledged-write ledger can compute exact RPO from test data today. Automatic restore orchestration, isolation and evidence reports are planned. The [source repository](https://github.com/jagarkarlo/checkride) is temporarily private during a security cleanup; this local site remains available for review.
+
+The current Go evaluator also builds RTO/RPO reports from captured DrillRun JSON, exposed by the local API and `checkride-report` command. The [roadmap](/roadmap/) separates those implemented report calculations from the still-planned restore orchestrator.
