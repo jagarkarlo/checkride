@@ -16,7 +16,7 @@ node_modules/
 # Local lab and drill output
 *.kubeconfig
 .lab/
-runs/
+/runs/
 *.ledger.db
 
 # Local configuration and secrets
