@@ -1,0 +1,15 @@
+---
+import ProductLayout from "../layouts/ProductLayout.astro";
+const description = "Checkride development roadmap: drill editing and validation, evidence reporting, then isolated restore orchestration, V0-V4 check adapters and CI recovery gates.";
+const phases = [
+  { id: "01", tag: "CURRENT", title: "Define the drill", status: "DELIVERED", items: ["Versioned YAML drill contract", "Scenario templates and interactive Studio", "Strict Go API validation"] },
+  { id: "02", tag: "CURRENT", title: "Evaluate recorded evidence", status: "DELIVERED · EARLY", items: ["V0–V4 verdicts and first-failed level", "RTO phases with uncovered time", "Acknowledged-write RPO ledger", "Studio evidence review and export"] },
+  { id: "03", tag: "NEXT", title: "Execute one isolated drill", status: "IN DESIGN", items: ["Provision separate k3d restore cluster", "Run one PostgreSQL namespace-loss path", "Record phase timestamps and terminal outcome", "Clean up safely, including interrupted runs"] },
+  { id: "04", tag: "LATER", title: "Automate checks and gates", status: "PLANNED", items: ["Adapters for V0–V4 evidence", "Application-specific invariant checks", "Staleness and objective-based CI gate", "More scenarios, failure injection and operator guidance"] },
+];
+---
+<ProductLayout title="Roadmap" description={description} current="roadmap">
+  <section class="subhero roadmap-hero"><div class="page-wrap"><p class="kicker"><span class="pulse-dot"></span> 04 / BUILD SEQUENCE</p><h1>Make one drill<br /><span>trustworthy end to end.</span></h1><p>The next hard problem is not another dashboard. It is safely executing one isolated PostgreSQL recovery, collecting evidence from the system itself and cleaning up correctly when something goes wrong.</p></div></section>
+  <section class="roadmap-band"><div class="page-wrap roadmap-list">{phases.map((phase) => <article class:list={["roadmap-row", { delivered: phase.status.includes("DELIVERED"), next: phase.tag === "NEXT" }]}><div class="roadmap-tag"><strong>{phase.id}</strong><span>{phase.tag}</span></div><div class="roadmap-content"><div class="roadmap-heading"><h2>{phase.title}</h2><span>{phase.status}</span></div><ul>{phase.items.map((item) => <li>{item}</li>)}</ul></div><span class="roadmap-node" aria-hidden="true"></span></article>)}</div></section>
+  <section class="scope-band"><div class="page-wrap scope-grid"><div><p class="section-index">SCOPE / PRE-ALPHA</p><h2>Small enough to verify.<br /><span>Large enough to matter.</span></h2></div><div><p>Restore orchestration touches clusters, storage and application data. The first implementation should be deliberately narrow: one supported stack, one separate restore cluster, one scenario, a bounded duration and explicit cleanup behavior.</p><p>No production restore, production credentials, public release or PyPI publish is part of this roadmap step.</p></div></div></section>
+</ProductLayout>
