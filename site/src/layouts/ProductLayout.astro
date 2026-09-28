@@ -1,0 +1,79 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import '../styles/product.css';
+
+interface Props {
+  title: string;
+  description: string;
+  current: string;
+}
+
+const { title, description, current } = Astro.props;
+const navigation = [
+  { href: "/", label: "Overview", id: "overview" },
+  { href: "/product/", label: "Product", id: "product" },
+  { href: "/evidence/", label: "Evidence", id: "evidence" },
+  { href: "/roadmap/", label: "Roadmap", id: "roadmap" },
+  { href: "/docs/", label: "Docs", id: "docs" },
+];
+---
+<!doctype html>
+<html lang="en" transition:animate="none">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#080a0d" />
+    <meta name="description" content={description} />
+    <title>{title} | Checkride</title>
+    <ClientRouter fallback="animate" />
+    <style is:global>
+      .hero-band::before {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(90deg, #0b0e11 0%, rgb(11 14 17 / 94%) 32%, rgb(11 14 17 / 58%) 70%, rgb(11 14 17 / 74%) 100%),
+          linear-gradient(0deg, #0b0e11 0%, transparent 38%),
+          url('/images/studio-report.png');
+        background-repeat: no-repeat;
+        background-position: center, center, right 12% center;
+        background-size: 100% 100%, 100% 100%, min(82vw, 1060px) auto;
+        content: '';
+        pointer-events: none;
+      }
+      .hero-wrap { z-index: 1; }
+      @media (max-width: 650px) {
+        .hero-band::before {
+          background-image:
+            linear-gradient(0deg, #0b0e11 0%, rgb(11 14 17 / 90%) 45%, rgb(11 14 17 / 60%) 100%),
+            url('/images/studio-report.png');
+          background-position: center, 62% 7%;
+          background-size: 100% 100%, auto 310px;
+        }
+      }
+    </style>
+  </head>
+  <body class="product-shell">
+    <header class="masthead">
+      <a class="product-wordmark" href="/" aria-label="Checkride home">
+        <span class="product-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>CHECKRIDE</span>
+      </a>
+      <nav aria-label="Main navigation">
+        {navigation.map((item) => (
+          <a class:list={["nav-link", { selected: current === item.id }]} href={item.href} aria-current={current === item.id ? "page" : undefined}>
+            {item.label}
+          </a>
+        ))}
+      </nav>
+      <a class="masthead-action" href="/start/">Run locally <span aria-hidden="true">↗</span></a>
+    </header>
+    <main id="main-content" transition:animate="fade">
+      <slot />
+    </main>
+    <footer class="product-footer">
+      <a class="footer-wordmark" href="/">CHECKRIDE <span>RECOVERY VERIFICATION</span></a>
+      <p>Pre-alpha · Apache-2.0 · No production restores executed</p>
+      <div><a href="/docs/">Documentation</a><a href="/comparison/">Comparisons</a><a href="https://github.com/jagarkarlo/checkride">Source</a></div>
+    </footer>
+  </body>
+</html>
