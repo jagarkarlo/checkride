@@ -1,0 +1,100 @@
+import { describe, expect, it } from "vitest";
+import { formatDuration, isReport, objectiveUsage, reportMarkdown, timelineBars } from "./report";
+import type { Report } from "./report";
+
+const report: Report = {
+  name: "shop-run",
+  drill: "shop-namespace-loss",
+  scenario: "namespace-loss",
+  verdict: "failed",
+  headline: "Failed at V3: row counts",
+  requestedLevel: "V4",
+  deepestPassed: "V2",
+  firstFailed: "V3",
+  failureAt: "2026-10-01T10:00:00Z",
+  levels: [
+    { id: "V2", question: "Is the workload healthy?", evidence: "", status: "passed", inScope: true, checks: [{ name: "pods", passed: true, source: "reported" }] },
+    { id: "V3", question: "Is the data structurally intact?", evidence: "", status: "failed", inScope: true, checks: [{ name: "a|b", passed: false, source: "reported" }] },
+  ],
+  rto: {
+    seconds: 600,
+    objectiveSeconds: 900,
+    met: true,
+    uncoveredSeconds: 0,
+    slowestPhase: "restore",
+    completedAt: "2026-10-01T10:10:00Z",
+    phases: [
+      { name: "provision", startedAt: "", endedAt: "", offsetSeconds: 0, durationSeconds: 200 },
+      { name: "restore", startedAt: "", endedAt: "", offsetSeconds: 200, durationSeconds: 400 },
+    ],
+  },
+  rpo: null,
+  findings: [{ severity: "error", message: "V3 failed: row counts" }],
+};
+
+describe("formatDuration", () => {
+  it("formats seconds, minutes and hours compactly", () => {
+    expect(formatDuration(38)).toBe("38s");
+    expect(formatDuration(703)).toBe("11m 43s");
+    expect(formatDuration(900)).toBe("15m");
+    expect(formatDuration(3720)).toBe("1h 02m");
+    expect(formatDuration(null)).toBe("—");
+  });
+});
+
+describe("objectiveUsage", () => {
+  it("is null without an objective and capped above it", () => {
+    expect(objectiveUsage(10, null)).toBeNull();
+    expect(objectiveUsage(450, 900)).toBe(0.5);
+    expect(objectiveUsage(5000, 900)).toBe(1.5);
+  });
+});
+
+describe("timelineBars", () => {
+  it("scales phases to cover both the recovery and its objective", () => {
+    const { bars, objectiveAt, failureAt } = timelineBars(report.rto!);
+    expect(bars[1].slowest).toBe(true);
+    expect(bars[1].left).toBeCloseTo((200 / (900 * 1.04)) * 100);
+    expect(objectiveAt).toBeCloseTo(100 / 1.04);
+    expect(failureAt).toBe(0);
+  });
+
+  it("keeps phases that begin before failure inside the plotted time window", () => {
+    const { bars, scaleSeconds, objectiveAt, failureAt, failureOffsetSeconds } = timelineBars({
+      ...report.rto!,
+      phases: [{ ...report.rto!.phases[0], offsetSeconds: -120 }],
+    });
+    expect(failureOffsetSeconds).toBe(120);
+    expect(bars[0].left).toBe(0);
+    expect(failureAt).toBeCloseTo((120 / scaleSeconds) * 100);
+    expect(objectiveAt).toBeCloseTo((1020 / scaleSeconds) * 100);
+  });
+});
+
+describe("reportMarkdown", () => {
+  it("summarizes verdict, levels and phases and escapes table pipes", () => {
+    const markdown = reportMarkdown(report);
+    expect(markdown).toContain("**Verdict:** FAILED.");
+    expect(markdown).toContain("| V3 | Is the data structurally intact? | FAIL | ✗ a\\|b |");
+    expect(markdown).toContain("| restore | +3m 20s | 6m 40s |");
+    expect(markdown).toContain("- **error:** V3 failed: row counts");
+  });
+
+  it("preserves the negative offset of work that began before failure injection", () => {
+    const beforeFailure = {
+      ...report,
+      rto: {
+        ...report.rto!,
+        phases: [{ ...report.rto!.phases[0], offsetSeconds: -120 }],
+      },
+    };
+    expect(reportMarkdown(beforeFailure)).toContain("| provision | −2m | 3m 20s |");
+  });
+});
+
+describe("isReport", () => {
+  it("accepts reports and rejects problem responses", () => {
+    expect(isReport(report)).toBe(true);
+    expect(isReport({ errors: ["x"] })).toBe(false);
+  });
+});
