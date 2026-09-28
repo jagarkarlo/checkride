@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -41,6 +42,25 @@ func TestHealthEndpointsRejectUnsupportedMethods(t *testing.T) {
 				t.Fatalf("status = %d, want %d", response.Code, http.StatusMethodNotAllowed)
 			}
 		})
+	}
+}
+
+func TestDrillRunSchemaEndpoint(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/schemas/drillrun", nil)
+	response := httptest.NewRecorder()
+	NewHandler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.Code)
+	}
+	if got := response.Header().Get("Content-Type"); got != "application/schema+json" {
+		t.Fatalf("Content-Type = %q", got)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &document); err != nil {
+		t.Fatalf("schema is not JSON: %v", err)
+	}
+	if document["title"] != "Checkride DrillRun" {
+		t.Fatalf("schema title = %v", document["title"])
 	}
 }
 
