@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	maxPhases = 64
-	maxChecks = 256
-	maxWrites = 200_000
+	maxPhases          = 64
+	maxChecks          = 256
+	maxWrites          = 200_000
+	maxDurationSeconds = int64((1<<63 - 1) / int64(time.Second))
 )
 
 var (
@@ -46,6 +47,11 @@ type RunSpec struct {
 	Scenario   string          `json:"scenario"`
 	UpTo       json.RawMessage `json:"upTo"`
 	Objectives *Objectives     `json:"objectives"`
+	V4Evidence *V4Evidence     `json:"v4Evidence"`
+}
+
+type V4Evidence struct {
+	Invariants []string `json:"invariants"`
 }
 
 type Objectives struct {
@@ -54,10 +60,11 @@ type Objectives struct {
 }
 
 type RunStatus struct {
-	FailureAt time.Time       `json:"failureAt"`
-	Phases    []Phase         `json:"phases"`
-	Checks    []Check         `json:"checks"`
-	Ledger    *LedgerEvidence `json:"ledger"`
+	FailureAt   time.Time       `json:"failureAt"`
+	CompletedAt time.Time       `json:"completedAt"`
+	Phases      []Phase         `json:"phases"`
+	Checks      []Check         `json:"checks"`
+	Ledger      *LedgerEvidence `json:"ledger"`
 }
 
 type Phase struct {
@@ -146,6 +153,11 @@ func (e *Evidence) validate() []string {
 	if status.FailureAt.IsZero() {
 		add("status.failureAt: field required")
 	}
+	if status.CompletedAt.IsZero() {
+		add("status.completedAt: field required")
+	} else if !status.FailureAt.IsZero() && status.CompletedAt.Before(status.FailureAt) {
+		add("status.completedAt: must not be before failureAt")
+	}
 	if len(status.Phases) > maxPhases {
 		add("status.phases: at most %d phases", maxPhases)
 	}
@@ -158,6 +170,8 @@ func (e *Evidence) validate() []string {
 			add("%s: startedAt and endedAt are required", path)
 		} else if phase.EndedAt.Before(phase.StartedAt) {
 			add("%s.endedAt: must not be before startedAt", path)
+		} else if !status.CompletedAt.IsZero() && phase.EndedAt.After(status.CompletedAt) {
+			add("%s.endedAt: must not be after status.completedAt", path)
 		}
 	}
 	if len(status.Checks) > maxChecks {
@@ -176,6 +190,41 @@ func (e *Evidence) validate() []string {
 		}
 		if check.Passed == nil {
 			add("%s.passed: field required", path)
+		}
+	}
+	if e.upTo == V4 {
+		hasLedger := status.Ledger != nil && len(status.Ledger.Acks) > 0
+		hasInvariantEvidence := false
+		if e.Spec.V4Evidence != nil {
+			if len(e.Spec.V4Evidence.Invariants) > maxChecks {
+				add("spec.v4Evidence.invariants: at most %d declared invariants", maxChecks)
+			}
+			seen := make(map[string]struct{}, len(e.Spec.V4Evidence.Invariants))
+			for index, name := range e.Spec.V4Evidence.Invariants {
+				if strings.TrimSpace(name) == "" {
+					add("spec.v4Evidence.invariants.%d: name must not be empty", index)
+					continue
+				}
+				if _, duplicate := seen[name]; duplicate {
+					add("spec.v4Evidence.invariants.%d: duplicate invariant %q", index, name)
+					continue
+				}
+				seen[name] = struct{}{}
+				hasInvariantEvidence = true
+				found := false
+				for _, check := range status.Checks {
+					if check.level == V4 && check.Name == name {
+						found = true
+						break
+					}
+				}
+				if !found {
+					add("spec.v4Evidence.invariants.%d: declared invariant %q needs a matching V4 check", index, name)
+				}
+			}
+		}
+		if !hasLedger && !hasInvariantEvidence {
+			add("spec.v4Evidence: V4 requires acknowledged writes in status.ledger.acks or declared invariant evidence")
 		}
 	}
 	if ledger := status.Ledger; ledger != nil {
@@ -230,6 +279,9 @@ func parseObjective(raw json.RawMessage) (time.Duration, bool, error) {
 		if seconds < 0 {
 			return 0, false, errors.New("must not be negative")
 		}
+		if seconds > maxDurationSeconds {
+			return 0, false, errors.New("duration exceeds the maximum supported value")
+		}
 		return time.Duration(seconds) * time.Second, true, nil
 	}
 	var text string
@@ -240,12 +292,9 @@ func parseObjective(raw json.RawMessage) (time.Duration, bool, error) {
 	if parts == nil || (parts[1] == "" && parts[2] == "" && parts[3] == "") {
 		return 0, false, errors.New("invalid duration; use forms like 90s, 15m or 1h30m")
 	}
-	var total time.Duration
-	for index, unit := range []time.Duration{time.Hour, time.Minute, time.Second} {
-		if parts[index+1] != "" {
-			value, _ := strconv.ParseInt(parts[index+1], 10, 64)
-			total += time.Duration(value) * unit
-		}
+	total, err := time.ParseDuration(text)
+	if err != nil {
+		return 0, false, errors.New("duration exceeds the maximum supported value")
 	}
 	return total, true, nil
 }

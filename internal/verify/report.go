@@ -111,6 +111,7 @@ func Build(evidence *Evidence) Report {
 	}
 
 	checks := make([][]CheckResult, len(Levels))
+	ledgerV4Passed := true
 	for _, check := range evidence.Status.Checks {
 		checks[check.level] = append(checks[check.level], CheckResult{
 			Name: check.Name, Passed: *check.Passed, Detail: check.Detail, Source: "reported",
@@ -119,20 +120,26 @@ func Build(evidence *Evidence) Report {
 
 	if ledger := evidence.Status.Ledger; ledger != nil {
 		measurement := MeasureRPO(ledger.Acks, ledger.Present, evidence.Status.FailureAt)
-		report.RPO = rpoResult(measurement, evidence)
-		detail := fmt.Sprintf("%d of %d acknowledged writes recovered", measurement.Recovered, measurement.Acknowledged)
-		if !measurement.Consistent() {
-			detail = fmt.Sprintf("%d writes missing before the recovery point; not a consistent point in time", measurement.Holes)
-		}
-		checks[V4] = append(checks[V4], CheckResult{
-			Name: "acknowledged-write ledger", Passed: measurement.Consistent() && measurement.Acknowledged > 0,
-			Detail: detail, Source: "ledger",
-		})
 		if measurement.Acknowledged == 0 {
 			finding("warning", "the ledger holds no writes acknowledged before the failure, so it proves nothing about data loss")
+		} else {
+			report.RPO = rpoResult(measurement, evidence)
+			detail := fmt.Sprintf("%d of %d acknowledged writes recovered", measurement.Recovered, measurement.Acknowledged)
+			if !measurement.Consistent() {
+				detail = fmt.Sprintf("%d writes missing before the recovery point; not a consistent point in time", measurement.Holes)
+			}
+			ledgerV4Passed = measurement.Consistent() && measurement.Unexpected == 0 &&
+				(measurement.Lost == 0 || evidence.hasRPO && measurement.RPO <= evidence.rpo)
+			checks[V4] = append(checks[V4], CheckResult{
+				Name: "acknowledged-write ledger", Passed: ledgerV4Passed,
+				Detail: detail, Source: "ledger",
+			})
 		}
 		if measurement.Unexpected > 0 {
 			finding("warning", "%d restored writes were never acknowledged before the failure; check the point-in-time target", measurement.Unexpected)
+		}
+		if measurement.Lost > 0 && measurement.Consistent() {
+			finding("warning", "%d acknowledged writes were lost", measurement.Lost)
 		}
 	}
 
@@ -148,7 +155,7 @@ func Build(evidence *Evidence) Report {
 		if len(result.Checks) > 0 {
 			result.Status = "passed"
 			for _, check := range result.Checks {
-				if !check.Passed {
+				if !check.Passed || level == V4 && check.Source == "ledger" && !ledgerV4Passed {
 					result.Status = "failed"
 				}
 			}
@@ -184,18 +191,14 @@ func Build(evidence *Evidence) Report {
 		}
 	}
 
-	if len(evidence.Status.Phases) > 0 {
-		report.RTO = rtoResult(evidence)
-		if report.RTO.UncoveredSeconds >= 1 {
-			finding("info", "%s of the recovery was not covered by a recorded phase", seconds(report.RTO.UncoveredSeconds))
+	report.RTO = rtoResult(evidence)
+	if report.RTO.UncoveredSeconds >= 1 {
+		finding("info", "%s of the recovery was not covered by a recorded phase", seconds(report.RTO.UncoveredSeconds))
+	}
+	for _, phase := range evidence.Status.Phases {
+		if phase.StartedAt.Before(evidence.Status.FailureAt) {
+			finding("warning", "phase %q started before the failure was injected", phase.Name)
 		}
-		for _, phase := range evidence.Status.Phases {
-			if phase.StartedAt.Before(evidence.Status.FailureAt) {
-				finding("warning", "phase %q started before the failure was injected", phase.Name)
-			}
-		}
-	} else if evidence.hasRTO {
-		finding("warning", "an RTO objective is set but no recovery phases were recorded")
 	}
 	if evidence.hasRPO && report.RPO == nil {
 		finding("warning", "an RPO objective is set but no write ledger was recorded")
@@ -203,6 +206,8 @@ func Build(evidence *Evidence) Report {
 
 	rtoMissed := report.RTO != nil && report.RTO.Met != nil && !*report.RTO.Met
 	rpoMissed := report.RPO != nil && report.RPO.Met != nil && !*report.RPO.Met
+	rtoUnmeasured := evidence.hasRTO && report.RTO == nil
+	rpoUnmeasured := evidence.hasRPO && report.RPO == nil
 	if rtoMissed {
 		finding("error", "recovery took %s, over the %s RTO objective; slowest phase: %s",
 			seconds(report.RTO.Seconds), seconds(*report.RTO.ObjectiveSeconds), report.RTO.SlowestPhase)
@@ -219,6 +224,9 @@ func Build(evidence *Evidence) Report {
 	case rtoMissed || rpoMissed:
 		report.Verdict = Failed
 		report.Headline = "Recovered, but outside the recovery objectives"
+	case rtoUnmeasured || rpoUnmeasured:
+		report.Verdict = Incomplete
+		report.Headline = "Incomplete: a recovery objective is missing its measurement"
 	case deepest != nil && *deepest >= evidence.upTo:
 		report.Verdict = Verified
 		report.Headline = fmt.Sprintf("Verified to %s", evidence.upTo)
@@ -256,18 +264,20 @@ func rtoResult(evidence *Evidence) *RTOResult {
 		if duration > slowest || result.SlowestPhase == "" {
 			slowest, result.SlowestPhase = duration, phase.Name
 		}
-		if phase.EndedAt.After(result.CompletedAt) {
-			result.CompletedAt = phase.EndedAt
-		}
 		start := phase.StartedAt
 		if start.Before(coveredUntil) {
 			start = coveredUntil
 		}
-		if phase.EndedAt.After(start) {
-			covered += phase.EndedAt.Sub(start)
-			coveredUntil = phase.EndedAt
+		end := phase.EndedAt
+		if end.After(evidence.Status.CompletedAt) {
+			end = evidence.Status.CompletedAt
+		}
+		if end.After(start) {
+			covered += end.Sub(start)
+			coveredUntil = end
 		}
 	}
+	result.CompletedAt = evidence.Status.CompletedAt
 	result.measure = result.CompletedAt.Sub(failureAt)
 	if result.measure < 0 {
 		result.measure = 0
@@ -345,5 +355,19 @@ func suffix(detail string) string {
 }
 
 func seconds(value float64) string {
-	return time.Duration(value * float64(time.Second)).Round(time.Second).String()
+	total := int64(time.Duration(value * float64(time.Second)).Round(time.Second).Seconds())
+	if total <= 0 {
+		return "0s"
+	}
+	var out string
+	for _, unit := range []struct {
+		size int64
+		name string
+	}{{3600, "h"}, {60, "m"}, {1, "s"}} {
+		if part := total / unit.size; part > 0 {
+			out += fmt.Sprintf("%d%s", part, unit.name)
+			total %= unit.size
+		}
+	}
+	return out
 }

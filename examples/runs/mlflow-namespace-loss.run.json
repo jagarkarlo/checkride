@@ -8,6 +8,7 @@
   "spec": {
     "scenario": "namespace-loss",
     "upTo": "V4",
+    "v4Evidence": {"invariants": ["every-run-has-an-experiment"]},
     "objectives": {
       "rto": "15m",
       "rpo": "5m"
@@ -15,6 +16,7 @@
   },
   "status": {
     "failureAt": "2026-10-01T10:00:00.000Z",
+    "completedAt": "2026-10-01T10:11:43.000Z",
     "phases": [
       {
         "name": "detect-and-declare",

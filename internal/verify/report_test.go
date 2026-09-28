@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func loadRun(t *testing.T, name string) *Evidence {
@@ -50,6 +51,51 @@ func TestVerifiedRunReachesRequestedLevel(t *testing.T) {
 	}
 }
 
+func TestLedgerTailLossNeedsAnRPOObjectiveForV4(t *testing.T) {
+	evidence := loadRun(t, "mlflow-namespace-loss.run.json")
+	evidence.hasRPO = false
+	report := Build(evidence)
+	if report.Verdict != Failed || report.FirstFailed == nil || *report.FirstFailed != "V4" {
+		t.Fatalf("tail loss without an RPO objective must fail V4: verdict=%s first=%v", report.Verdict, report.FirstFailed)
+	}
+}
+
+func TestRPOWithinObjectivePassesV4AndUnexpectedWritesDoNot(t *testing.T) {
+	evidence := loadRun(t, "mlflow-namespace-loss.run.json")
+	failureAt := evidence.Status.FailureAt
+	evidence.Status.Ledger.Acks = []Ack{
+		{WriteID: "w1", AckedAt: failureAt.Add(-2 * time.Second)},
+		{WriteID: "w2", AckedAt: failureAt.Add(-time.Second)},
+	}
+	evidence.Status.Ledger.Present = []string{"w1"}
+	evidence.Status.Checks = evidence.Status.Checks[:len(evidence.Status.Checks)-1]
+	evidence.rpo = 5 * time.Second
+	evidence.hasRPO = true
+	report := Build(evidence)
+	if report.Levels[V4].Status != "passed" || report.RPO.Met == nil || !*report.RPO.Met {
+		t.Fatalf("loss within objective should pass V4: V4=%s RPO=%+v", report.Levels[V4].Status, report.RPO)
+	}
+
+	evidence.Status.Ledger.Present = append(evidence.Status.Ledger.Present, "not-acknowledged")
+	report = Build(evidence)
+	if report.Levels[V4].Status != "failed" || report.RPO.Unexpected != 1 {
+		t.Fatalf("unexpected write should fail V4: V4=%s RPO=%+v", report.Levels[V4].Status, report.RPO)
+	}
+}
+
+func TestEmptyLedgerCannotClaimZeroRPO(t *testing.T) {
+	evidence := loadRun(t, "mlflow-namespace-loss.run.json")
+	evidence.Status.Ledger.Acks = nil
+	evidence.Status.Ledger.Present = nil
+	report := Build(evidence)
+	if report.RPO != nil {
+		t.Fatalf("empty ledger produced an RPO measurement: %+v", report.RPO)
+	}
+	if report.Verdict != Incomplete || report.Headline != "Incomplete: a recovery objective is missing its measurement" {
+		t.Fatalf("empty ledger verdict=%s headline=%q", report.Verdict, report.Headline)
+	}
+}
+
 func TestFailedRunReportsFirstFailureAndMissedRTO(t *testing.T) {
 	report := Build(loadRun(t, "crud-cluster-loss.run.json"))
 	if report.Verdict != Failed || report.FirstFailed == nil || *report.FirstFailed != "V3" {
@@ -81,6 +127,7 @@ const minimalRun = `{
 	"spec": {"upTo": "V2", "objectives": {"rpo": 10}},
 	"status": {
 		"failureAt": "2026-10-01T10:00:10Z",
+		"completedAt": "2026-10-01T10:00:40Z",
 		"checks": [
 			{"level": "V0", "name": "backup", "passed": true},
 			{"level": 2, "name": "pods", "passed": true}
@@ -126,7 +173,7 @@ func TestParseEvidenceReportsProblemsWithPaths(t *testing.T) {
 	}
 	joined := strings.Join(problems.Problems, "\n")
 	for _, want := range []string{
-		"apiVersion:", "metadata.name:", "spec.upTo:", "spec.objectives.rto:", "status.failureAt: field required",
+		"apiVersion:", "metadata.name:", "spec.upTo:", "spec.objectives.rto:", "status.failureAt: field required", "status.completedAt: field required",
 		"status.phases.0.endedAt:", "status.checks.0.name:", "status.checks.0.passed:", "status.ledger.acks.1.writeId: duplicate",
 	} {
 		if !strings.Contains(joined, want) {
@@ -138,5 +185,35 @@ func TestParseEvidenceReportsProblemsWithPaths(t *testing.T) {
 func TestParseEvidenceRejectsUnknownFields(t *testing.T) {
 	if _, err := ParseEvidence([]byte(strings.Replace(minimalRun, `"kind"`, `"extra": 1, "kind"`, 1))); err == nil {
 		t.Fatal("unknown fields must be rejected")
+	}
+}
+
+func TestParseObjectiveRejectsOverflow(t *testing.T) {
+	for _, value := range []string{`9223372037`, `"999999999999999999h"`} {
+		if _, _, err := parseObjective([]byte(value)); err == nil {
+			t.Errorf("parseObjective(%s) accepted an overflowing objective", value)
+		}
+	}
+}
+
+func TestV4RequiresDeclaredCorrectnessEvidence(t *testing.T) {
+	withoutEvidence := `{"apiVersion":"checkride/v1alpha1","kind":"DrillRun","metadata":{"name":"demo"},"spec":{"upTo":"V4"},"status":{"failureAt":"2026-10-01T10:00:00Z","completedAt":"2026-10-01T10:00:30Z","checks":[{"level":"V0","name":"backup","passed":true},{"level":"V1","name":"restore","passed":true},{"level":"V2","name":"health","passed":true},{"level":"V3","name":"rows","passed":true},{"level":"V4","name":"correct","passed":true}]}}`
+	_, err := ParseEvidence([]byte(withoutEvidence))
+	if validation, ok := err.(*ValidationError); !ok || !strings.Contains(validation.Error(), "spec.v4Evidence: V4 requires") {
+		t.Fatalf("err = %v, want V4 evidence error", err)
+	}
+
+	withInvariant := strings.Replace(withoutEvidence, `"upTo":"V4"`, `"upTo":"V4","v4Evidence":{"invariants":["row-count"]}`, 1)
+	withInvariant = strings.Replace(withInvariant, `"checks":[`, `"checks":[{"level":"V4","name":"row-count","passed":true},`, 1)
+	if _, err := ParseEvidence([]byte(withInvariant)); err != nil {
+		t.Fatalf("declared V4 invariant should satisfy evidence requirement: %v", err)
+	}
+}
+
+func TestFindingDurationsAreCompact(t *testing.T) {
+	for value, want := range map[float64]string{0: "0s", 38: "38s", 1800: "30m", 2371: "39m31s", 3720: "1h2m"} {
+		if got := seconds(value); got != want {
+			t.Errorf("seconds(%v) = %q, want %q", value, got, want)
+		}
 	}
 }
