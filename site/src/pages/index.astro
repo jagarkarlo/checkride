@@ -1,87 +1,24 @@
 ---
-import './home.css';
+import ProductLayout from '../layouts/ProductLayout.astro';
+
+const description = 'Design Kubernetes recovery drills, measure the recovery window and inspect application-level evidence. Checkride is pre-alpha; automated restore execution is planned.';
 ---
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f3f5f2" />
-    <meta name="description" content="Checkride is an open-source project for verifying Kubernetes recovery. Explore the local drill validator, verification levels, and what is planned next." />
-    <title>Checkride | Prove your recovery</title>
-  </head>
-  <body>
-    <header class="site-header">
-      <div class="inner header-inner">
-        <a class="wordmark" href="/" aria-label="Checkride home"><span class="mark" aria-hidden="true"></span>Checkride</a>
-        <nav aria-label="Main navigation">
-          <a href="#how-it-works">How it works</a>
-          <a href="/comparison/">Comparison</a>
-          <a href="/docs/">Documentation</a>
-        </nav>
-        <a class="header-action" href="/start/">Run locally <span aria-hidden="true">↗</span></a>
+<ProductLayout title="Recovery, verified" description={description} current="overview">
+  <section class="hero-band">
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="page-wrap hero-wrap">
+      <p class="kicker"><span class="pulse-dot"></span> CHECKRIDE / RECOVERY VERIFICATION / PRE-ALPHA</p>
+      <h1>Backups are a promise.<br /><span>Recovery is the proof.</span></h1>
+      <p class="hero-copy">Checkride is building repeatable restore drills for Kubernetes applications and their data. Today, design a drill, validate its contract and turn recorded drill evidence into a V0–V4 report.</p>
+      <div class="hero-actions">
+        <a class="action-primary" href="/product/">Explore the system <span>↗</span></a>
+        <a class="action-secondary" href="/start/">Run the local validator <span>→</span></a>
       </div>
-    </header>
-
-    <main>
-      <section class="intro" aria-labelledby="intro-title">
-        <div class="inner intro-inner">
-          <div class="intro-copy">
-            <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span> OPEN SOURCE · PRE-ALPHA</p>
-            <h1 id="intro-title">Checkride</h1>
-            <p class="lede">A backup completed. Can your application actually recover?</p>
-            <p class="summary">Checkride is being built to restore Kubernetes applications into an isolated environment, check the data that came back, and show the evidence. Today, you can design and validate a drill locally.</p>
-            <div class="intro-actions">
-              <a class="button primary" href="/start/">Run the local validator <span aria-hidden="true">↗</span></a>
-              <a class="button secondary" href="/levels/">See verification levels <span aria-hidden="true">→</span></a>
-            </div>
-          </div>
-          <div class="intro-aside" aria-label="Current development status">
-            <span class="aside-label">CURRENT RELEASE / 0.1</span>
-            <strong>Validate the plan.<br />Don't mistake it for the drill.</strong>
-            <span>The local Studio checks a specification. Restore execution and evidence reports are still in development.</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="preview-section" aria-labelledby="preview-title">
-        <div class="inner">
-          <div class="section-topline">
-            <div><span class="section-number">01 / THE WORKBENCH</span><h2 id="preview-title">Start with a drill you can inspect.</h2></div>
-            <span class="section-note">ACTUAL LOCAL STUDIO · NOT A HOSTED DEMO</span>
-          </div>
-          <div class="preview-frame">
-            <img src="/images/studio-preview.png" width="1440" height="900" loading="eager" alt="Checkride Studio showing a fictional namespace-loss drill, JSON editor, planned verification levels V0 through V4, and a validation control" />
-          </div>
-          <div class="preview-caption"><span>Studio / drill validation</span><span>Import JSON · inspect the plan · validate against the local API</span></div>
-        </div>
-      </section>
-
-      <section class="steps" id="how-it-works" aria-labelledby="steps-title">
-        <div class="inner">
-          <div class="section-topline"><div><span class="section-number">02 / THE METHOD</span><h2 id="steps-title">From a green backup to real evidence.</h2></div></div>
-          <div class="step-grid">
-            <div class="step"><span>01</span><h3>Define the failure</h3><p>Choose a scenario, target workload, recovery objectives, and the level of verification you need.</p></div>
-            <div class="step"><span>02</span><h3>Restore in isolation</h3><p>Planned: rebuild in a separate cluster rather than trusting a backup status or healthy source environment.</p></div>
-            <div class="step"><span>03</span><h3>Check what survived</h3><p>Planned: measure recovery time and data loss, then test application invariants and acknowledged writes.</p></div>
-          </div>
-          <a class="text-link" href="/levels/">Understand V0–V4 verification <span aria-hidden="true">→</span></a>
-        </div>
-      </section>
-
-      <section class="status-section" aria-labelledby="status-title">
-        <div class="inner status-layout">
-          <div><span class="section-number">03 / HONEST STATUS</span><h2 id="status-title">Useful today. Not production-ready yet.</h2><p>Checkride is a master's thesis project in active development. It does not yet run unattended restores or certify compliance. Keep your existing backup and recovery controls.</p></div>
-          <div class="status-list">
-            <div><span class="status-indicator available" aria-hidden="true"></span><div><strong>Available now</strong><p>Drill specification validation (Studio, CLI, API), test-data RPO ledger, disposable lab definitions.</p></div></div>
-            <div><span class="status-indicator upcoming" aria-hidden="true"></span><div><strong>In development</strong><p>Automated isolated restores, V0–V4 evidence reports, timelines, and CI recovery gates.</p></div></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="next-step" aria-labelledby="next-title"><div class="inner next-inner"><div><span class="section-number">START SMALL</span><h2 id="next-title">Try a local drill specification.</h2><p>No cluster credentials or hosted account required for validation.</p></div><a class="button primary" href="/start/">Open the walkthrough <span aria-hidden="true">↗</span></a></div></section>
-    </main>
-
-    <footer class="site-footer"><div class="inner footer-inner"><span>Checkride · Apache-2.0 · Pre-alpha</span><div><a href="/docs/">Docs</a><a href="/comparison/">Compare</a><a href="/start/">Run locally</a></div></div></footer>
-  </body>
-</html>
+      <div class="hero-status"><span class="status-ring">01</span><div><strong>Now: design drills + evaluate evidence</strong><span>Next: execute one isolated restore end to end</span></div><span class="status-line"></span><span class="status-end">ROADMAP / 2026–27</span></div>
+    </div>
+  </section>
+  <section class="signal-band"><div class="page-wrap signal-grid"><span>NOT A BACKUP PRODUCT</span><span>NOT A RESTORE RUNNER YET</span><span>BUILT AROUND EVIDENCE</span><span>LOCAL-FIRST BY DESIGN</span></div></section>
+  <section class="feature-band"><div class="page-wrap feature-grid"><div class="feature-copy"><p class="section-index">01 / THE QUESTION</p><h2>A green job is not a recovered application.</h2><p>A backup can complete while an application still loses acknowledged writes, restores the wrong point in time or comes back without its dependencies. Checkride makes those questions explicit, measurable and reviewable.</p><a class="under-link" href="/evidence/">See what counts as proof <span>↗</span></a></div><div class="signal-graphic" aria-label="Five verification levels from backup status to correct application data"><div class="signal-legend"><span>RECOVERY SIGNAL</span><span>V0 — V4</span></div>{["Backup status", "Restore status", "Workload health", "Data structure", "Data correctness"].map((label, i) => <div class:list={["signal-row", { active: i === 4 }]}><b>V{i}</b><span>{label}</span><i style={`--signal-width:${[38, 53, 66, 82, 100][i]}%`}></i><small>{i === 4 ? "DEEP" : "LEVEL"}</small></div>)}<p class="signal-foot">A drill reports the deepest contiguous level passed.</p></div></div></section>
+  <section class="workbench-band"><div class="page-wrap"><div class="section-heading"><div><p class="section-index">02 / THE WORKBENCH</p><h2>One drill. Inspectable end to end.</h2></div><a class="under-link" href="/product/">How the system fits together <span>↗</span></a></div><figure class="studio-shot"><img src="/images/studio-preview.png" alt="Checkride Studio design view with a fictional namespace-loss drill specification, its live plan and V0–V4 verification depth" width="1440" height="900" loading="lazy" /><figcaption><span>CHECKRIDE STUDIO / 01 DESIGN DRILL</span><span>Specification validation against the local API. No cluster connection.</span></figcaption></figure></div></section>
+  <section class="next-band"><div class="page-wrap next-grid"><div><p class="section-index">03 / NEXT</p><h2>Measure recovery.<br /><span>Not a green checkbox.</span></h2></div><div class="next-copy"><p>Checkride now turns recorded DrillRun evidence into V0–V4 results, RTO phases, exact acknowledged-write RPO and a reviewable report. The restore orchestrator is still ahead.</p><a class="action-primary" href="/evidence/">Explore the evidence report <span>↗</span></a></div></div></section>
+</ProductLayout>
