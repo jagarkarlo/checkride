@@ -73,11 +73,19 @@ jobs:
         with:
           name: release
           path: release/
-      - name: Create pre-release
+      - name: Create or update pre-release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" release/* --repo "$GITHUB_REPOSITORY" --title "Checkride $TAG" --prerelease --generate-notes
+        run: |
+          title="Checkride $TAG — verified evidence reporting"
+          body='Checkride pre-alpha release: DrillRun evidence evaluation, V0–V4 verdicts, phased RTO, acknowledged-write RPO, the local report CLI, Studio evidence review, and the multi-page product site. Restore execution is the next roadmap step.'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$body" --prerelease
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" release/* --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$body" --prerelease
+          fi
 
   publish:
     name: Publish to PyPI
