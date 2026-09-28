@@ -1,0 +1,54 @@
+{
+  "description": "Shared RPO cases: checkride.ledger.measure_rpo (Python) and internal/verify.MeasureRPO (Go) must both satisfy every case.",
+  "cases": [
+    {
+      "name": "nothing lost",
+      "acks": [["w000", "2026-10-01T10:00:00Z"], ["w001", "2026-10-01T10:00:01Z"], ["w002", "2026-10-01T10:00:02Z"], ["w003", "2026-10-01T10:00:03Z"]],
+      "present": ["w000", "w001", "w002", "w003"],
+      "failureAt": "2026-10-01T10:00:04Z",
+      "expected": {"acknowledged": 4, "recovered": 4, "lost": 0, "holes": 0, "unexpected": 0, "recoveryPoint": "2026-10-01T10:00:03Z", "firstLostAt": null, "rpoSeconds": 0}
+    },
+    {
+      "name": "tail loss",
+      "acks": [["w000", "2026-10-01T10:00:00Z"], ["w001", "2026-10-01T10:00:01Z"], ["w002", "2026-10-01T10:00:02Z"], ["w003", "2026-10-01T10:00:03Z"], ["w004", "2026-10-01T10:00:04Z"], ["w005", "2026-10-01T10:00:05Z"], ["w006", "2026-10-01T10:00:06Z"], ["w007", "2026-10-01T10:00:07Z"], ["w008", "2026-10-01T10:00:08Z"], ["w009", "2026-10-01T10:00:09Z"]],
+      "present": ["w000", "w001", "w002", "w003", "w004", "w005", "w006"],
+      "failureAt": "2026-10-01T10:00:09.500Z",
+      "expected": {"acknowledged": 10, "recovered": 7, "lost": 3, "holes": 0, "unexpected": 0, "recoveryPoint": "2026-10-01T10:00:06Z", "firstLostAt": "2026-10-01T10:00:07Z", "rpoSeconds": 3.5}
+    },
+    {
+      "name": "holes break point-in-time consistency",
+      "acks": [["w000", "2026-10-01T10:00:00Z"], ["w001", "2026-10-01T10:00:01Z"], ["w002", "2026-10-01T10:00:02Z"], ["w003", "2026-10-01T10:00:03Z"], ["w004", "2026-10-01T10:00:04Z"], ["w005", "2026-10-01T10:00:05Z"]],
+      "present": ["w000", "w001", "w004", "w005"],
+      "failureAt": "2026-10-01T10:00:06Z",
+      "expected": {"acknowledged": 6, "recovered": 4, "lost": 2, "holes": 2, "unexpected": 0, "recoveryPoint": "2026-10-01T10:00:01Z", "firstLostAt": "2026-10-01T10:00:02Z", "rpoSeconds": 5}
+    },
+    {
+      "name": "writes after the failure are ignored",
+      "acks": [["w000", "2026-10-01T10:00:00Z"], ["w001", "2026-10-01T10:00:01Z"], ["w002", "2026-10-01T10:00:02Z"], ["w003", "2026-10-01T10:00:03Z"], ["w004", "2026-10-01T10:00:04Z"]],
+      "present": ["w000", "w001", "w002"],
+      "failureAt": "2026-10-01T10:00:02.500Z",
+      "expected": {"acknowledged": 3, "recovered": 3, "lost": 0, "holes": 0, "unexpected": 0, "recoveryPoint": "2026-10-01T10:00:02Z", "firstLostAt": null, "rpoSeconds": 0}
+    },
+    {
+      "name": "nothing recovered",
+      "acks": [["w000", "2026-10-01T10:00:00Z"], ["w001", "2026-10-01T10:00:01Z"], ["w002", "2026-10-01T10:00:02Z"]],
+      "present": [],
+      "failureAt": "2026-10-01T10:00:05Z",
+      "expected": {"acknowledged": 3, "recovered": 0, "lost": 3, "holes": 0, "unexpected": 0, "recoveryPoint": null, "firstLostAt": "2026-10-01T10:00:00Z", "rpoSeconds": 5}
+    },
+    {
+      "name": "unexpected restored writes",
+      "acks": [["w000", "2026-10-01T10:00:00Z"], ["w001", "2026-10-01T10:00:01Z"], ["w002", "2026-10-01T10:00:02Z"]],
+      "present": ["w000", "w001", "w002", "x-late"],
+      "failureAt": "2026-10-01T10:00:03Z",
+      "expected": {"acknowledged": 3, "recovered": 3, "lost": 0, "holes": 0, "unexpected": 1, "recoveryPoint": "2026-10-01T10:00:02Z", "firstLostAt": null, "rpoSeconds": 0}
+    },
+    {
+      "name": "equal timestamps are ordered by write ID",
+      "acks": [["b", "2026-10-01T10:00:00Z"], ["a", "2026-10-01T10:00:00Z"], ["c", "2026-10-01T10:00:01Z"]],
+      "present": ["a", "c"],
+      "failureAt": "2026-10-01T10:00:02Z",
+      "expected": {"acknowledged": 3, "recovered": 2, "lost": 1, "holes": 1, "unexpected": 0, "recoveryPoint": "2026-10-01T10:00:00Z", "firstLostAt": "2026-10-01T10:00:00Z", "rpoSeconds": 2}
+    }
+  ]
+}
