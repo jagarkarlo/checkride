@@ -8,16 +8,13 @@ import {
   History,
   LoaderCircle,
   Play,
-  RefreshCw,
   Upload,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CodeEditor } from "./CodeEditor";
 import type { CodeEditorHandle } from "./CodeEditor";
 import { describePlan, fieldPathOf, inspectJSON, locateField, scenarioLabels, templates } from "./drill";
-
-type APIState = "checking" | "online" | "offline";
 
 interface ValidationRun {
   id: number;
@@ -34,10 +31,9 @@ const pretty = (value: unknown) => JSON.stringify(value, null, 2);
 const strings = (value: unknown) =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
-export function Studio() {
+export function Studio({ onReachability }: { onReachability: (online: boolean) => void }) {
   const [definition, setDefinition] = useState(() => pretty(templates[0].document));
   const [templateId, setTemplateId] = useState(templates[0].id);
-  const [apiState, setAPIState] = useState<APIState>("checking");
   const [isValidating, setIsValidating] = useState(false);
   const [runs, setRuns] = useState<ValidationRun[]>([]);
   const [requestError, setRequestError] = useState("");
@@ -49,27 +45,6 @@ export function Studio() {
   const plan = useMemo(() => describePlan(inspection.ok ? inspection.value : null), [inspection]);
   const latest = runs[0] ?? null;
   const stale = latest !== null && latest.source !== definition;
-
-  const checkAPI = useCallback(async (signal?: AbortSignal) => {
-    setAPIState("checking");
-    try {
-      const response = await fetch("/healthz", { signal: signal ?? AbortSignal.timeout(3000) });
-      setAPIState(response.status === 204 ? "online" : "offline");
-      if (response.status === 204) setRequestError("");
-    } catch {
-      if (!signal?.aborted) setAPIState("offline");
-    }
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 3000);
-    void checkAPI(controller.signal).finally(() => window.clearTimeout(timeout));
-    return () => {
-      window.clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [checkAPI]);
 
   async function validate() {
     if (isValidating) return;
@@ -87,7 +62,7 @@ export function Studio() {
         throw new Error("The API returned an unexpected response.");
       }
       const body = payload as { valid: boolean; errors?: unknown; warnings?: unknown };
-      setAPIState("online");
+      onReachability(true);
       runId.current += 1;
       const run: ValidationRun = {
         id: runId.current,
@@ -101,7 +76,7 @@ export function Studio() {
       };
       setRuns((previous) => [run, ...previous].slice(0, 6));
     } catch (error) {
-      setAPIState("offline");
+      onReachability(false);
       setRequestError(error instanceof Error ? error.message : "Could not reach the Checkride API.");
     } finally {
       setIsValidating(false);
@@ -129,29 +104,8 @@ export function Studio() {
     window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
-  const apiLabel = apiState === "checking" ? "Connecting" : apiState === "online" ? "API connected" : "API offline";
-
   return (
-    <div className="studio">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          <span className="brand-name">Checkride</span>
-          <span className="brand-product">Studio</span>
-        </div>
-        <nav className="topbar-links" aria-label="Project">
-          <span className="crumb">Drills</span>
-          <span className="crumb-sep">/</span>
-          <span className="crumb current">{plan.name || "untitled"}</span>
-        </nav>
-        <button className={`api-status ${apiState}`} type="button" onClick={() => void checkAPI()} title="Recheck the local API">
-          <span className="status-dot" />
-          {apiLabel}
-          {apiState === "offline" && <RefreshCw size={13} />}
-        </button>
-      </header>
-
-      <div className="layout">
+    <div className="layout">
         <aside className="rail" aria-label="Drill templates">
           <h2 className="rail-title">Start from a scenario</h2>
           <ul className="template-list">
@@ -338,7 +292,6 @@ export function Studio() {
             )}
           </section>
         </aside>
-      </div>
     </div>
   );
 }
