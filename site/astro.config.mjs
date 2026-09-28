@@ -7,6 +7,12 @@ export default defineConfig({
     description: 'Recovery drills for Kubernetes applications. Restore, inspect, and prove what survived.',
     social: [{ icon: 'github', label: 'Source code', href: 'https://github.com/jagarkarlo/checkride' }],
     sidebar: [
+      { label: 'Product', items: [
+        { label: 'Overview', link: '/' },
+        { label: 'System design', link: '/product/' },
+        { label: 'Evidence model', link: '/evidence/' },
+        { label: 'Roadmap', link: '/roadmap/' },
+      ] },
       { label: 'Start here', items: [
         { label: 'Overview', link: '/docs/' },
         { label: 'Run locally', slug: 'start' },
