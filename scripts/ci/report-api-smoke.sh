@@ -14,10 +14,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
-go run ./cmd/checkride-api >"$log_file" 2>&1 &
+go build -o /tmp/checkride-api-smoke ./cmd/checkride-api
+/tmp/checkride-api-smoke >"$log_file" 2>&1 &
 api_pid=$!
-curl --fail --silent --show-error --retry 20 --retry-delay 1 --retry-connrefused \
-  http://127.0.0.1:8080/healthz >/dev/null
+for attempt in {1..30}; do
+  if curl --fail --silent --show-error http://127.0.0.1:8080/healthz >/dev/null; then
+    break
+  fi
+  if [[ "$attempt" == 30 ]]; then
+    cat "$log_file" >&2
+    exit 1
+  fi
+  sleep 1
+done
 
 curl --fail --silent --show-error \
   -H 'Content-Type: application/json' \
@@ -48,7 +57,7 @@ curl --fail --silent --show-error -D "$schema_headers" \
   http://127.0.0.1:8080/api/v1/schemas/drillrun >/tmp/checkride-drillrun-schema.json
 trap 'rm -f "$schema_headers" /tmp/checkride-drillrun-schema.json; cleanup' EXIT
 grep -qi '^Content-Type: application/schema+json' "$schema_headers"
-jq -e '.title == "Checkride DrillRun" and .properties.status.required | index("completedAt")' \
+jq -e '(.title == "Checkride DrillRun") and ((.properties.status.required // []) | index("completedAt") != null)' \
   /tmp/checkride-drillrun-schema.json >/dev/null
 
 set +e
