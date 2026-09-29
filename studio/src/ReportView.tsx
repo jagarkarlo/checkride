@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { request } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import type { CodeEditorHandle } from "./CodeEditor";
 import { fieldPathOf, inspectJSON, locateField, scenarioLabels } from "./drill";
@@ -20,6 +21,7 @@ import type { LevelResult, Report, RPOResult, RTOResult } from "./report";
 
 const sampleSources = import.meta.glob<string>("../../examples/runs/*.run.json", { query: "?raw", import: "default" });
 const sampleInfo: Record<string, { label: string; summary: string }> = {
+  "k3d-postgresql": { label: "Isolated PostgreSQL restore", summary: "Recorded local lab · V3" },
   "mlflow-namespace-loss": { label: "MLflow namespace loss", summary: "V4 with ledger · verified" },
   "crud-cluster-loss": { label: "CRUD cluster loss", summary: "V3 · row counts fail, RTO missed" },
 };
@@ -60,11 +62,7 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
       setIsBuilding(true);
       setRequestError("");
       try {
-        const response = await fetch("/api/v1/runs/report", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: text,
-        });
+        const response = await request("/api/v1/runs/report", text);
         const payload: unknown = await response.json();
         onReachability(true);
         if (response.ok && isReport(payload)) {
@@ -100,7 +98,8 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
   );
 
   useEffect(() => {
-    if (samples.length > 0) void loadSample(samples.find((item) => item.id === "mlflow-namespace-loss")?.id ?? samples[0].id);
+    const preferred = window.location.pathname.startsWith("/demo/") ? "k3d-postgresql" : "mlflow-namespace-loss";
+    if (samples.length > 0) void loadSample(samples.find((item) => item.id === preferred)?.id ?? samples[0].id);
   }, [loadSample]);
 
   function jumpTo(message: string) {
@@ -142,7 +141,7 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
         {sampleId && (
           <div className="sample-caveat">
             <AlertTriangle size={14} />
-            <p><strong>Illustrative evidence</strong>These traces are synthetic examples. They are not recorded from a real restore or production cluster.</p>
+            <p><strong>{sampleId === "k3d-postgresql" ? "Recorded local lab run" : "Illustrative evidence"}</strong>{sampleId === "k3d-postgresql" ? "This file came from a disposable two-cluster PostgreSQL restore. It is runner-reported, not cryptographically attested or production data." : "These traces are synthetic examples. They are not recorded from a real restore or production cluster."}</p>
           </div>
         )}
         <input
@@ -253,9 +252,7 @@ function ReportBody({ report, onCopy, copied }: { report: Report; onCopy: () => 
             {verdictLabel[report.verdict]} · {scenarioLabels[report.scenario ?? ""] ?? report.scenario ?? "drill"}
           </span>
           <h2>{report.headline}</h2>
-          <p className="mono-meta">
-            {report.name} · failure at {new Date(report.failureAt).toLocaleString()}
-          </p>
+          <p className="mono-meta">{report.drill ?? report.scenario ?? "Drill run"} · recorded evidence · timestamps in JSON export</p>
         </div>
         <div className="verdict-actions">
           <button className="tool" type="button" title="Download the computed report as JSON" onClick={() => download(`${report.name}.report.json`, JSON.stringify(report, null, 2), "application/json")}>
