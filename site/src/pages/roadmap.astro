@@ -4,8 +4,8 @@ const description = "Checkride development roadmap: drill editing and validation
 const phases = [
   { id: "01", tag: "CURRENT", title: "Define the drill", status: "DELIVERED", items: ["Versioned YAML drill contract", "Scenario templates and interactive Studio", "Strict Go API validation"] },
   { id: "02", tag: "CURRENT", title: "Evaluate recorded evidence", status: "DELIVERED · EARLY", items: ["V0–V4 verdicts and first-failed level", "RTO phases with uncovered time", "Acknowledged-write RPO ledger", "Studio evidence review and export"] },
-  { id: "03", tag: "NEXT", title: "Execute one isolated drill", status: "IN DESIGN", items: ["Provision separate k3d restore cluster", "Run one PostgreSQL namespace-loss path", "Record phase timestamps and terminal outcome", "Clean up safely, including interrupted runs"] },
-  { id: "04", tag: "LATER", title: "Automate checks and gates", status: "PLANNED", items: ["Adapters for V0–V4 evidence", "Application-specific invariant checks", "Staleness and objective-based CI gate", "More scenarios, failure injection and operator guidance"] },
+  { id: "03", tag: "CURRENT", title: "Execute one isolated lab drill", status: "DELIVERED · LAB", items: ["Separate source and restore k3d clusters", "Delete the source namespace after backup", "Restore and verify one PostgreSQL write", "Record V0–V3 checks and clean up namespaces"] },
+  { id: "04", tag: "NEXT", title: "Harden execution and capture", status: "PLANNED", items: ["Authenticated, tamper-evident evidence capture", "Application-specific V4 checks", "Repeatable CI lab gate and interruption recovery", "More scenarios and production-safe operator guidance"] },
 ];
 ---
 <ProductLayout title="Roadmap" description={description} current="roadmap">

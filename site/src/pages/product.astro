@@ -1,11 +1,11 @@
 ---
 import ProductLayout from "../layouts/ProductLayout.astro";
-const description = "Checkride's architecture and current boundaries: drill specification, evidence evaluator, API and Studio, with isolated restore orchestration still planned.";
+const description = "Checkride's architecture and current boundaries: drill specification, evidence evaluator, API, Studio and a disposable isolated PostgreSQL lab restore.";
 const layers = [
   { n: "01", name: "Describe the recovery", status: "AVAILABLE", title: "Drill specification", copy: "A versioned declaration of the failure scenario, target, separate-cluster restore intent, verification depth and RTO/RPO objectives.", detail: "YAML → strict validation → actionable field errors" },
   { n: "02", name: "Capture what happened", status: "FORMAT AVAILABLE", title: "DrillRun evidence", copy: "A recorded run carries completion time, recovery phases, individual verification checks and, when instrumented, acknowledged writes and restored IDs.", detail: "JSON schema · 16 MiB API limit · 200,000 writes" },
   { n: "03", name: "Evaluate the evidence", status: "AVAILABLE · LOCAL", title: "V0–V4 report", copy: "The evaluator calculates the deepest contiguous level passed, first failed check, end-to-end RTO, phase coverage and exact RPO from the acknowledged-write ledger.", detail: "Go API · standalone Go CLI · downloadable report" },
-  { n: "04", name: "Run it repeatedly", status: "PLANNED", title: "Isolated restore orchestration", copy: "The next system layer will provision a separate restore environment, execute an ordered plan, collect evidence and clean up. It does not exist yet.", detail: "Separate cluster by default · Kubernetes lab first" },
+  { n: "04", name: "Run one lab path", status: "AVAILABLE · LAB", title: "Isolated PostgreSQL restore", copy: "A disposable runner deletes the source namespace after backup, restores to a separate k3d cluster, observes V0–V3 checks and cleans up. General-purpose orchestration and attestation remain planned.", detail: "Two k3d clusters · pg_dump · V0–V3" },
 ];
 ---
 <ProductLayout title="Product" description={description} current="product">
