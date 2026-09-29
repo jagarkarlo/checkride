@@ -1,6 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions';
 import '../styles/product.css';
+import '../styles/light.css';
 
 interface Props {
   title: string;
@@ -13,6 +14,7 @@ const navigation = [
   { href: "/", label: "Overview", id: "overview" },
   { href: "/product/", label: "Product", id: "product" },
   { href: "/evidence/", label: "Evidence", id: "evidence" },
+  { href: "/demo/index.html", label: "Live demo", id: "demo" },
   { href: "/roadmap/", label: "Roadmap", id: "roadmap" },
   { href: "/docs/", label: "Docs", id: "docs" },
 ];
@@ -25,6 +27,24 @@ const navigation = [
     <meta name="theme-color" content="#080a0d" />
     <meta name="description" content={description} />
     <title>{title} | Checkride</title>
+    <script is:inline>
+      try {
+        const stored = localStorage.getItem('checkride-theme');
+        document.documentElement.dataset.theme = stored || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      } catch {
+        document.documentElement.dataset.theme = 'dark';
+      }
+      document.addEventListener('click', (event) => {
+        if (!event.target.closest('[data-theme-toggle]')) return;
+        const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem('checkride-theme', next); } catch { /* storage unavailable */ }
+        document.querySelector('[data-theme-toggle]')?.setAttribute('aria-label', `Switch to ${next === 'dark' ? 'light' : 'dark'} mode`);
+      });
+      document.addEventListener('astro:page-load', () => {
+        document.querySelector('[data-theme-toggle]')?.setAttribute('aria-label', `Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode`);
+      });
+    </script>
     <ClientRouter fallback="animate" />
     <style is:global>
       .hero-band::before {
@@ -65,14 +85,14 @@ const navigation = [
           </a>
         ))}
       </nav>
-      <a class="masthead-action" href="/start/">Run locally <span aria-hidden="true">↗</span></a>
+      <div class="masthead-tools"><button class="theme-toggle" data-theme-toggle type="button" aria-label="Switch to light mode" title="Toggle color theme"><span aria-hidden="true" class="dark-icon">☀</span><span aria-hidden="true" class="light-icon">☾</span></button><a class="masthead-action" href="/start/">Run locally <span aria-hidden="true">↗</span></a></div>
     </header>
     <main id="main-content" transition:animate="fade">
       <slot />
     </main>
     <footer class="product-footer">
       <a class="footer-wordmark" href="/">CHECKRIDE <span>RECOVERY VERIFICATION</span></a>
-      <p>Pre-alpha · Apache-2.0 · No production restores executed</p>
+      <p>Pre-alpha · Apache-2.0 · Disposable lab restore only</p>
       <div><a href="/docs/">Documentation</a><a href="/comparison/">Comparisons</a><a href="https://github.com/jagarkarlo/checkride">Source</a></div>
     </footer>
   </body>

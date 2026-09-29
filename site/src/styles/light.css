@@ -1,0 +1,17 @@
+.masthead-tools { display: flex; align-items: center; justify-self: end; gap: 12px; }
+.theme-toggle { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 20px var(--mono); cursor: pointer; }
+.theme-toggle:hover { border-color: var(--mint); }
+.light-icon, html[data-theme=light] .dark-icon { display: none; }
+html[data-theme=light] .light-icon { display: block; }
+html[data-theme=light] { color-scheme: light; --bg: #f1f5f2; --surface: #fff; --surface-2: #e6eee9; --line: #b4c7ba; --text: #182b26; --muted: #38584c; --quiet: #4c665b; --mint: #126544; --bright: #087e4a; --amber: #83500d; }
+html[data-theme=light] .masthead, html[data-theme=light] .product-footer { background: #f5f8f6; border-color: var(--line); }
+html[data-theme=light] .product-wordmark, html[data-theme=light] .footer-wordmark, html[data-theme=light] .nav-link, html[data-theme=light] .product-footer>div a, html[data-theme=light] .masthead-action { color: var(--text); }
+html[data-theme=light] .hero-band, html[data-theme=light] .feature-band, html[data-theme=light] .architecture-band, html[data-theme=light] .evidence-band, html[data-theme=light] .roadmap-band, html[data-theme=light] .subhero { background: #f1f5f2; }
+html[data-theme=light] .signal-band, html[data-theme=light] .workbench-band, html[data-theme=light] .metrics-band, html[data-theme=light] .next-band, html[data-theme=light] .separation-band, html[data-theme=light] .scope-band, html[data-theme=light] .caveat-band { background: #e4eee8; }
+html[data-theme=light] .hero-band::before { background-image: linear-gradient(90deg, #f1f5f2 0%, rgb(241 245 242 / 96%) 40%, rgb(241 245 242 / 62%) 100%), url('/images/studio-report.png'); background-size: 100% 100%, min(82vw, 1060px) auto; }
+html[data-theme=light] .hero-copy, html[data-theme=light] .subhero>.page-wrap>p:not(.kicker), html[data-theme=light] .feature-copy>p:not(.section-index), html[data-theme=light] .architecture-copy>p:not(.section-index), html[data-theme=light] .metrics-grid article>p:last-child, html[data-theme=light] .evidence-level p, html[data-theme=light] .roadmap-content li, html[data-theme=light] .signal-grid span, html[data-theme=light] .next-copy p, html[data-theme=light] .scope-grid p { color: var(--muted); }
+html[data-theme=light] .signal-graphic, html[data-theme=light] .evidence-level, html[data-theme=light] .roadmap-tag strong { background: var(--surface); color: var(--text); }
+html[data-theme=light] .signal-row>span, html[data-theme=light] .signal-row b, html[data-theme=light] .signal-legend, html[data-theme=light] .signal-foot, html[data-theme=light] .studio-shot figcaption, html[data-theme=light] .hero-status>div span { color: var(--muted); }
+html[data-theme=light] .action-secondary { color: var(--text); border-color: var(--line); }
+html[data-theme=light] .product-footer p, html[data-theme=light] .footer-wordmark span { color: var(--quiet); }
+@media (max-width: 650px) { .masthead-tools { grid-column: 2; grid-row: 1; gap: 6px; } .masthead-action { grid-column: auto; grid-row: auto; } .theme-toggle { width: 30px; height: 30px; font-size: 17px; } html[data-theme=light] .hero-band::before { background-size: 100% 100%, auto 310px; } }
