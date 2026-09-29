@@ -12,6 +12,7 @@ htmlcov/
 
 # Node (Studio)
 node_modules/
+/site/public/demo/
 
 # Local lab and drill output
 *.kubeconfig
