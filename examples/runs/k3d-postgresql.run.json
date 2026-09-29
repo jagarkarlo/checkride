@@ -1,0 +1,21 @@
+{
+  "apiVersion": "checkride/v1alpha1",
+  "kind": "DrillRun",
+  "metadata": { "name": "checkride-31efc5783dea" },
+  "spec": { "scenario": "isolated-postgresql-logical-restore", "upTo": "V3" },
+  "status": {
+    "failureAt": "2026-09-29T11:22:03.442639Z",
+    "completedAt": "2026-09-29T11:22:18.959756Z",
+    "phases": [
+      { "name": "source loss", "startedAt": "2026-09-29T11:22:03.442678Z", "endedAt": "2026-09-29T11:22:17.984261Z" },
+      { "name": "restore", "startedAt": "2026-09-29T11:22:17.984328Z", "endedAt": "2026-09-29T11:22:18.273641Z" },
+      { "name": "verify", "startedAt": "2026-09-29T11:22:18.273682Z", "endedAt": "2026-09-29T11:22:18.959695Z" }
+    ],
+    "checks": [
+      { "level": "V0", "name": "PostgreSQL logical backup", "passed": true },
+      { "level": "V1", "name": "PostgreSQL logical restore", "passed": true },
+      { "level": "V2", "name": "Restored PostgreSQL accepts connections", "passed": true },
+      { "level": "V3", "name": "Restored table contains exactly the source write", "passed": true }
+    ]
+  }
+}
