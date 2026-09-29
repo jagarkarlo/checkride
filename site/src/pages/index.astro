@@ -1,7 +1,7 @@
 ---
 import ProductLayout from '../layouts/ProductLayout.astro';
 
-const description = 'Design Kubernetes recovery drills, measure the recovery window and inspect application-level evidence. Checkride is pre-alpha; automated restore execution is planned.';
+const description = 'Design Kubernetes recovery drills and inspect a recorded isolated PostgreSQL restore. Checkride is pre-alpha; production orchestration is not available.';
 ---
 <ProductLayout title="Recovery, verified" description={description} current="overview">
   <section class="hero-band">
@@ -11,14 +11,14 @@ const description = 'Design Kubernetes recovery drills, measure the recovery win
       <h1>Backups are a promise.<br /><span>Recovery is the proof.</span></h1>
       <p class="hero-copy">Checkride is building repeatable restore drills for Kubernetes applications and their data. Today, design a drill, validate its contract and turn recorded drill evidence into a V0–V4 report.</p>
       <div class="hero-actions">
-        <a class="action-primary" href="/product/">Explore the system <span>↗</span></a>
+        <a class="action-primary" href="/demo/index.html#/report">Open the live demo <span>↗</span></a>
         <a class="action-secondary" href="/start/">Run the local validator <span>→</span></a>
       </div>
-      <div class="hero-status"><span class="status-ring">01</span><div><strong>Now: design drills + evaluate evidence</strong><span>Next: execute one isolated restore end to end</span></div><span class="status-line"></span><span class="status-end">ROADMAP / 2026–27</span></div>
+      <div class="hero-status"><span class="status-ring">01</span><div><strong>Now: design, evaluate and run one disposable restore</strong><span>Next: attested capture and application-specific checks</span></div><span class="status-line"></span><a class="status-end" href="/roadmap/">VIEW ROADMAP ↗</a></div>
     </div>
   </section>
-  <section class="signal-band"><div class="page-wrap signal-grid"><span>NOT A BACKUP PRODUCT</span><span>NOT A RESTORE RUNNER YET</span><span>BUILT AROUND EVIDENCE</span><span>LOCAL-FIRST BY DESIGN</span></div></section>
+  <section class="signal-band"><div class="page-wrap signal-grid"><span>NOT A BACKUP PRODUCT</span><span>DISPOSABLE LAB RESTORE</span><span>BUILT AROUND EVIDENCE</span><span>LOCAL-FIRST BY DESIGN</span></div></section>
   <section class="feature-band"><div class="page-wrap feature-grid"><div class="feature-copy"><p class="section-index">01 / THE QUESTION</p><h2>A green job is not a recovered application.</h2><p>A backup can complete while an application still loses acknowledged writes, restores the wrong point in time or comes back without its dependencies. Checkride makes those questions explicit, measurable and reviewable.</p><a class="under-link" href="/evidence/">See what counts as proof <span>↗</span></a></div><div class="signal-graphic" aria-label="Five verification levels from backup status to correct application data"><div class="signal-legend"><span>RECOVERY SIGNAL</span><span>V0 — V4</span></div>{["Backup status", "Restore status", "Workload health", "Data structure", "Data correctness"].map((label, i) => <div class:list={["signal-row", { active: i === 4 }]}><b>V{i}</b><span>{label}</span><i style={`--signal-width:${[38, 53, 66, 82, 100][i]}%`}></i><small>{i === 4 ? "DEEP" : "LEVEL"}</small></div>)}<p class="signal-foot">A drill reports the deepest contiguous level passed.</p></div></div></section>
   <section class="workbench-band"><div class="page-wrap"><div class="section-heading"><div><p class="section-index">02 / THE WORKBENCH</p><h2>One drill. Inspectable end to end.</h2></div><a class="under-link" href="/product/">How the system fits together <span>↗</span></a></div><figure class="studio-shot"><img src="/images/studio-preview.png" alt="Checkride Studio design view with a fictional namespace-loss drill specification, its live plan and V0–V4 verification depth" width="1440" height="900" loading="lazy" /><figcaption><span>CHECKRIDE STUDIO / 01 DESIGN DRILL</span><span>Specification validation against the local API. No cluster connection.</span></figcaption></figure></div></section>
-  <section class="next-band"><div class="page-wrap next-grid"><div><p class="section-index">03 / NEXT</p><h2>Measure recovery.<br /><span>Not a green checkbox.</span></h2></div><div class="next-copy"><p>Checkride now turns recorded DrillRun evidence into V0–V4 results, RTO phases, exact acknowledged-write RPO and a reviewable report. The restore orchestrator is still ahead.</p><a class="action-primary" href="/evidence/">Explore the evidence report <span>↗</span></a></div></div></section>
+  <section class="next-band"><div class="page-wrap next-grid"><div><p class="section-index">03 / NEXT</p><h2>Measure recovery.<br /><span>Not a green checkbox.</span></h2></div><div class="next-copy"><p>Run a disposable PostgreSQL source-loss drill across two k3d clusters and review its V0–V3 report. Try the full Studio in your browser; the online demo never contacts a cluster.</p><a class="action-primary" href="/demo/index.html#/report">Open the full Studio demo <span>↗</span></a></div></div></section>
 </ProductLayout>
