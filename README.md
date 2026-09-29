@@ -127,7 +127,7 @@ go run ./cmd/checkride-report examples/runs/mlflow-namespace-loss.run.json
 The API accepts up to 16 MiB and evaluates at most four reports concurrently.
 `GET /api/v1/schemas/drillrun` returns the versioned JSON Schema. The command
 prints a JSON report and exits `0` for verified, `1` for failed, and `2` for
-incomplete or invalid evidence. Example runs are synthetic. The evaluator
+incomplete or invalid evidence. The original MLflow and CRUD example runs are synthetic; the k3d PostgreSQL example is a locally captured lab run. The evaluator
 checks submitted claims; it does not execute restores or authenticate who
 recorded the evidence. `V4` requires a write ledger or a declared invariant
 with a matching check; ledger loss must also meet any declared RPO objective.
@@ -147,7 +147,25 @@ problem jumps to its field. `Ctrl+Enter` validates. The **Evidence report**
 view imports a DrillRun, plots recovery phases and ledger outcomes, and exports
 JSON or Markdown. Run Studio tests with `npm test`.
 
-The Astro site now has separate overview, product, evidence and roadmap pages,
+To run the disposable isolated PostgreSQL source-loss drill, install Docker,
+k3d, kubectl, Python 3.12+ and Go, then use only the dedicated lab contexts:
+
+```bash
+make lab-up
+python3 scripts/lab/restore.py --output /tmp/checkride-drill.json
+go run ./cmd/checkride-report /tmp/checkride-drill.json
+make lab-down
+```
+
+The runner checks that the two clusters differ, dumps a seeded write, deletes
+the source namespace, restores in the other cluster and verifies the write. It
+records V0–V3, not V4, RPO or an authenticated provenance claim. It attempts
+cleanup even on failure; check for leftover `checkride-*` namespaces if cleanup
+reports an error. The [lab walkthrough](site/src/content/docs/start.md) covers
+prerequisites and proxy-restricted image pulls. This is not production-safe
+orchestration.
+
+The Astro site now has separate overview, product, evidence, lab demo and roadmap pages,
 with Astro view transitions and a persistent Starlight documentation section.
 Run it locally:
 
@@ -157,7 +175,7 @@ cd site && npm ci && npm run dev
 
 Open `http://127.0.0.1:4321`. The site is reference documentation; the
 interactive Studio remains a local app backed by the Go API. Checkride is
-pre-alpha and does not yet execute automated restore drills. A paid enterprise
+pre-alpha and only executes the narrow disposable lab drill. A paid enterprise
 edition is not planned until the open-source restore workflow works reliably
 end to end and operators validate a concrete need for supported deployments,
 policy controls, or fleet-wide reporting.
