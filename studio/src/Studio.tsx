@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { request } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import type { CodeEditorHandle } from "./CodeEditor";
 import { describePlan, fieldPathOf, inspectJSON, locateField, scenarioLabels, templates } from "./drill";
@@ -52,11 +53,7 @@ export function Studio({ onReachability }: { onReachability: (online: boolean) =
     setRequestError("");
     const source = definition;
     try {
-      const response = await fetch("/api/v1/drills/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: source,
-      });
+      const response = await request("/api/v1/drills/validate", source);
       const payload: unknown = await response.json();
       if (typeof payload !== "object" || payload === null || typeof (payload as { valid?: unknown }).valid !== "boolean") {
         throw new Error("The API returned an unexpected response.");
