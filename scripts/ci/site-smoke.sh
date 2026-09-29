@@ -2,8 +2,8 @@
 set -euo pipefail
 
 site_dir=${1:-site}
-expected_routes=(/ /product/ /evidence/ /roadmap/ /docs/ /start/ /levels/ /comparison/)
-expected_assets=(/images/studio-preview.png /images/studio-report.png)
+expected_routes=(/ /product/ /evidence/ /demo/ /roadmap/ /docs/ /start/ /levels/ /comparison/)
+expected_assets=(/images/studio-preview.png /images/studio-report.png /demo/checkride-browser.wasm /demo/wasm_exec.js)
 
 for route in "${expected_routes[@]}"; do
   test -s "$site_dir/dist${route}index.html"
@@ -17,6 +17,7 @@ for needle in \
   'Built around the evidence' \
   'How deep did the' \
   'Make one drill' \
+  'Checkride Studio' \
   'Project overview'; do
   grep -Rqs "$needle" "$site_dir/dist"
 done
