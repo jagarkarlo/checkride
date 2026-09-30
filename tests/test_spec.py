@@ -144,3 +144,13 @@ def test_schema_uses_yaml_field_names_and_level_names() -> None:
     assert {"apiVersion", "kind", "metadata", "spec"} <= set(schema["properties"])
     verify = schema["$defs"]["Verify"]["properties"]
     assert verify["upTo"]["enum"] == ["V0", "V1", "V2", "V3", "V4"]
+
+
+def test_timeout_objective_parses_and_validates(tmp_path: Path) -> None:
+    doc = minimal_drill(objectives={"rto": "15m", "rpo": "5m", "timeout": "1h"})
+    drill = load_drill(write_drill(tmp_path, doc))
+    assert drill.spec.objectives.timeout == timedelta(hours=1)
+
+    bad_doc = minimal_drill(objectives={"rto": "15m", "timeout": "bad-duration"})
+    errors = errors_of(tmp_path, bad_doc)
+    assert any("spec.objectives.timeout" in err for err in errors)
