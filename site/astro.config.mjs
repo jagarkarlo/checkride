@@ -17,7 +17,8 @@ export default defineConfig({
         { label: 'Overview', link: '/docs/' },
         { label: 'Run locally', slug: 'start' },
       ] },
-      { label: 'Understand', items: [
+      { label: 'Concepts', items: [
+        { label: 'How Checkride works', slug: 'concepts/how-it-works' },
         { label: 'Verification levels', slug: 'levels' },
         { label: 'Comparison', slug: 'comparison' },
       ] },
