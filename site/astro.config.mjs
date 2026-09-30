@@ -17,6 +17,7 @@ export default defineConfig({
         { label: 'Overview', link: '/docs/' },
         { label: 'Run locally', slug: 'start' },
         { label: 'k3d isolated lab runbook', slug: 'guides/k3d-isolated-restore' },
+        { label: 'CI/CD recovery gate', slug: 'guides/ci-recovery-gate' },
       ] },
       { label: 'Concepts', items: [
         { label: 'How Checkride works', slug: 'concepts/how-it-works' },
