@@ -127,3 +127,20 @@ def test_cleanup_failure_cannot_leave_verified_report(tmp_path):
         restore.run(output)
     checks = json.loads(output.read_text())["status"]["checks"]
     assert any(not check["passed"] for check in checks)
+
+
+def test_check_cluster_health_evaluates_node_readiness():
+    from checkride.lab import check_cluster_health
+
+    def mock_kubectl(context, namespace, *args, input_data=None):
+        if "kube-system" in args:
+            return b"system-uid"
+        if "get" in args and "nodes" in args:
+            return b"True True False"
+        return b""
+
+    with patch("checkride.lab.run_kubectl", side_effect=mock_kubectl):
+        res = check_cluster_health("test-ctx")
+    assert res["reachable"] is True
+    assert res["uid"] == "system-uid"
+    assert res["ready_nodes"] == 2

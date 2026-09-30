@@ -168,6 +168,23 @@ def _cmd_lab_run(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_lab_status(args: argparse.Namespace) -> int:
+    from checkride.lab import DEFAULT_RESTORE_CONTEXT, DEFAULT_SOURCE_CONTEXT, check_cluster_health
+
+    contexts = [
+        ("source", args.source_context or DEFAULT_SOURCE_CONTEXT),
+        ("restore", args.restore_context or DEFAULT_RESTORE_CONTEXT),
+    ]
+    all_ok = True
+    for role, ctx in contexts:
+        health = check_cluster_health(ctx)
+        status = "READY" if health["reachable"] and health["ready_nodes"] > 0 else "NOT READY"
+        if status != "READY":
+            all_ok = False
+        print(f"{role:<8} [{status:<9}] context={ctx} nodes={health['ready_nodes']}")
+    return 0 if all_ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="checkride",
@@ -212,6 +229,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     lab = commands.add_parser("lab", help="manage and run disposable k3d lab restore drills")
     lab_commands = lab.add_subparsers(dest="lab_command", required=True, metavar="ACTION")
+
+    lab_status = lab_commands.add_parser(
+        "status", help="check connectivity and node readiness for lab clusters"
+    )
+    lab_status.add_argument(
+        "--source-context",
+        default=None,
+        help="kubectl context for source cluster (default: k3d-checkride-source)",
+    )
+    lab_status.add_argument(
+        "--restore-context",
+        default=None,
+        help="kubectl context for restore cluster (default: k3d-checkride-restore)",
+    )
+    lab_status.set_defaults(handler=_cmd_lab_status)
+
     lab_run = lab_commands.add_parser(
         "run", help="run an isolated PostgreSQL restore drill across k3d clusters"
     )

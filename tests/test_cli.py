@@ -151,3 +151,25 @@ def test_lab_run_returns_error_on_exception(
     output = tmp_path / "out.json"
     assert main(["lab", "run", "--output", str(output)]) == 1
     assert "error: lab restore drill failed: cluster unreachable" in capsys.readouterr().err
+
+
+def test_lab_status_reports_ready_and_not_ready(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from checkride import lab
+
+    def fake_health(context: str):
+        if "source" in context:
+            return {"context": context, "reachable": True, "uid": "123", "ready_nodes": 2}
+        return {
+            "context": context,
+            "reachable": False,
+            "error": "connection refused",
+            "ready_nodes": 0,
+        }
+
+    monkeypatch.setattr(lab, "check_cluster_health", fake_health)
+    assert main(["lab", "status"]) == 1
+    output = capsys.readouterr().out
+    assert "source   [READY    ]" in output
+    assert "restore  [NOT READY]" in output

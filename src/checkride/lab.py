@@ -35,6 +35,44 @@ def run_kubectl(
     ).stdout
 
 
+def check_cluster_health(context: str) -> dict:
+    """Check if a k3d or Kubernetes cluster is reachable and healthy."""
+    try:
+        uid = (
+            run_kubectl(
+                context, None, "get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"
+            )
+            .decode()
+            .strip()
+        )
+        nodes_raw = (
+            run_kubectl(
+                context,
+                None,
+                "get",
+                "nodes",
+                "-o",
+                "jsonpath={.items[*].status.conditions[?(@.type=='Ready')].status}",
+            )
+            .decode()
+            .strip()
+        )
+        ready_nodes = nodes_raw.split().count("True")
+        return {
+            "context": context,
+            "reachable": True,
+            "uid": uid,
+            "ready_nodes": ready_nodes,
+        }
+    except Exception as exc:
+        return {
+            "context": context,
+            "reachable": False,
+            "error": str(exc)[:200],
+            "ready_nodes": 0,
+        }
+
+
 def execute_isolated_drill(
     output: Path,
     source_context: str = DEFAULT_SOURCE_CONTEXT,
