@@ -1,71 +1,85 @@
-#!/usr/bin/env python3
-"""Run a disposable PostgreSQL dump/restore across the two Checkride k3d clusters."""
+"""Isolated k3d cluster recovery drill runner."""
 
-import argparse
 import json
+import os
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from checkride.lab import (
-    DEFAULT_POSTGRES_IMAGE,
-    DEFAULT_RESTORE_CONTEXT,
-    DEFAULT_SOURCE_CONTEXT,
-    run_kubectl,
-    utc_timestamp,
-)
-
-SOURCE = DEFAULT_SOURCE_CONTEXT
-RESTORE = DEFAULT_RESTORE_CONTEXT
-IMAGE = DEFAULT_POSTGRES_IMAGE
+DEFAULT_SOURCE_CONTEXT = "k3d-checkride-source"
+DEFAULT_RESTORE_CONTEXT = "k3d-checkride-restore"
+DEFAULT_POSTGRES_IMAGE = "postgres:16.8"
 
 
-def timestamp():
-    return utc_timestamp()
+def utc_timestamp() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def kubectl(context, namespace, *args, input_data=None):
-    return run_kubectl(context, namespace, *args, input_data=input_data)
+def run_kubectl(
+    context: str,
+    namespace: str | None,
+    *args: str,
+    input_data: bytes | None = None,
+) -> bytes:
+    command = ["kubectl", "--context", context]
+    if namespace:
+        command.extend(["-n", namespace])
+    command.extend(args)
+    env = os.environ.copy()
+    for key in ("NO_PROXY", "no_proxy"):
+        env[key] = ",".join(filter(None, (env.get(key), "0.0.0.0")))
+    return subprocess.run(
+        command, input=input_data, capture_output=True, check=True, env=env
+    ).stdout
 
 
-def run(output):
+def execute_isolated_drill(
+    output: Path,
+    source_context: str = DEFAULT_SOURCE_CONTEXT,
+    restore_context: str = DEFAULT_RESTORE_CONTEXT,
+    image: str = DEFAULT_POSTGRES_IMAGE,
+) -> dict:
+    """Execute a PostgreSQL logical backup and restore across two distinct k3d clusters."""
     identities = [
-        kubectl(context, None, "get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}")
-        for context in (SOURCE, RESTORE)
+        run_kubectl(
+            context, None, "get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"
+        )
+        for context in (source_context, restore_context)
     ]
     if not all(identities) or identities[0] == identities[1]:
         raise RuntimeError("source and restore contexts must address distinct clusters")
 
-    namespace = "checkride-" + uuid4().hex[:12]
-    checks = []
-    phases = []
-    failure_at = None
+    namespace = f"checkride-{uuid4().hex[:12]}"
+    checks: list[dict] = []
+    phases: list[dict] = []
+    failure_at: str | None = None
     active_level = "V0"
-    created = []
-    error = None
+    created: list[str] = []
+    error: Exception | None = None
 
-    def phase(name, action):
-        started_at = timestamp()
+    def record_phase(name: str, action):
+        started_at = utc_timestamp()
         try:
             return action()
         finally:
-            phases.append({"name": name, "startedAt": started_at, "endedAt": timestamp()})
+            phases.append({"name": name, "startedAt": started_at, "endedAt": utc_timestamp()})
 
     try:
-        for context in (SOURCE, RESTORE):
-            kubectl(context, None, "create", "namespace", namespace)
+        for context in (source_context, restore_context):
+            run_kubectl(context, None, "create", "namespace", namespace)
             created.append(context)
-            kubectl(
+            run_kubectl(
                 context,
                 namespace,
                 "run",
                 "postgres",
-                "--image=" + IMAGE,
+                f"--image={image}",
                 "--env=POSTGRES_HOST_AUTH_METHOD=trust",
                 "--port=5432",
             )
-            kubectl(
+            run_kubectl(
                 context,
                 namespace,
                 "wait",
@@ -77,8 +91,8 @@ def run(output):
         write_id = uuid4().hex
 
         def backup():
-            kubectl(
-                SOURCE,
+            run_kubectl(
+                source_context,
                 namespace,
                 "exec",
                 "postgres",
@@ -91,8 +105,8 @@ def run(output):
                 "-c",
                 "CREATE TABLE recovery_probe (write_id text PRIMARY KEY)",
             )
-            kubectl(
-                SOURCE,
+            run_kubectl(
+                source_context,
                 namespace,
                 "exec",
                 "postgres",
@@ -105,8 +119,8 @@ def run(output):
                 "-c",
                 f"INSERT INTO recovery_probe VALUES ('{write_id}')",
             )
-            dump = kubectl(
-                SOURCE,
+            dump = run_kubectl(
+                source_context,
                 namespace,
                 "exec",
                 "postgres",
@@ -124,19 +138,25 @@ def run(output):
             return dump
 
         dump = backup()
-        failure_at = timestamp()
+        failure_at = utc_timestamp()
         active_level = "V1"
-        phase(
+        record_phase(
             "source loss",
-            lambda: kubectl(
-                SOURCE, None, "delete", "namespace", namespace, "--wait=true", "--timeout=120s"
+            lambda: run_kubectl(
+                source_context,
+                None,
+                "delete",
+                "namespace",
+                namespace,
+                "--wait=true",
+                "--timeout=120s",
             ),
         )
-        created.remove(SOURCE)
+        created.remove(source_context)
 
         def restore():
-            kubectl(
-                RESTORE,
+            run_kubectl(
+                restore_context,
                 namespace,
                 "exec",
                 "-i",
@@ -151,19 +171,21 @@ def run(output):
             )
             checks.append({"level": "V1", "name": "PostgreSQL logical restore", "passed": True})
 
-        phase("restore", restore)
+        record_phase("restore", restore)
         active_level = "V2"
 
         def verify():
             nonlocal active_level
-            kubectl(RESTORE, namespace, "exec", "postgres", "--", "pg_isready", "-U", "postgres")
+            run_kubectl(
+                restore_context, namespace, "exec", "postgres", "--", "pg_isready", "-U", "postgres"
+            )
             checks.append(
                 {"level": "V2", "name": "Restored PostgreSQL accepts connections", "passed": True}
             )
             active_level = "V3"
             found = (
-                kubectl(
-                    RESTORE,
+                run_kubectl(
+                    restore_context,
                     namespace,
                     "exec",
                     "postgres",
@@ -191,7 +213,7 @@ def run(output):
             )
             return found
 
-        phase("verify", verify)
+        record_phase("verify", verify)
     except (RuntimeError, subprocess.CalledProcessError, KeyboardInterrupt) as exc:
         error = exc
         checks.append(
@@ -203,11 +225,17 @@ def run(output):
             }
         )
     finally:
-        completed_at = timestamp()
+        completed_at = utc_timestamp()
         for context in reversed(created):
             try:
-                kubectl(
-                    context, None, "delete", "namespace", namespace, "--wait=true", "--timeout=120s"
+                run_kubectl(
+                    context,
+                    None,
+                    "delete",
+                    "namespace",
+                    namespace,
+                    "--wait=true",
+                    "--timeout=120s",
                 )
             except subprocess.CalledProcessError as exc:
                 print(f"Cleanup failed for {context}/{namespace}: {exc}", file=sys.stderr)
@@ -226,20 +254,15 @@ def run(output):
             "metadata": {"name": namespace},
             "spec": {"scenario": "isolated-postgresql-logical-restore", "upTo": "V3"},
             "status": {
-                "failureAt": failure_at or timestamp(),
+                "failureAt": failure_at or utc_timestamp(),
                 "completedAt": completed_at,
                 "phases": phases,
                 "checks": checks,
             },
         }
+        output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(result, indent=2) + "\n")
         print(f"Recorded lab evidence in {output}")
     if error:
         raise error
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, required=True, help="local DrillRun JSON path")
-    arguments = parser.parse_args()
-    run(arguments.output)
+    return result
