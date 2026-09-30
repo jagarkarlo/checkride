@@ -21,6 +21,7 @@ export default defineConfig({
         { label: 'How Checkride works', slug: 'concepts/how-it-works' },
         { label: 'Verification levels', slug: 'levels' },
         { label: 'Write ledger & exact RPO', slug: 'concepts/write-ledger-rpo' },
+        { label: 'Separate restore clusters', slug: 'concepts/isolated-restores' },
         { label: 'Comparison', slug: 'comparison' },
       ] },
     ],
