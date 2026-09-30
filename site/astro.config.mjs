@@ -16,6 +16,7 @@ export default defineConfig({
       { label: 'Start here', items: [
         { label: 'Overview', link: '/docs/' },
         { label: 'Run locally', slug: 'start' },
+        { label: 'k3d isolated lab runbook', slug: 'guides/k3d-isolated-restore' },
       ] },
       { label: 'Concepts', items: [
         { label: 'How Checkride works', slug: 'concepts/how-it-works' },
