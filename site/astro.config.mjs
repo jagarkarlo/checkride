@@ -26,6 +26,9 @@ export default defineConfig({
         { label: 'Separate restore clusters', slug: 'concepts/isolated-restores' },
         { label: 'Comparison', slug: 'comparison' },
       ] },
+      { label: 'Reference', items: [
+        { label: 'Drill specification', slug: 'reference/drill-spec' },
+      ] },
     ],
     customCss: ['./src/styles/theme.css'],
   })],
