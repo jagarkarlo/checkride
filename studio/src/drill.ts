@@ -130,6 +130,7 @@ export interface DrillPlan {
   evidence: string[];
   rto: string;
   rpo: string;
+  timeout: string;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -181,6 +182,7 @@ export function describePlan(document: unknown): DrillPlan {
     evidence,
     rto: text(objectives.rto),
     rpo: text(objectives.rpo),
+    timeout: text(objectives.timeout),
   };
 }
 

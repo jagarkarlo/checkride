@@ -133,6 +133,7 @@ class Verify(_Model):
 class Objectives(_Model):
     rto: Duration | None = None
     rpo: Duration | None = None
+    timeout: Duration | None = None
 
 
 class Drill(_Model):

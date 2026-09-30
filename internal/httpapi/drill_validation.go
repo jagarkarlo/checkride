@@ -77,8 +77,9 @@ type drillInvariant struct {
 }
 
 type drillObjectives struct {
-	RTO json.RawMessage `json:"rto"`
-	RPO json.RawMessage `json:"rpo"`
+	RTO     json.RawMessage `json:"rto"`
+	RPO     json.RawMessage `json:"rpo"`
+	Timeout json.RawMessage `json:"timeout"`
 }
 
 func validateDrillHandler(writer http.ResponseWriter, request *http.Request) {
@@ -254,6 +255,11 @@ func validateDrill(document drillDocument) ([]string, []string) {
 		if !rpoMissing {
 			if err := validateDuration(objectives.RPO); err != nil {
 				problems = append(problems, "spec.objectives.rpo: "+err.Error())
+			}
+		}
+		if len(objectives.Timeout) > 0 && !isJSONNull(objectives.Timeout) {
+			if err := validateDuration(objectives.Timeout); err != nil {
+				problems = append(problems, "spec.objectives.timeout: "+err.Error())
 			}
 		}
 	}
