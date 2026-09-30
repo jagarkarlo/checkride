@@ -112,3 +112,42 @@ def test_import_acks_rejects_duplicates(tmp_path: Path, capsys: pytest.CaptureFi
     csv_file.write_text("w1,2026-10-01T10:00:00Z\nw1,2026-10-01T10:00:01Z\n")
     assert main(["import-acks", "--ledger", str(tmp_path / "run.ledger.db"), str(csv_file)]) == 1
     assert "duplicate write id 'w1'" in capsys.readouterr().err
+
+
+def test_lab_command_requires_subcommand() -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["lab"])
+    assert exit_info.value.code == 2
+
+
+def test_lab_run_invokes_execute_isolated_drill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from checkride import lab
+
+    called_kwargs: dict = {}
+
+    def fake_execute(**kwargs):
+        called_kwargs.update(kwargs)
+        return {"status": "ok"}
+
+    monkeypatch.setattr(lab, "execute_isolated_drill", fake_execute)
+    output = tmp_path / "out.json"
+    assert main(["lab", "run", "--output", str(output)]) == 0
+    assert called_kwargs["output"] == output
+    assert called_kwargs["source_context"] == lab.DEFAULT_SOURCE_CONTEXT
+    assert called_kwargs["restore_context"] == lab.DEFAULT_RESTORE_CONTEXT
+
+
+def test_lab_run_returns_error_on_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from checkride import lab
+
+    def failing_execute(**kwargs):
+        raise RuntimeError("cluster unreachable")
+
+    monkeypatch.setattr(lab, "execute_isolated_drill", failing_execute)
+    output = tmp_path / "out.json"
+    assert main(["lab", "run", "--output", str(output)]) == 1
+    assert "error: lab restore drill failed: cluster unreachable" in capsys.readouterr().err

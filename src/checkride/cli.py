@@ -147,6 +147,27 @@ def _cmd_rpo(args: argparse.Namespace) -> int:
     return 0 if report.consistent else 1
 
 
+def _cmd_lab_run(args: argparse.Namespace) -> int:
+    from checkride.lab import (
+        DEFAULT_POSTGRES_IMAGE,
+        DEFAULT_RESTORE_CONTEXT,
+        DEFAULT_SOURCE_CONTEXT,
+        execute_isolated_drill,
+    )
+
+    try:
+        execute_isolated_drill(
+            output=Path(args.output),
+            source_context=args.source_context or DEFAULT_SOURCE_CONTEXT,
+            restore_context=args.restore_context or DEFAULT_RESTORE_CONTEXT,
+            image=args.image or DEFAULT_POSTGRES_IMAGE,
+        )
+        return 0
+    except Exception as error:
+        print(f"error: lab restore drill failed: {error}", file=sys.stderr)
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="checkride",
@@ -188,6 +209,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rpo.add_argument("--json", action="store_true", help="print the report as JSON")
     rpo.set_defaults(handler=_cmd_rpo)
+
+    lab = commands.add_parser("lab", help="manage and run disposable k3d lab restore drills")
+    lab_commands = lab.add_subparsers(dest="lab_command", required=True, metavar="ACTION")
+    lab_run = lab_commands.add_parser(
+        "run", help="run an isolated PostgreSQL restore drill across k3d clusters"
+    )
+    lab_run.add_argument(
+        "--output", required=True, metavar="FILE", help="output DrillRun JSON file path"
+    )
+    lab_run.add_argument(
+        "--source-context",
+        default=None,
+        help="kubectl context for source cluster (default: k3d-checkride-source)",
+    )
+    lab_run.add_argument(
+        "--restore-context",
+        default=None,
+        help="kubectl context for restore cluster (default: k3d-checkride-restore)",
+    )
+    lab_run.add_argument(
+        "--image", default=None, help="PostgreSQL image to use (default: postgres:16.8)"
+    )
+    lab_run.set_defaults(handler=_cmd_lab_run)
 
     return parser
 
