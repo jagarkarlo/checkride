@@ -28,6 +28,7 @@ export default defineConfig({
       ] },
       { label: 'Reference', items: [
         { label: 'Drill specification', slug: 'reference/drill-spec' },
+        { label: 'DrillRun evidence schema', slug: 'reference/drillrun-evidence' },
       ] },
     ],
     customCss: ['./src/styles/theme.css'],
