@@ -73,6 +73,7 @@ flowchart LR
 | API | Go HTTP control plane, validation, schema and report endpoints | Available locally |
 | Report CLI | Evaluates DrillRun files and returns gate-friendly exit codes | Available as `go run ./cmd/checkride-report` |
 | Attestation CLI | Signs exact DrillRun bytes and verifies detached signatures against trusted keys | Available as `go run ./cmd/checkride-attest` |
+| Metrics | Pushes per-drill gauges to a Prometheus Pushgateway, with a bundled Grafana dashboard | Available via `checkride-report --pushgateway-url` |
 | Lab | Disposable k3d source and restore clusters | Started |
 | Orchestrator | Runs drills, times every phase, cleans up | Planned |
 | Analyzer | Predicts restore failures before a drill from manifests and configuration | Planned |
@@ -159,6 +160,24 @@ By default, `checkride-report` marks evidence as `unverified`; with both
 provenance status, key ID and evidence digest in its JSON report. Invalid
 attestations fail report generation. The API does not automatically verify
 sidecars or trust caller-supplied keys.
+
+### Push recovery metrics to Grafana
+
+`checkride-report` can push one gauge per drill to a Prometheus Pushgateway,
+so results land in the same dashboards as the rest of your stack instead of
+only a CI log:
+
+```bash
+go run ./cmd/checkride-report --pushgateway-url http://pushgateway:9091 /tmp/checkride-drill.json
+```
+
+The instance label defaults to the evidence's `metadata.name`; set
+`--pushgateway-instance` explicitly in a scheduled job so every run keeps its
+own series instead of overwriting the last one. A push failure is printed as
+a warning and does not change the exit code. Import
+[`grafana/checkride-recovery-dashboard.json`](grafana/checkride-recovery-dashboard.json)
+for a ready dashboard, or read the
+[full guide](site/src/content/docs/guides/metrics-and-dashboard.md).
 
 To use the Studio locally, start the API and Studio in separate terminals:
 
