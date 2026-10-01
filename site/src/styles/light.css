@@ -1,4 +1,6 @@
 .masthead-tools { display: flex; align-items: center; justify-self: end; gap: 12px; }
+.github-link { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; transition: color .15s, border-color .15s; }
+.github-link:hover { color: var(--text); border-color: var(--mint); }
 .theme-toggle { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 20px var(--mono); cursor: pointer; }
 .theme-toggle:hover { border-color: var(--mint); }
 .light-icon, html[data-theme=light] .dark-icon { display: none; }
@@ -14,4 +16,4 @@ html[data-theme=light] .signal-graphic, html[data-theme=light] .evidence-level, 
 html[data-theme=light] .signal-row>span, html[data-theme=light] .signal-row b, html[data-theme=light] .signal-legend, html[data-theme=light] .signal-foot, html[data-theme=light] .studio-shot figcaption, html[data-theme=light] .hero-status>div span { color: var(--muted); }
 html[data-theme=light] .action-secondary { color: var(--text); border-color: var(--line); }
 html[data-theme=light] .product-footer p, html[data-theme=light] .footer-wordmark span { color: var(--quiet); }
-@media (max-width: 650px) { .masthead-tools { grid-column: 2; grid-row: 1; gap: 6px; } .masthead-action { grid-column: auto; grid-row: auto; } .theme-toggle { width: 30px; height: 30px; font-size: 17px; } html[data-theme=light] .hero-band::before { background-size: 100% 100%, auto 310px; } }
+@media (max-width: 650px) { .masthead-tools { grid-column: 2; grid-row: 1; gap: 6px; } .masthead-action { grid-column: auto; grid-row: auto; } .theme-toggle, .github-link { width: 30px; height: 30px; font-size: 17px; } html[data-theme=light] .hero-band::before { background-size: 100% 100%, auto 310px; } }

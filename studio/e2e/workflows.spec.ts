@@ -8,6 +8,9 @@ test("homepage directs users to the right recovery workflow", async ({ page }) =
   await expect(page.getByRole("link", { name: /Follow the CLI setup/ })).toHaveAttribute("href", "/docs/start/");
   await expect(page.getByRole("link", { name: /Read the lab walkthrough/ })).toHaveAttribute("href", "/docs/guides/k3d-isolated-restore/");
   await expect(page.getByText("The demo evaluates evidence; it does not connect to Kubernetes.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Verify your first restore drill." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Beyond green backup checkboxes." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "GitHub repository" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
