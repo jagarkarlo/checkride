@@ -1,6 +1,30 @@
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
+test("theme preference persists across product, docs and demo pages", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.locator("[data-theme-toggle]").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("checkride-theme"))).toBe("light");
+
+  await page.getByRole("link", { name: "Product", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByRole("link", { name: "Docs", exact: true }).click();
+  await expect(page.locator("body")).toHaveAttribute("data-md-color-scheme", "default");
+
+  await page.locator('label[for="__palette_1"]').click();
+  await expect(page.locator("body")).toHaveAttribute("data-md-color-scheme", "slate");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("checkride-theme"))).toBe("dark");
+
+  await page.goto("/demo/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByRole("heading", { name: "Recovery runs" })).toBeVisible();
+  await page.goto("/product/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
 test("homepage directs users to the right recovery workflow", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Start with the proof you need." })).toBeVisible();
