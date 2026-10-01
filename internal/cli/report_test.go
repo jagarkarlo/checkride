@@ -3,6 +3,9 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -150,5 +153,45 @@ func TestRunValidatesEvidenceAndUsage(t *testing.T) {
 	}
 	if code := Run([]string{file}, &stdout, &stderr); code != 2 || !strings.Contains(stderr.String(), "apiVersion:") {
 		t.Fatalf("invalid evidence exit=%d stderr=%q", code, stderr.String())
+	}
+}
+
+func TestRunPushesMetricsToThePushgatewayUnderTheEvidenceName(t *testing.T) {
+	var gotPath, gotBody string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		gotPath = request.URL.Path
+		body, _ := io.ReadAll(request.Body)
+		gotBody = string(body)
+		writer.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--pushgateway-url", server.URL, "../../examples/runs/mlflow-namespace-loss.run.json"}, &stdout, &stderr)
+	if code != 0 || stderr.Len() > 0 {
+		t.Fatalf("exit=%d stderr=%s", code, stderr.String())
+	}
+	if gotPath != "/metrics/job/checkride/instance/mlflow-namespace-loss-20261001" {
+		t.Errorf("pushgateway path = %s", gotPath)
+	}
+	if !strings.Contains(gotBody, "checkride_drill_verified 1") {
+		t.Errorf("pushgateway body missing verified sample: %s", gotBody)
+	}
+}
+
+func TestRunStillReportsAndKeepsItsExitCodeWhenThePushgatewayIsUnreachable(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--pushgateway-url", "http://127.0.0.1:1", "--pushgateway-job", "ci", "--pushgateway-instance", "nightly", "../../examples/runs/crud-cluster-loss.run.json"}, &stdout, &stderr)
+	var report struct {
+		Verdict string `json:"verdict"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("decode report: %v; output=%s", err, stdout.String())
+	}
+	if code != 1 || report.Verdict != "failed" {
+		t.Fatalf("exit=%d verdict=%s, want the report's own verdict regardless of the push", code, report.Verdict)
+	}
+	if !strings.Contains(stderr.String(), "push metrics:") {
+		t.Fatalf("stderr = %q, want a warning that the push failed", stderr.String())
 	}
 }
