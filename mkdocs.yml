@@ -61,6 +61,7 @@ nav:
       - Installation: start.md
       - First restore drill: guides/k3d-isolated-restore.md
       - CI recovery gate: guides/ci-recovery-gate.md
+      - Recovery metrics and dashboard: guides/metrics-and-dashboard.md
   - Understand the Evidence:
       - How it works: concepts/how-it-works.md
       - Verification levels: levels.md

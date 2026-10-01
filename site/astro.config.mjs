@@ -22,7 +22,7 @@ export default defineConfig({
   },
   redirects: Object.fromEntries([
     'start', 'levels', 'comparison',
-    'guides/k3d-isolated-restore', 'guides/ci-recovery-gate',
+    'guides/k3d-isolated-restore', 'guides/ci-recovery-gate', 'guides/metrics-and-dashboard',
     'concepts/how-it-works', 'concepts/write-ledger-rpo', 'concepts/isolated-restores',
     'reference/drill-spec', 'reference/drillrun-evidence',
   ].map((path) => [`/${path}/`, `/docs/${path}/`])),

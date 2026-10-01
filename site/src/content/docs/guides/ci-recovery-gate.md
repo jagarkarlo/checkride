@@ -81,3 +81,8 @@ fi
 
 checkride-report evidence.json
 ```
+
+## Watching results over time
+
+A pass/fail gate tells you about the latest run. To see recovery time and data loss trend across many runs, push the same evidence to Prometheus and chart it in Grafana; see [Recovery metrics and the Grafana dashboard](metrics-and-dashboard.md).
+
