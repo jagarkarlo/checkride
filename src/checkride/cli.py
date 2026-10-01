@@ -1,6 +1,7 @@
 import argparse
 import csv
 import json
+import signal
 import sqlite3
 import sys
 from collections.abc import Iterator, Sequence
@@ -155,6 +156,10 @@ def _cmd_lab_run(args: argparse.Namespace) -> int:
         execute_isolated_drill,
     )
 
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt("lab interrupted")
+
+    previous = signal.signal(signal.SIGTERM, interrupt)
     try:
         execute_isolated_drill(
             output=Path(args.output),
@@ -163,9 +168,14 @@ def _cmd_lab_run(args: argparse.Namespace) -> int:
             image=args.image or DEFAULT_POSTGRES_IMAGE,
         )
         return 0
+    except KeyboardInterrupt:
+        print("error: lab interrupted; inspect evidence and cleanup messages", file=sys.stderr)
+        return 130
     except Exception as error:
         print(f"error: lab restore drill failed: {error}", file=sys.stderr)
         return 1
+    finally:
+        signal.signal(signal.SIGTERM, previous)
 
 
 def _cmd_lab_status(args: argparse.Namespace) -> int:
@@ -176,12 +186,19 @@ def _cmd_lab_status(args: argparse.Namespace) -> int:
         ("restore", args.restore_context or DEFAULT_RESTORE_CONTEXT),
     ]
     all_ok = True
+    identities = []
     for role, ctx in contexts:
         health = check_cluster_health(ctx)
-        status = "READY" if health["reachable"] and health["ready_nodes"] > 0 else "NOT READY"
+        ready = health["reachable"] and health["ready_nodes"] > 0
+        ready = ready and health["ready_nodes"] == health.get("total_nodes", health["ready_nodes"])
+        status = "READY" if ready else "NOT READY"
+        identities.append(health.get("uid"))
         if status != "READY":
             all_ok = False
         print(f"{role:<8} [{status:<9}] context={ctx} nodes={health['ready_nodes']}")
+    if all(identities) and identities[0] == identities[1]:
+        print("error: source and restore contexts address the same cluster", file=sys.stderr)
+        all_ok = False
     return 0 if all_ok else 1
 
 

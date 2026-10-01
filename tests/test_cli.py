@@ -173,3 +173,51 @@ def test_lab_status_reports_ready_and_not_ready(
     output = capsys.readouterr().out
     assert "source   [READY    ]" in output
     assert "restore  [NOT READY]" in output
+
+
+def test_lab_status_rejects_same_cluster(monkeypatch, capsys):
+    from checkride import lab
+
+    monkeypatch.setattr(
+        lab,
+        "check_cluster_health",
+        lambda context: {
+            "reachable": True,
+            "uid": "same",
+            "ready_nodes": 1,
+            "total_nodes": 1,
+        },
+    )
+    assert main(["lab", "status"]) == 1
+    assert "same cluster" in capsys.readouterr().err
+
+
+def test_lab_status_requires_all_nodes_ready(monkeypatch):
+    from checkride import lab
+
+    monkeypatch.setattr(
+        lab,
+        "check_cluster_health",
+        lambda context: {
+            "reachable": True,
+            "uid": context,
+            "ready_nodes": 1,
+            "total_nodes": 2,
+        },
+    )
+    assert main(["lab", "status"]) == 1
+
+
+def test_lab_sigterm_returns_interrupted_and_restores_handler(monkeypatch, tmp_path):
+    import signal
+
+    from checkride import lab
+
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def terminate(**kwargs):
+        signal.raise_signal(signal.SIGTERM)
+
+    monkeypatch.setattr(lab, "execute_isolated_drill", terminate)
+    assert main(["lab", "run", "--output", str(tmp_path / "run.json")]) == 130
+    assert signal.getsignal(signal.SIGTERM) == previous
