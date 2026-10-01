@@ -1,0 +1,156 @@
+{
+  "title": "Checkride recovery drills",
+  "description": "Recovery depth, time and data loss from checkride-report, pushed to a Prometheus Pushgateway with --pushgateway-url.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": ["checkride", "disaster-recovery"],
+  "timezone": "",
+  "time": { "from": "now-30d", "to": "now" },
+  "refresh": "",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {}
+      },
+      {
+        "name": "job",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(checkride_drill_verified, job)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "instance",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(checkride_drill_verified{job=~\"$job\"}, instance)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Latest verdict",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "max by (instance) (checkride_drill_verified{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "Verified", "color": "green" }, "0": { "text": "Failed", "color": "red" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "options": { "textMode": "value_and_name", "colorMode": "background" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Deepest level reached",
+      "description": "-1 means no level passed. 0 = V0 ... 4 = V4.",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "max by (instance) (checkride_drill_deepest_level{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "-1": { "text": "None" }, "0": { "text": "V0" }, "1": { "text": "V1" }, "2": { "text": "V2" }, "3": { "text": "V3" }, "4": { "text": "V4" } } }
+          ],
+          "min": -1,
+          "max": 4
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Evidence signature verified",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "max by (instance) (checkride_evidence_verified{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "Signed", "color": "green" }, "0": { "text": "Unverified", "color": "yellow" } } }
+          ]
+        }
+      },
+      "options": { "textMode": "value_and_name", "colorMode": "background" }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Acknowledged writes lost",
+      "description": "-1 means no write ledger was recorded for this run.",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "max by (instance) (checkride_acknowledged_writes_lost{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
+          "mappings": [{ "type": "value", "options": { "-1": { "text": "Unmeasured" } } }]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Recovery time (RTO)",
+      "description": "Each push is one drill run. The Pushgateway keeps only the latest value per instance, so give each run a distinct instance label (for example a timestamp or run ID) to build history here.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "checkride_recovery_time_seconds{job=~\"$job\", instance=~\"$instance\"} >= 0", "legendFormat": "{{instance}}" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Data loss window (RPO)",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "checkride_data_loss_seconds{job=~\"$job\", instance=~\"$instance\"} >= 0", "legendFormat": "{{instance}}" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Latest run per instance",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "expr": "checkride_drill_verified{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "verified" },
+        { "expr": "checkride_drill_deepest_level{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "deepest_level" },
+        { "expr": "checkride_recovery_time_seconds{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "rto_seconds" },
+        { "expr": "checkride_data_loss_seconds{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "rpo_seconds" }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} }
+      ]
+    }
+  ]
+}
