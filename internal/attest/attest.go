@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -23,6 +24,7 @@ const (
 	Algorithm        = "Ed25519"
 	maxEvidenceBytes = 16 << 20
 	maxSidecarBytes  = 16 << 10
+	maxTrustedKeys   = 128
 )
 
 var signingContext = []byte("checkride/drillrun-attestation/v1alpha1\x00")
@@ -171,6 +173,36 @@ func LoadPublicKey(path string) (ed25519.PublicKey, error) {
 	return key, nil
 }
 
+func LoadTrustedPublicKeys(directory string) (map[string]ed25519.PublicKey, error) {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return nil, fmt.Errorf("read trusted key directory: %w", err)
+	}
+	keys := make(map[string]ed25519.PublicKey)
+	for _, entry := range entries {
+		if entry.IsDir() || strings.ToLower(filepath.Ext(entry.Name())) != ".pem" {
+			continue
+		}
+		if !entry.Type().IsRegular() {
+			return nil, fmt.Errorf("trusted key %q must be a regular file", entry.Name())
+		}
+		if len(keys) >= maxTrustedKeys {
+			return nil, fmt.Errorf("trusted key directory may contain at most %d PEM keys", maxTrustedKeys)
+		}
+		path := filepath.Join(directory, entry.Name())
+		key, err := LoadPublicKey(path)
+		if err != nil {
+			return nil, fmt.Errorf("load trusted key %q: %w", entry.Name(), err)
+		}
+		keyID := KeyID(key)
+		if _, exists := keys[keyID]; exists {
+			return nil, fmt.Errorf("duplicate trusted key %s", keyID)
+		}
+		keys[keyID] = key
+	}
+	return keys, nil
+}
+
 func ReadEvidence(path string) ([]byte, error) {
 	data, err := readLimited(path, maxEvidenceBytes)
 	if err != nil {
@@ -184,11 +216,22 @@ func ReadSidecar(path string) (Sidecar, error) {
 	if err != nil {
 		return Sidecar{}, fmt.Errorf("read attestation: %w", err)
 	}
+	sidecar, err := DecodeSidecar(data)
+	if err != nil {
+		return Sidecar{}, fmt.Errorf("decode attestation: %w", err)
+	}
+	return sidecar, nil
+}
+
+func DecodeSidecar(data []byte) (Sidecar, error) {
+	if len(data) > maxSidecarBytes {
+		return Sidecar{}, fmt.Errorf("attestation exceeds %d bytes", maxSidecarBytes)
+	}
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
 	var sidecar Sidecar
 	if err := decoder.Decode(&sidecar); err != nil {
-		return Sidecar{}, fmt.Errorf("decode attestation: %w", err)
+		return Sidecar{}, err
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return Sidecar{}, errors.New("attestation must contain exactly one JSON value")

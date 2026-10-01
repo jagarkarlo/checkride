@@ -3,6 +3,8 @@ package attest
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -66,5 +68,61 @@ func TestVerifyRejectsUntrustedKeyAndMalformedSignature(t *testing.T) {
 func TestSignRejectsInvalidPrivateKey(t *testing.T) {
 	if _, err := Sign([]byte(`{}`), make([]byte, ed25519.SeedSize)); err == nil {
 		t.Fatal("sign accepted a seed instead of a private key")
+	}
+}
+
+func TestLoadTrustedPublicKeysUsesPEMKeyIDsAndIgnoresOtherFiles(t *testing.T) {
+	directory := t.TempDir()
+	keysDirectory := filepath.Join(directory, "keys")
+	if err := os.Mkdir(keysDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	privatePath := filepath.Join(keysDirectory, "private.pem")
+	publicPath := filepath.Join(keysDirectory, "team.pem")
+	if err := WriteKeyPair(privatePath, publicPath); err != nil {
+		t.Fatal(err)
+	}
+	publicPEM, err := os.ReadFile(publicPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "team.pem"), publicPEM, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "README.txt"), []byte("not a key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	keys, err := LoadTrustedPublicKeys(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicKey, err := LoadPublicKey(filepath.Join(directory, "team.pem"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keys) != 1 || len(keys[KeyID(publicKey)]) != ed25519.PublicKeySize {
+		t.Fatalf("loaded trusted keys = %v", keys)
+	}
+}
+
+func TestLoadTrustedPublicKeysRejectsBadPEM(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "bad.pem"), []byte("not a PEM key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadTrustedPublicKeys(directory); err == nil || !strings.Contains(err.Error(), "bad.pem") {
+		t.Fatalf("err = %v, want malformed trusted key error", err)
+	}
+}
+
+func TestDecodeSidecarRejectsUnknownFieldsAndOversize(t *testing.T) {
+	for _, data := range [][]byte{
+		[]byte(`{"apiVersion":"v1","unknown":true}`),
+		[]byte(`{} {}`),
+		make([]byte, maxSidecarBytes+1),
+	} {
+		if _, err := DecodeSidecar(data); err == nil {
+			t.Fatalf("DecodeSidecar accepted invalid input of %d bytes", len(data))
+		}
 	}
 }

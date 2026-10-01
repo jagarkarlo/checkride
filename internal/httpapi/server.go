@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"crypto/ed25519"
 	"net/http"
 	"time"
 
@@ -8,6 +9,14 @@ import (
 )
 
 func NewHandler() http.Handler {
+	return NewHandlerWithTrustedKeys(nil)
+}
+
+func NewHandlerWithTrustedKeys(configuredKeys map[string]ed25519.PublicKey) http.Handler {
+	trustedKeys := make(map[string]ed25519.PublicKey, len(configuredKeys))
+	for keyID, key := range configuredKeys {
+		trustedKeys[keyID] = append(ed25519.PublicKey(nil), key...)
+	}
 	mux := http.NewServeMux()
 	probe := func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
@@ -20,14 +29,20 @@ func NewHandler() http.Handler {
 		_, _ = writer.Write(schema.DrillRunJSONSchema)
 	})
 	mux.HandleFunc("POST /api/v1/drills/validate", validateDrillHandler)
-	mux.HandleFunc("POST /api/v1/runs/report", runReportHandler)
+	mux.HandleFunc("POST /api/v1/runs/report", func(writer http.ResponseWriter, request *http.Request) {
+		runReportHandler(writer, request, trustedKeys)
+	})
 	return mux
 }
 
 func NewServer(address string) *http.Server {
+	return NewServerWithTrustedKeys(address, nil)
+}
+
+func NewServerWithTrustedKeys(address string, trustedKeys map[string]ed25519.PublicKey) *http.Server {
 	return &http.Server{
 		Addr:              address,
-		Handler:           NewHandler(),
+		Handler:           NewHandlerWithTrustedKeys(trustedKeys),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

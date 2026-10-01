@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jagarkarlo/checkride/internal/attest"
 	"github.com/jagarkarlo/checkride/internal/httpapi"
 )
 
@@ -31,11 +33,23 @@ func run() error {
 	stopSignals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	var trustedKeys map[string]ed25519.PublicKey
+	var err error
+	if directory := os.Getenv("CHECKRIDE_TRUSTED_KEYS_DIR"); directory != "" {
+		trustedKeys, err = attest.LoadTrustedPublicKeys(directory)
+		if err != nil {
+			return fmt.Errorf("load trusted evidence keys: %w", err)
+		}
+		if len(trustedKeys) == 0 {
+			return fmt.Errorf("load trusted evidence keys: directory %q contains no PEM public keys", directory)
+		}
+		slog.Info("loaded trusted evidence keys", "count", len(trustedKeys), "directory", directory)
+	}
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return fmt.Errorf("listen on %q: %w", address, err)
 	}
-	server := httpapi.NewServer(address)
+	server := httpapi.NewServerWithTrustedKeys(address, trustedKeys)
 	serveErrors := make(chan error, 1)
 	go func() {
 		serveErrors <- server.Serve(listener)
