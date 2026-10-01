@@ -16,7 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { request } from "./api";
+import { browserDemo, request } from "./api";
 import { CodeEditor } from "./CodeEditor";
 import type { CodeEditorHandle } from "./CodeEditor";
 import { fieldPathOf, inspectJSON, locateField, scenarioLabels } from "./drill";
@@ -51,15 +51,25 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
   const generation = useRef(0);
   const editorRef = useRef<CodeEditorHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attestation, setAttestation] = useState("");
+  const [attestationName, setAttestationName] = useState("");
+  const [attestationBoundary, setAttestationBoundary] = useState("");
+  const attestationInputRef = useRef<HTMLInputElement>(null);
   const inspection = useMemo(() => inspectJSON(source), [source]);
 
   const build = useCallback(
-    async (text: string, current = ++generation.current) => {
+    async (text: string, current = ++generation.current, detachedAttestation = "") => {
       setIsBuilding(true);
       setRequestError("");
       setSaved(false);
+      setAttestationBoundary("");
       try {
-        const response = await request("/api/v1/runs/report", text);
+        if (browserDemo && detachedAttestation) {
+          setAttestationBoundary("The browser demo cannot verify signatures. Use the local API with CHECKRIDE_TRUSTED_KEYS_DIR configured.");
+          return;
+        }
+        const headers: Record<string, string> = detachedAttestation ? { "X-Checkride-Attestation": btoa(detachedAttestation) } : {};
+        const response = await request("/api/v1/runs/report", text, undefined, headers);
         const payload: unknown = await response.json();
         if (current !== generation.current) return;
         onReachability(true);
@@ -95,6 +105,8 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
         setSourceError("");
         setSource(text);
         setSampleId(id);
+        setAttestation("");
+        setAttestationName("");
         await build(text, current);
       } catch (error) { if (current === generation.current) setSourceError(String(error)); }
     },
@@ -167,6 +179,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
           ref={fileInputRef}
           type="file"
           accept=".json,application/json"
+          data-testid="evidence-input"
           hidden
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -180,13 +193,49 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
                 setSourceError("");
                 setSource(text);
                 setSampleId("");
+                setAttestation("");
+                setAttestationName("");
                 void build(text);
               }).catch(() => setSourceError("Could not read the selected file."));
+          }}
+        />
+        <input
+          ref={attestationInputRef}
+          type="file"
+          accept=".attestation.json,application/json"
+          data-testid="attestation-input"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (!file) return;
+            if (file.size > 16 * 1024) {
+              setSourceError("Attestation sidecar exceeds the 16 KiB limit.");
+              return;
+            }
+            void file.text().then((text) => {
+              try {
+                JSON.parse(text);
+              } catch {
+                setSourceError("Attestation sidecar must be valid JSON.");
+                return;
+              }
+              setSourceError("");
+              setAttestation(text);
+              setAttestationName(file.name);
+              if (source) void build(source, ++generation.current, text);
+            }).catch(() => setSourceError("Could not read the attestation sidecar."));
           }}
         />
         <button className="rail-action" type="button" onClick={() => fileInputRef.current?.click()}>
           <Upload size={14} /> Import DrillRun JSON
         </button>
+        <button className="rail-action" type="button" disabled={!source || stale || isBuilding} onClick={() => attestationInputRef.current?.click()}>
+          <ShieldCheck size={14} /> {attestationName || "Attach attestation"}
+        </button>
+        {attestation && <button className="rail-action" type="button" disabled={isBuilding} onClick={() => { setAttestation(""); setAttestationName(""); setAttestationBoundary(""); void build(source, ++generation.current); }}>
+          Remove attestation
+        </button>}
         <a className="rail-action" href="#/runs">Saved runs</a>
       </aside>
 
@@ -202,7 +251,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
             {stale && <span className="stale-inline">Evidence edited</span>}
             <button className="tool" type="button" disabled={!report || stale || isBuilding || saving || saved} onClick={() => void save()} title="Save original evidence and report in this browser"><Save size={15} /> {saved ? "Saved" : saving ? "Saving..." : "Save run"}</button>
             <button className="icon-button" type="button" disabled={!source} aria-label="Download original evidence" title="Download original DrillRun evidence" onClick={() => download("checkride.run.json", source, "application/json")}><Download size={15} /></button>
-            <button className="primary" type="button" disabled={isBuilding || !inspection.ok || source.length === 0} onClick={() => void build(source)}>
+            <button className="primary" type="button" disabled={isBuilding || !inspection.ok || source.length === 0} onClick={() => void build(source, undefined, attestation)}>
               {isBuilding ? <LoaderCircle className="spin" size={15} /> : <Play size={14} fill="currentColor" />}
               {isBuilding ? "Building…" : "Build report"}
             </button>
@@ -214,6 +263,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
             <XCircle size={15} /> {requestError}
           </div>
         )}
+        {attestationBoundary && <div className="banner bad attestation-boundary" role="alert"><ShieldAlert size={15} /> {attestationBoundary}</div>}
         {sourceError && <div className="banner bad"><XCircle size={15} /> {sourceError}</div>}
 
         {tab === "evidence" ? (
@@ -234,8 +284,8 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
                 ref={editorRef}
                 value={source}
                 errorLine={inspection.ok ? null : inspection.line}
-                onChange={(text) => { generation.current++; setIsBuilding(false); setSource(text); setSampleId(""); setSaved(false); }}
-                onSubmit={() => void build(source)}
+                onChange={(text) => { generation.current++; setIsBuilding(false); setSource(text); setSampleId(""); setAttestation(""); setAttestationName(""); setSaved(false); }}
+                onSubmit={() => void build(source, undefined, attestation)}
               />
             </div>
           </div>

@@ -25,6 +25,18 @@ test("theme preference persists across product, docs and demo pages", async ({ p
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
+test("browser demo refuses to claim it verified a detached attestation", async ({ page }) => {
+  await page.goto("/demo/#/report");
+  await page.getByRole("button", { name: /Isolated PostgreSQL restore/ }).click();
+  await page.getByRole("button", { name: "Attach attestation" }).click();
+  await page.locator('input[data-testid="attestation-input"]').setInputFiles({
+    name: "run.attestation.json",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"apiVersion":"checkride/attestation/v1alpha1"}'),
+  });
+  await expect(page.locator(".attestation-boundary")).toContainText("browser demo cannot verify");
+});
+
 test("homepage explains the product and its commands", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "Find out whether a restore really worked" })).toBeVisible();
@@ -130,7 +142,7 @@ test("invalid imported evidence cannot be saved as a previous green result", asy
   await page.goto("/demo/");
   await page.getByRole("button", { name: /Isolated PostgreSQL restore/ }).click();
   await expect(page.getByRole("heading", { name: "Verified to V3" })).toBeVisible();
-  await page.locator(".report-layout input[type=file]").setInputFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from('{"kind":"Wrong"}') });
+  await page.locator('[data-testid="evidence-input"]').setInputFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from('{"kind":"Wrong"}') });
   await expect(page.getByRole("tab", { name: /Evidence JSON/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".evidence-problems")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save run", exact: true })).toBeDisabled();

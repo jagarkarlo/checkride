@@ -6,7 +6,7 @@ declare global {
   }
 }
 
-const browserDemo = window.location.pathname.startsWith("/demo/");
+export const browserDemo = window.location.pathname.startsWith("/demo/");
 let engine: Promise<void> | undefined;
 
 function loadEngine(): Promise<void> {
@@ -31,10 +31,10 @@ function loadEngine(): Promise<void> {
   return engine;
 }
 
-export async function request(path: string, body = "", signal?: AbortSignal): Promise<Response> {
+export async function request(path: string, body = "", signal?: AbortSignal, extraHeaders: Record<string, string> = {}): Promise<Response> {
   if (!browserDemo) {
     return fetch(path, path === "/healthz" ? { signal } : {
-      method: "POST", headers: { "Content-Type": "application/json" }, body, signal,
+      method: "POST", headers: { "Content-Type": "application/json", ...extraHeaders }, body, signal,
     });
   }
   await loadEngine();
