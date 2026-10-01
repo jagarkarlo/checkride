@@ -1,0 +1,18 @@
+---
+interface Props {
+  name: string;
+  alt: string;
+  caption: string;
+  title?: string;
+}
+
+const { name, alt, caption, title = "Checkride Studio" } = Astro.props;
+---
+<figure class="shot">
+  <div class="shot-frame">
+    <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><span>{title}</span></div>
+    <img class="shot-dark" src={`/images/${name}-dark.png`} alt={alt} width="1280" height="739" loading="lazy" decoding="async" />
+    <img class="shot-light" src={`/images/${name}-light.png`} alt={alt} width="1280" height="739" loading="lazy" decoding="async" />
+  </div>
+  <figcaption>{caption}</figcaption>
+</figure>
