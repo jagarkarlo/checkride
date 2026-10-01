@@ -29,7 +29,15 @@ type Report struct {
 	Levels         []LevelResult `json:"levels"`
 	RTO            *RTOResult    `json:"rto"`
 	RPO            *RPOResult    `json:"rpo"`
+	Provenance     Provenance    `json:"provenance"`
 	Findings       []Finding     `json:"findings"`
+}
+
+type Provenance struct {
+	Status         string `json:"status"`
+	Algorithm      string `json:"algorithm,omitempty"`
+	KeyID          string `json:"keyId,omitempty"`
+	EvidenceSHA256 string `json:"evidenceSHA256,omitempty"`
 }
 
 type LevelResult struct {
@@ -104,6 +112,7 @@ func Build(evidence *Evidence) Report {
 		Scenario:       evidence.Spec.Scenario,
 		RequestedLevel: evidence.upTo.String(),
 		FailureAt:      evidence.Status.FailureAt,
+		Provenance:     Provenance{Status: "unverified"},
 		Findings:       []Finding{},
 	}
 	finding := func(severity, format string, args ...any) {

@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/jagarkarlo/checkride/internal/attest"
 )
 
 func TestRunWritesVerifiedReport(t *testing.T) {
@@ -23,6 +25,79 @@ func TestRunWritesVerifiedReport(t *testing.T) {
 	}
 	if code != 0 || report.Verdict != "verified" || report.RPO.Seconds != 38 || report.RPO.Lost != 75 || stderr.Len() > 0 {
 		t.Fatalf("exit=%d report=%+v stderr=%s", code, report, stderr.String())
+	}
+}
+
+func TestRunReportVerifiesDetachedAttestation(t *testing.T) {
+	directory := t.TempDir()
+	privatePath := directory + "/private.pem"
+	publicPath := directory + "/public.pem"
+	sidecarPath := directory + "/run.attestation.json"
+	if err := attest.WriteKeyPair(privatePath, publicPath); err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := os.ReadFile("../../examples/runs/mlflow-namespace-loss.run.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey, err := attest.LoadPrivateKey(privatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sidecar, err := attest.Sign(evidence, privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := attest.WriteSidecar(sidecarPath, sidecar); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--attestation", sidecarPath, "--trusted-key", publicPath, "../../examples/runs/mlflow-namespace-loss.run.json"}, &stdout, &stderr)
+	var report struct {
+		Verdict    string `json:"verdict"`
+		Provenance struct {
+			Status         string `json:"status"`
+			KeyID          string `json:"keyId"`
+			EvidenceSHA256 string `json:"evidenceSHA256"`
+		} `json:"provenance"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("decode report: %v; output=%s", err, stdout.String())
+	}
+	if code != 0 || report.Verdict != "verified" || report.Provenance.Status != "verified" || report.Provenance.KeyID != sidecar.KeyID || report.Provenance.EvidenceSHA256 != sidecar.EvidenceSHA256 || stderr.Len() > 0 {
+		t.Fatalf("exit=%d report=%+v stderr=%s", code, report, stderr.String())
+	}
+}
+
+func TestRunReportRejectsInvalidAttestationAndMarksUnsignedReport(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"../../examples/runs/mlflow-namespace-loss.run.json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("unsigned report exit=%d stderr=%s", code, stderr.String())
+	}
+	var unsigned struct {
+		Provenance struct {
+			Status string `json:"status"`
+		} `json:"provenance"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &unsigned); err != nil || unsigned.Provenance.Status != "unverified" {
+		t.Fatalf("unsigned provenance=%+v err=%v output=%s", unsigned.Provenance, err, stdout.String())
+	}
+
+	directory := t.TempDir()
+	privatePath := directory + "/private.pem"
+	publicPath := directory + "/public.pem"
+	sidecarPath := directory + "/invalid.attestation.json"
+	if err := attest.WriteKeyPair(privatePath, publicPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sidecarPath, []byte(`{"apiVersion":"wrong"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code := Run([]string{"--attestation", sidecarPath, "--trusted-key", publicPath, "../../examples/runs/mlflow-namespace-loss.run.json"}, &stdout, &stderr)
+	if code != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "unsupported attestation apiVersion") {
+		t.Fatalf("invalid attestation exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
 }
 
