@@ -74,6 +74,7 @@ Passing a `DrillRun` document to `POST /api/v1/runs/report` or `checkride-report
 | `firstFailed` | string/null | Lowest level that encountered a failing check. |
 | `rto` | object/null | Recovery time breakdown, slowest phase, and objective status. |
 | `rpo` | object/null | Mathematical data loss window, holes count, and timeline buckets. |
+| `provenance` | object | Whether the exact evidence bytes have a valid signature from an explicitly trusted key. Unsigned reports are `unverified`. |
 | `findings` | array | Prioritized list of `error`, `warning`, and `info` diagnostics. |
 
 ### Evaluation rules
@@ -82,3 +83,29 @@ Passing a `DrillRun` document to `POST /api/v1/runs/report` or `checkride-report
 2. **Strict V4 requirements:** Level V4 requires either an external write ledger or application invariants with matching checks.
 3. **Ledger consistency:** The presence of a "hole" (an older acknowledged write missing while a newer write is restored) fails V4 automatically.
 4. **Objective enforcement:** If an RTO or RPO objective is specified, exceeding the threshold fails the drill. If an objective is configured but no measurements are present, the verdict is `incomplete`.
+
+## Detached Ed25519 attestation
+
+`checkride-attest` signs the SHA-256 digest of the exact DrillRun file bytes and
+writes a separate JSON sidecar. It does not add a claimed identity to the
+DrillRun document, so existing schema consumers remain compatible.
+
+```bash
+install -d -m 700 "$HOME/.config/checkride"
+go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing-key.pem" --public "$HOME/.config/checkride/trusted-key.pem"
+go run ./cmd/checkride-attest sign --evidence run.json --key "$HOME/.config/checkride/signing-key.pem" --output run.attestation.json
+go run ./cmd/checkride-attest verify --evidence run.json --attestation run.attestation.json --trusted-key "$HOME/.config/checkride/trusted-key.pem"
+go run ./cmd/checkride-report --attestation run.attestation.json --trusted-key "$HOME/.config/checkride/trusted-key.pem" run.json
+```
+
+Verification must use a public key that the verifier already trusts through an
+independent distribution channel. A key included beside the evidence is not a
+trust anchor. The signature proves that the exact bytes were signed by the
+holder of that key; it does not prove the runner's observations are truthful,
+map the key to a real-world person, or provide a trusted signing timestamp.
+Unix-like systems reject private keys accessible to group or other users;
+Windows users must restrict the private key with filesystem ACLs. The report
+CLI marks reports `unverified` unless both `--attestation` and `--trusted-key`
+are supplied; a valid signature adds the signer key ID and evidence digest to
+the report. An invalid signature stops report generation. The report API does
+not automatically verify sidecars or trust caller-supplied keys.

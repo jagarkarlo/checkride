@@ -72,6 +72,7 @@ flowchart LR
 | Verifier | Evaluates recorded V0-V4 checks, RTO phases and RPO ledger | Available for submitted evidence; no restore execution |
 | API | Go HTTP control plane, validation, schema and report endpoints | Available locally |
 | Report CLI | Evaluates DrillRun files and returns gate-friendly exit codes | Available as `go run ./cmd/checkride-report` |
+| Attestation CLI | Signs exact DrillRun bytes and verifies detached signatures against trusted keys | Available as `go run ./cmd/checkride-attest` |
 | Lab | Disposable k3d source and restore clusters | Started |
 | Orchestrator | Runs drills, times every phase, cleans up | Planned |
 | Analyzer | Predicts restore failures before a drill from manifests and configuration | Planned |
@@ -131,6 +132,33 @@ incomplete or invalid evidence. The original MLflow and CRUD example runs are sy
 checks submitted claims; it does not execute restores or authenticate who
 recorded the evidence. `V4` requires a write ledger or a declared invariant
 with a matching check; ledger loss must also meet any declared RPO objective.
+
+### Sign and verify evidence
+
+An operator can create a detached Ed25519 signature over the exact DrillRun
+file bytes. The public key must be distributed and trusted independently:
+
+```bash
+install -d -m 700 "$HOME/.config/checkride"
+go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing-key.pem" --public "$HOME/.config/checkride/trusted-key.pem"
+go run ./cmd/checkride-attest sign --evidence /tmp/checkride-drill.json --key "$HOME/.config/checkride/signing-key.pem" --output /tmp/checkride-drill.attestation.json
+go run ./cmd/checkride-attest verify --evidence /tmp/checkride-drill.json --attestation /tmp/checkride-drill.attestation.json --trusted-key "$HOME/.config/checkride/trusted-key.pem"
+go run ./cmd/checkride-report --attestation /tmp/checkride-drill.attestation.json --trusted-key "$HOME/.config/checkride/trusted-key.pem" /tmp/checkride-drill.json
+```
+
+Keep the private key outside the repository and distribute the public key
+through a trusted channel. Key generation refuses to overwrite files, and
+signing refuses private keys accessible to group or other users on Unix-like
+systems. On Windows, restrict the key with filesystem ACLs. Verification
+checks the evidence-byte digest, key fingerprint and signature. This proves
+that the exact file was signed by the holder of the trusted key; it does not
+prove that the runner was truthful, identify a person without an independently
+maintained key-to-identity mapping, or establish when the signature was made.
+By default, `checkride-report` marks evidence as `unverified`; with both
+`--attestation` and `--trusted-key`, it verifies the signature and includes the
+provenance status, key ID and evidence digest in its JSON report. Invalid
+attestations fail report generation. The API does not automatically verify
+sidecars or trust caller-supplied keys.
 
 To use the Studio locally, start the API and Studio in separate terminals:
 

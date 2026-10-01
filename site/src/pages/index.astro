@@ -20,5 +20,32 @@ const description = 'Design Kubernetes recovery drills and inspect a recorded is
   <section class="signal-band"><div class="page-wrap signal-grid"><span>NOT A BACKUP PRODUCT</span><span>DISPOSABLE LAB RESTORE</span><span>BUILT AROUND EVIDENCE</span><span>LOCAL-FIRST BY DESIGN</span></div></section>
   <section class="feature-band"><div class="page-wrap feature-grid"><div class="feature-copy"><p class="section-index">01 / THE QUESTION</p><h2>A green job is not a recovered application.</h2><p>A backup can complete while an application still loses acknowledged writes, restores the wrong point in time or comes back without its dependencies. Checkride makes those questions explicit, measurable and reviewable.</p><a class="under-link" href="/evidence/">See what counts as proof <span>↗</span></a></div><div class="signal-graphic" aria-label="Five verification levels from backup status to correct application data"><div class="signal-legend"><span>RECOVERY SIGNAL</span><span>V0 — V4</span></div>{["Backup status", "Restore status", "Workload health", "Data structure", "Data correctness"].map((label, i) => <div class:list={["signal-row", { active: i === 4 }]}><b>V{i}</b><span>{label}</span><i style={`--signal-width:${[38, 53, 66, 82, 100][i]}%`}></i><small>{i === 4 ? "DEEP" : "LEVEL"}</small></div>)}<p class="signal-foot">A drill reports the deepest contiguous level passed.</p></div></div></section>
   <section class="workbench-band"><div class="page-wrap"><div class="section-heading"><div><p class="section-index">02 / THE WORKBENCH</p><h2>One drill. Inspectable end to end.</h2></div><a class="under-link" href="/product/">How the system fits together <span>↗</span></a></div><figure class="studio-shot"><img src="/images/studio-preview.png" alt="Checkride Studio design view with a fictional namespace-loss drill specification, its live plan and V0–V4 verification depth" width="1440" height="900" loading="lazy" /><figcaption><span>CHECKRIDE STUDIO / 01 DESIGN DRILL</span><span>Specification validation against the local API. No cluster connection.</span></figcaption></figure></div></section>
-  <section class="next-band"><div class="page-wrap next-grid"><div><p class="section-index">03 / NEXT</p><h2>Measure recovery.<br /><span>Not a green checkbox.</span></h2></div><div class="next-copy"><p>Run a disposable PostgreSQL source-loss drill across two k3d clusters and review its V0–V3 report. Try the full Studio in your browser; the online demo never contacts a cluster.</p><a class="action-primary" href="/demo/index.html#/report">Open the full Studio demo <span>↗</span></a></div></div></section>
+  <section class="paths-band">
+    <div class="page-wrap">
+      <div class="paths-heading"><div><p class="section-index">03 / CHOOSE A WORKFLOW</p><h2>Start with the proof you need.</h2></div><p>Three ways in. Each answers a different recovery question.</p></div>
+      <div class="paths-grid">
+        <article><p class="path-index">01 / IN YOUR BROWSER</p><h3>Inspect a report</h3><p>Explore the full Studio with sample evidence and the recorded lab run. The demo evaluates evidence; it does not connect to Kubernetes.</p><a class="under-link" href="/demo/index.html#/report">Open the browser demo <span>↗</span></a></article>
+        <article><p class="path-index">02 / LOCAL VALIDATION</p><h3>Check a drill spec</h3><p>Install the CLI, validate a drill contract and catch invalid fields before planning a recovery exercise. Validation does not execute a restore.</p><a class="under-link" href="/docs/start/">Follow the CLI setup <span>↗</span></a></article>
+        <article><p class="path-index">03 / DISPOSABLE K3D LAB</p><h3>Run one isolated restore</h3><p>Requires Docker, k3d, kubectl, Python and Go. This V0–V3 drill deletes its source namespace after backup; use only the dedicated disposable clusters.</p><a class="under-link" href="/docs/guides/k3d-isolated-restore/">Read the lab walkthrough <span>↗</span></a></article>
+      </div>
+    </div>
+  </section>
+  <section class="next-band"><div class="page-wrap next-grid"><div><p class="section-index">04 / WHAT IS NOT HERE YET</p><h2>Evidence first.<br /><span>Automation next.</span></h2></div><div class="next-copy"><p>Checkride is pre-alpha: one PostgreSQL lab path is executable. General-purpose orchestration, authenticated evidence provenance and complete V4 business checks are still in progress.</p><a class="action-primary" href="/roadmap/">See the implementation roadmap <span>↗</span></a></div></div></section>
 </ProductLayout>
+<style>
+  .paths-band { padding: 76px 0 82px; border-block: 1px solid var(--line); background: var(--surface); }
+  .paths-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 30px; }
+  .paths-heading h2 { margin: 12px 0 0; font-size: 32px; font-weight: 600; line-height: 1.15; }
+  .paths-heading > p { max-width: 300px; margin: 0 0 3px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+  .paths-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 34px; }
+  .paths-grid article { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; padding-top: 16px; border-top: 1px solid var(--line); }
+  .path-index { margin: 0 0 17px; color: var(--quiet); font: 9px var(--mono); }
+  .paths-grid h3 { margin: 0 0 9px; font-size: 19px; font-weight: 600; }
+  .paths-grid article > p:not(.path-index) { flex: 1; margin: 0 0 18px; color: var(--muted); font-size: 11.5px; line-height: 1.8; }
+  @media (max-width: 650px) {
+    .paths-band { padding-block: 54px; }
+    .paths-heading { align-items: flex-start; flex-direction: column; gap: 11px; margin-bottom: 25px; }
+    .paths-heading h2 { font-size: 27px; }
+    .paths-grid { grid-template-columns: 1fr; gap: 23px; }
+  }
+</style>
