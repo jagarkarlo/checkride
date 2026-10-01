@@ -92,10 +92,11 @@ DrillRun document, so existing schema consumers remain compatible.
 
 ```bash
 install -d -m 700 "$HOME/.config/checkride"
-go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing-key.pem" --public "$HOME/.config/checkride/trusted-key.pem"
-go run ./cmd/checkride-attest sign --evidence run.json --key "$HOME/.config/checkride/signing-key.pem" --output run.attestation.json
-go run ./cmd/checkride-attest verify --evidence run.json --attestation run.attestation.json --trusted-key "$HOME/.config/checkride/trusted-key.pem"
-go run ./cmd/checkride-report --attestation run.attestation.json --trusted-key "$HOME/.config/checkride/trusted-key.pem" run.json
+install -d -m 700 "$HOME/.config/checkride/signing" "$HOME/.config/checkride/trusted-keys"
+go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing/signing-key.pem" --public "$HOME/.config/checkride/trusted-keys/operator.pem"
+go run ./cmd/checkride-attest sign --evidence run.json --key "$HOME/.config/checkride/signing/signing-key.pem" --output run.attestation.json
+go run ./cmd/checkride-attest verify --evidence run.json --attestation run.attestation.json --trusted-key "$HOME/.config/checkride/trusted-keys/operator.pem"
+go run ./cmd/checkride-report --attestation run.attestation.json --trusted-key "$HOME/.config/checkride/trusted-keys/operator.pem" run.json
 ```
 
 Verification must use a public key that the verifier already trusts through an
@@ -104,8 +105,30 @@ trust anchor. The signature proves that the exact bytes were signed by the
 holder of that key; it does not prove the runner's observations are truthful,
 map the key to a real-world person, or provide a trusted signing timestamp.
 Unix-like systems reject private keys accessible to group or other users;
-Windows users must restrict the private key with filesystem ACLs. The report
-CLI marks reports `unverified` unless both `--attestation` and `--trusted-key`
-are supplied; a valid signature adds the signer key ID and evidence digest to
-the report. An invalid signature stops report generation. The report API does
-not automatically verify sidecars or trust caller-supplied keys.
+Windows users must restrict the private key with filesystem ACLs. Keep private
+keys in the signing directory, separate from the API's trusted-keys directory.
+The report CLI marks reports `unverified` unless both `--attestation` and
+`--trusted-key` are supplied; a valid signature adds the signer key ID and
+evidence digest to the report. An invalid signature stops report generation.
+
+The local report API optionally verifies the base64-encoded
+`X-Checkride-Attestation` header against the public keys in
+`CHECKRIDE_TRUSTED_KEYS_DIR`. Put only `*.pem` PKIX Ed25519 public keys there;
+the API loads at most 128 keys during startup and fails startup on an empty
+configured directory or an invalid key. The local Studio's **Attach
+attestation** control sends the sidecar to this API. A valid response includes
+the verified key ID and evidence digest; an unknown key or changed evidence is
+rejected. If a sidecar is sent while no trust store is configured, the API
+returns `503`. Unsigned requests still return `provenance.status: unverified`.
+The static browser demo has no trusted-key configuration and therefore cannot
+verify a signature; it explicitly reports that limitation instead.
+
+For scripts that call the endpoint directly:
+
+```bash
+sidecar=$(base64 < run.attestation.json | tr -d '\n')
+curl -sS http://localhost:8080/api/v1/runs/report \
+  -H 'Content-Type: application/json' \
+  -H "X-Checkride-Attestation: $sidecar" \
+  --data-binary @run.json
+```

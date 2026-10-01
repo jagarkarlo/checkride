@@ -68,9 +68,9 @@ flowchart LR
 |---|---|---|
 | Drill spec | Declarative YAML description of a drill | Validation in Python, Go API and Studio |
 | Ledger | Records acknowledged writes outside the cluster and computes exact RPO | Python ledger; Go report evaluation |
-| DrillRun | Bounded JSON evidence document with a published JSON Schema | Available; provenance not authenticated |
+| DrillRun | Bounded JSON evidence document with a published JSON Schema | Available; local API can verify detached signatures when a trusted-key directory is configured |
 | Verifier | Evaluates recorded V0-V4 checks, RTO phases and RPO ledger | Available for submitted evidence; no restore execution |
-| API | Go HTTP control plane, validation, schema and report endpoints | Available locally |
+| API | Go HTTP control plane, validation, schema and report endpoints | Available locally; optional server-configured Ed25519 verification |
 | Report CLI | Evaluates DrillRun files and returns gate-friendly exit codes | Available as `go run ./cmd/checkride-report` |
 | Attestation CLI | Signs exact DrillRun bytes and verifies detached signatures against trusted keys | Available as `go run ./cmd/checkride-attest` |
 | Metrics | Pushes per-drill gauges to a Prometheus Pushgateway, with a bundled Grafana dashboard | Available via `checkride-report --pushgateway-url` |
@@ -140,11 +140,11 @@ An operator can create a detached Ed25519 signature over the exact DrillRun
 file bytes. The public key must be distributed and trusted independently:
 
 ```bash
-install -d -m 700 "$HOME/.config/checkride"
-go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing-key.pem" --public "$HOME/.config/checkride/trusted-key.pem"
-go run ./cmd/checkride-attest sign --evidence /tmp/checkride-drill.json --key "$HOME/.config/checkride/signing-key.pem" --output /tmp/checkride-drill.attestation.json
-go run ./cmd/checkride-attest verify --evidence /tmp/checkride-drill.json --attestation /tmp/checkride-drill.attestation.json --trusted-key "$HOME/.config/checkride/trusted-key.pem"
-go run ./cmd/checkride-report --attestation /tmp/checkride-drill.attestation.json --trusted-key "$HOME/.config/checkride/trusted-key.pem" /tmp/checkride-drill.json
+install -d -m 700 "$HOME/.config/checkride/signing" "$HOME/.config/checkride/trusted-keys"
+go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing/signing-key.pem" --public "$HOME/.config/checkride/trusted-keys/operator.pem"
+go run ./cmd/checkride-attest sign --evidence /tmp/checkride-drill.json --key "$HOME/.config/checkride/signing/signing-key.pem" --output /tmp/checkride-drill.attestation.json
+go run ./cmd/checkride-attest verify --evidence /tmp/checkride-drill.json --attestation /tmp/checkride-drill.attestation.json --trusted-key "$HOME/.config/checkride/trusted-keys/operator.pem"
+go run ./cmd/checkride-report --attestation /tmp/checkride-drill.attestation.json --trusted-key "$HOME/.config/checkride/trusted-keys/operator.pem" /tmp/checkride-drill.json
 ```
 
 Keep the private key outside the repository and distribute the public key
@@ -158,8 +158,37 @@ maintained key-to-identity mapping, or establish when the signature was made.
 By default, `checkride-report` marks evidence as `unverified`; with both
 `--attestation` and `--trusted-key`, it verifies the signature and includes the
 provenance status, key ID and evidence digest in its JSON report. Invalid
-attestations fail report generation. The API does not automatically verify
-sidecars or trust caller-supplied keys.
+attestations fail report generation.
+
+To verify signatures in the local API and local Studio, configure a **public-
+keys-only** trust directory before starting the API:
+
+```bash
+CHECKRIDE_TRUSTED_KEYS_DIR="$HOME/.config/checkride/trusted-keys" go run ./cmd/checkride-api
+```
+
+Every `*.pem` file in that directory must be a PKIX Ed25519 public key. The API
+loads at most 128 keys at startup and refuses to start if the configured
+directory is empty or contains an invalid key. The Studio's **Attach
+attestation** control sends the sidecar to this API; an unsigned request remains
+`unverified`, and a signature from an unknown key is rejected. The static
+browser demo cannot verify signatures because it has no server-side trust
+store; it warns instead of claiming verification. Never put private keys in
+the trusted-keys directory.
+
+For a direct API request, base64-encode the detached sidecar into the
+`X-Checkride-Attestation` header. The server verifies the signature against its
+configured keys and returns the verified key ID and evidence digest in the
+report. An unknown key or changed evidence is rejected; sending a signature to
+an API with no configured trust store returns `503`.
+
+```bash
+sidecar=$(base64 < /tmp/checkride-drill.attestation.json | tr -d '\n')
+curl -sS http://localhost:8080/api/v1/runs/report \
+  -H 'Content-Type: application/json' \
+  -H "X-Checkride-Attestation: $sidecar" \
+  --data-binary @/tmp/checkride-drill.json
+```
 
 ### Push recovery metrics to Grafana
 

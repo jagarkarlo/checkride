@@ -21,7 +21,7 @@ npm run dev
 
 Open `http://127.0.0.1:5173`. The **Design drill** view lets you import a JSON drill, edit it, format it, validate it, and download the edited file. A green result means the specification meets the current contract; it does **not** mean a recovery succeeded.
 
-The **Evidence report** view includes two synthetic runs and one locally recorded k3d lab run. Import a recorded DrillRun JSON file or build a report from a sample. Select a V0–V4 level to inspect its checks, review the phase timeline and write-loss window, and export the report as JSON or Markdown. The report evaluates caller-supplied evidence and cannot establish who captured those observations.
+The **Evidence report** view includes two synthetic runs and one locally recorded k3d lab run. Import a recorded DrillRun JSON file or build a report from a sample. Select a V0–V4 level to inspect its checks, review the phase timeline and write-loss window, and export the report as JSON or Markdown. To verify a detached Ed25519 signature, configure `CHECKRIDE_TRUSTED_KEYS_DIR` on the local API, then use **Attach attestation** in Studio. The API verifies against its configured public keys and records the key ID in the report. The browser demo has no trusted-key store and will not claim to verify signatures.
 
 ## Run the isolated PostgreSQL lab drill
 
