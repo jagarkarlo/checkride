@@ -23,7 +23,6 @@ interface ValidationRun {
   errors: string[];
   warnings: string[];
   status: number;
-  checkedAt: Date;
   source: string;
   name: string;
 }
@@ -67,7 +66,6 @@ export function Studio({ onReachability }: { onReachability: (online: boolean) =
         errors: strings(body.errors),
         warnings: strings(body.warnings),
         status: response.status,
-        checkedAt: new Date(),
         source,
         name: plan.name || "untitled drill",
       };
@@ -131,7 +129,7 @@ export function Studio({ onReachability }: { onReachability: (online: boolean) =
                   <button type="button" className="history-item" onClick={() => load(run.source)} title="Reopen this version">
                     {run.valid ? <CheckCircle2 size={14} className="ok" /> : <XCircle size={14} className="bad" />}
                     <span className="history-name">{run.name}</span>
-                    <time>{run.checkedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time>
+                    <span className="history-tag">#{run.id}</span>
                   </button>
                 </li>
               ))}
@@ -238,7 +236,7 @@ export function Studio({ onReachability }: { onReachability: (online: boolean) =
           <section className={`card result ${latest ? (latest.valid ? "pass" : "fail") : ""}`} aria-live="polite" aria-labelledby="result-title">
             <header className="card-head">
               <h2 id="result-title">Validation</h2>
-              {latest && <span className="card-sub">HTTP {latest.status} · {latest.checkedAt.toLocaleTimeString()}</span>}
+              {latest && <span className="card-sub">HTTP {latest.status} · {latest.valid ? "passed" : "failed"}</span>}
             </header>
 
             {requestError ? (
