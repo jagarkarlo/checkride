@@ -1,15 +1,46 @@
 ---
 import ProductLayout from "../layouts/ProductLayout.astro";
-const description = "Checkride development roadmap: drill editing and validation, evidence reporting, then isolated restore orchestration, V0-V4 check adapters and CI recovery gates.";
+
+const description = "Checkride's roadmap: what already works, and the work needed to make one isolated restore drill trustworthy end to end.";
+
 const phases = [
-  { id: "01", tag: "CURRENT", title: "Define the drill", status: "DELIVERED", items: ["Versioned YAML drill contract", "Scenario templates and interactive Studio", "Strict Go API validation"] },
-  { id: "02", tag: "CURRENT", title: "Evaluate recorded evidence", status: "DELIVERED · EARLY", items: ["V0–V4 verdicts and first-failed level", "RTO phases with uncovered time", "Acknowledged-write RPO ledger", "Studio evidence review and export"] },
-  { id: "03", tag: "CURRENT", title: "Execute one isolated lab drill", status: "DELIVERED · LAB", items: ["Separate source and restore k3d clusters", "Delete the source namespace after backup", "Restore and verify one PostgreSQL write", "Record V0–V3 checks and clean up namespaces"] },
-  { id: "04", tag: "NEXT", title: "Harden execution and capture", status: "PLANNED", items: ["Authenticated, tamper-evident evidence capture", "Application-specific V4 checks", "Repeatable CI lab gate and interruption recovery", "More scenarios and production-safe operator guidance"] },
+  { title: "Define the drill", state: "Done", later: false, items: ["Versioned YAML drill contract", "Scenario templates and the interactive Studio", "Strict validation in the Go API"] },
+  { title: "Evaluate recorded evidence", state: "Done, early", later: false, items: ["V0 to V4 verdicts with the first failed level", "Recovery time by phase, including unaccounted time", "Exact data loss from an acknowledged-write ledger", "Studio report review and export", "Signed evidence with local verification"] },
+  { title: "Run one isolated lab drill", state: "Done, lab only", later: false, items: ["Separate source and restore k3d clusters", "Delete the source namespace after backup", "Restore and verify one PostgreSQL write", "Record V0 to V3 checks and clean up namespaces"] },
+  { title: "Harden execution and capture", state: "Next", later: true, items: ["Collect evidence from the system itself, with tamper evidence", "Application-specific V4 checks", "A repeatable CI lab gate that recovers from interruption", "More scenarios, and guidance for operating this safely"] },
 ];
 ---
 <ProductLayout title="Roadmap" description={description} current="roadmap">
-  <section class="subhero roadmap-hero"><div class="page-wrap"><p class="kicker"><span class="pulse-dot"></span> 04 / BUILD SEQUENCE</p><h1>Make one drill<br /><span>trustworthy end to end.</span></h1><p>The next hard problem is not another dashboard. It is safely executing one isolated PostgreSQL recovery, collecting evidence from the system itself and cleaning up correctly when something goes wrong.</p></div></section>
-  <section class="roadmap-band"><div class="page-wrap roadmap-list">{phases.map((phase) => <article class:list={["roadmap-row", { delivered: phase.status.includes("DELIVERED"), next: phase.tag === "NEXT" }]}><div class="roadmap-tag"><strong>{phase.id}</strong><span>{phase.tag}</span></div><div class="roadmap-content"><div class="roadmap-heading"><h2>{phase.title}</h2><span>{phase.status}</span></div><ul>{phase.items.map((item) => <li>{item}</li>)}</ul></div><span class="roadmap-node" aria-hidden="true"></span></article>)}</div></section>
-  <section class="scope-band"><div class="page-wrap scope-grid"><div><p class="section-index">SCOPE / PRE-ALPHA</p><h2>Small enough to verify.<br /><span>Large enough to matter.</span></h2></div><div><p>Restore orchestration touches clusters, storage and application data. The first implementation should be deliberately narrow: one supported stack, one separate restore cluster, one scenario, a bounded duration and explicit cleanup behavior.</p><p>No production restore, production credentials, public release or PyPI publish is part of this roadmap step.</p></div></div></section>
+  <section class="page-title">
+    <div class="wrap">
+      <h1>Make one drill trustworthy end to end</h1>
+      <p class="lead">The next hard problem is not another dashboard. It is running one isolated PostgreSQL recovery safely, collecting the evidence from the system instead of from the runner's say-so, and cleaning up properly when something goes wrong.</p>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="rows">
+      {phases.map((phase) => (
+        <div class="row">
+          <h2>{phase.title}</h2>
+          <ul>
+            {phase.items.map((item) => <li>{item}</li>)}
+          </ul>
+          <span class:list={["row-state", { later: phase.later }]}>{phase.state}</span>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="section" style="margin-top: 48px;">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Staying small on purpose</h2>
+      </div>
+      <div class="prose">
+        <p>Restore orchestration touches clusters, storage and application data, so the first version is deliberately narrow: one supported stack, one separate restore cluster, one scenario, a bounded run time and explicit cleanup.</p>
+        <p>Nothing here involves production restores, production credentials or a public package release.</p>
+      </div>
+    </div>
+  </section>
 </ProductLayout>

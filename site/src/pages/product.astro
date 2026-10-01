@@ -1,16 +1,50 @@
 ---
 import ProductLayout from "../layouts/ProductLayout.astro";
-const description = "Checkride's architecture and current boundaries: drill specification, evidence evaluator, API, Studio and a disposable isolated PostgreSQL lab restore.";
+
+const description = "What Checkride is made of and where its boundaries are: the drill specification, DrillRun evidence, the V0 to V4 evaluator, and one disposable PostgreSQL lab restore.";
+
 const layers = [
-  { n: "01", name: "Describe the recovery", status: "AVAILABLE", title: "Drill specification", copy: "A versioned declaration of the failure scenario, target, separate-cluster restore intent, verification depth and RTO/RPO objectives.", detail: "YAML → strict validation → actionable field errors" },
-  { n: "02", name: "Capture what happened", status: "FORMAT AVAILABLE", title: "DrillRun evidence", copy: "A recorded run carries completion time, recovery phases, individual verification checks and, when instrumented, acknowledged writes and restored IDs.", detail: "JSON schema · 16 MiB API limit · 200,000 writes" },
-  { n: "03", name: "Evaluate the evidence", status: "AVAILABLE · LOCAL", title: "V0–V4 report", copy: "The evaluator calculates the deepest contiguous level passed, first failed check, end-to-end RTO, phase coverage and exact RPO from the acknowledged-write ledger.", detail: "Go API · standalone Go CLI · downloadable report" },
-  { n: "04", name: "Run one lab path", status: "AVAILABLE · LAB", title: "Isolated PostgreSQL restore", copy: "A disposable runner deletes the source namespace after backup, restores to a separate k3d cluster, observes V0–V3 checks and cleans up. General-purpose orchestration and attestation remain planned.", detail: "Two k3d clusters · pg_dump · V0–V3" },
+  { kicker: "Declare", title: "Drill specification", text: "A versioned file that names the failure scenario, the target, the restore location, how deep to verify, and your recovery time and data loss goals.", detail: "YAML in, strict validation, errors that name the field", state: "Available", later: false },
+  { kicker: "Capture", title: "DrillRun evidence", text: "One JSON file with completion time, recovery phases, individual check results and, when you instrument for it, acknowledged writes and restored IDs.", detail: "JSON Schema, 16 MiB limit, up to 200,000 writes", state: "Format available", later: false },
+  { kicker: "Evaluate", title: "V0 to V4 report", text: "Works out the deepest level passed, the first failed check, end-to-end recovery time, phase coverage and exact data loss from the ledger.", detail: "Go API, standalone Go command, downloadable report", state: "Available locally", later: false },
+  { kicker: "Run", title: "Isolated PostgreSQL restore", text: "A disposable runner deletes the source namespace after backup, restores into a separate k3d cluster, records V0 to V3 checks and cleans up. General orchestration and evidence collected by the system itself are still to do.", detail: "Two k3d clusters, pg_dump, V0 to V3", state: "Lab only", later: true },
 ];
 ---
 <ProductLayout title="Product" description={description} current="product">
-  <section class="subhero"><div class="page-wrap"><p class="kicker"><span class="pulse-dot"></span> 02 / SYSTEM DESIGN</p><h1>Built around the evidence.<br /><span>Not the backup status.</span></h1><p>Checkride separates what you intend, what happened and what can actually be proven. The boundary matters: today's evaluator reads recorded evidence; it does not perform a restore.</p></div></section>
-  <section class="architecture-band"><div class="page-wrap architecture-list">{layers.map((layer) => <article class="architecture-row"><div class="architecture-meta"><span>{layer.n}</span><span>{layer.status}</span></div><div class="architecture-copy"><p class="section-index">{layer.name}</p><h2>{layer.title}</h2><p>{layer.copy}</p><code>{layer.detail}</code></div><div class:list={["architecture-state", { available: layer.status.includes("AVAILABLE"), planned: layer.status === "PLANNED" }]}>{layer.status === "PLANNED" ? "IN DESIGN" : "READY"}</div></article>)}</div></section>
-  <section class="separation-band"><div class="page-wrap separation-grid"><div><p class="section-index">RESTORE TARGET / DEFAULT</p><h2>Separate cluster.<br /><span>Honest failure surface.</span></h2></div><div><p>A namespace restore shares the source cluster's operators, CRDs, storage classes and secrets. That can hide exactly the dependencies lost in a real cluster failure. Checkride's design defaults to a separate cluster; the current validator warns when a drill chooses the weaker namespace-only option.</p><a class="under-link" href="/docs/">Read the architecture decisions <span>↗</span></a></div></div></section>
-  <section class="connect-band"><div class="page-wrap connect-grid"><span>DRILL SPEC</span><i>→</i><span>RESTORE RUN</span><i>→</i><span>V0–V4 CHECKS</span><i>→</i><span>RTO / RPO REPORT</span></div></section>
+  <section class="page-title">
+    <div class="wrap">
+      <h1>What Checkride is made of</h1>
+      <p class="lead">Checkride keeps three things apart: what you intended, what happened, and what can be proven. The line to keep in mind is that today's evaluator reads recorded evidence. It does not perform a restore.</p>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="rows">
+      {layers.map((layer) => (
+        <div class="row">
+          <div>
+            <p class="row-kicker">{layer.kicker}</p>
+            <h2>{layer.title}</h2>
+          </div>
+          <div>
+            <p>{layer.text}</p>
+            <p><code>{layer.detail}</code></p>
+          </div>
+          <span class:list={["row-state", { later: layer.later }]}>{layer.state}</span>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="section" style="margin-top: 48px;">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Why a separate cluster</h2>
+      </div>
+      <div class="prose">
+        <p>Restoring into a namespace of the same cluster shares that cluster's operators, CRDs, storage classes and secrets. That can hide exactly the dependencies you would lose in a real cluster failure, so Checkride defaults to a separate cluster. The validator warns when a drill chooses the weaker namespace-only option.</p>
+        <p><a class="link" href="/docs/concepts/isolated-restores/">Read how isolated restores work</a>, or <a class="link" href="/docs/">browse the architecture notes</a>.</p>
+      </div>
+    </div>
+  </section>
 </ProductLayout>
