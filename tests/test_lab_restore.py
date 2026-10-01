@@ -13,7 +13,7 @@ SOURCE = restore.DEFAULT_SOURCE_CONTEXT
 RESTORE = restore.DEFAULT_RESTORE_CONTEXT
 
 
-def fake_kubectl(commands, mismatch=False):
+def fake_kubectl(commands, mismatch=False, row_count=b"1"):
     def execute(context, namespace, *args, input_data=None):
         commands.append((context, namespace, args, input_data))
         if args[:2] == ("config", "view"):
@@ -22,6 +22,8 @@ def fake_kubectl(commands, mismatch=False):
             return context.encode()
         if "pg_dump" in args:
             return b"CREATE TABLE recovery_probe ...;"
+        if "SELECT count(*) FROM recovery_probe" in args:
+            return row_count
         if "SELECT write_id FROM recovery_probe" in args:
             return b"wrong" if mismatch else commands_write_id(commands).encode()
         return b""
@@ -43,7 +45,17 @@ def test_restore_only_moves_dump_to_distinct_lab_cluster(tmp_path):
         restore.execute_isolated_drill(output)
 
     evidence = json.loads(output.read_text())
-    assert [check["level"] for check in evidence["status"]["checks"]] == ["V0", "V1", "V2", "V3"]
+    assert evidence["spec"]["upTo"] == "V4"
+    assert evidence["spec"]["v4Evidence"]["invariants"] == ["probe-write-preserved"]
+    assert [check["level"] for check in evidence["status"]["checks"]] == [
+        "V0",
+        "V1",
+        "V2",
+        "V3",
+        "V4",
+    ]
+    assert evidence["status"]["checks"][3]["name"] == "recovery_probe contains exactly one row"
+    assert evidence["status"]["checks"][4]["name"] == "probe-write-preserved"
     dumps = [item for item in commands if "pg_dump" in item[2]]
     restores = [item for item in commands if item[3] is not None]
     assert len(dumps) == len(restores) == 1
@@ -78,7 +90,7 @@ def test_restore_only_moves_dump_to_distinct_lab_cluster(tmp_path):
     ]
 
 
-def test_mismatched_restored_write_is_failed_v3_evidence(tmp_path):
+def test_mismatched_restored_write_is_failed_v4_evidence(tmp_path):
     commands = []
     output = tmp_path / "run.json"
     with (
@@ -88,9 +100,31 @@ def test_mismatched_restored_write_is_failed_v3_evidence(tmp_path):
         restore.execute_isolated_drill(output)
 
     evidence = json.loads(output.read_text())
-    assert evidence["status"]["checks"][-1]["level"] == "V3"
-    assert evidence["status"]["checks"][-1]["passed"] is False
+    invariant = next(
+        check for check in evidence["status"]["checks"] if check["name"] == "probe-write-preserved"
+    )
+    assert invariant["level"] == "V4"
+    assert invariant["passed"] is False
     assert len([item for item in commands if item[2][:2] == ("delete", "namespace")]) == 2
+
+
+def test_wrong_probe_row_count_fails_v3_without_claiming_v4(tmp_path):
+    commands = []
+    output = tmp_path / "run.json"
+    with (
+        patch.object(restore, "run_kubectl", side_effect=fake_kubectl(commands, row_count=b"2")),
+        pytest.raises(RuntimeError, match="row count does not match"),
+    ):
+        restore.execute_isolated_drill(output)
+
+    evidence = json.loads(output.read_text())
+    checks = evidence["status"]["checks"]
+    row_count = next(
+        check for check in checks if check["name"] == "recovery_probe contains exactly one row"
+    )
+    assert row_count["level"] == "V3" and row_count["passed"] is False
+    assert evidence["spec"]["upTo"] == "V3"
+    assert "v4Evidence" not in evidence["spec"]
 
 
 def test_same_cluster_contexts_are_rejected_before_mutation(tmp_path):

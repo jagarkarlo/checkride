@@ -234,10 +234,13 @@ make lab-down
 ```
 
 The runner checks that the two clusters differ, dumps a seeded write, deletes
-the source namespace, restores in the other cluster and verifies the write. It
-records V0–V3, not V4, RPO or an authenticated provenance claim. It attempts
-cleanup even on failure; check for leftover `checkride-*` namespaces if cleanup
-reports an error. The [lab walkthrough](site/src/content/docs/start.md) covers
+the source namespace, restores in the other cluster, checks the recovered row
+count at V3 and matches the exact random write ID at V4. This single
+`probe-write-preserved` invariant is not application-specific business
+validation and does not measure RPO with an acknowledged-write ledger. The lab
+also makes no authenticated provenance claim. It attempts cleanup even on
+failure; check for leftover `checkride-*` namespaces if cleanup reports an
+error. The [lab walkthrough](site/src/content/docs/start.md) covers
 prerequisites and proxy-restricted image pulls. This is not production-safe
 orchestration.
 

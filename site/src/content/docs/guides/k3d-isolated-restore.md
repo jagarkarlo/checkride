@@ -75,7 +75,8 @@ What this does:
 4. Performs a `pg_dump` logical backup.
 5. Injects catastrophic failure by **deleting the source namespace** and awaiting termination.
 6. Streams the backup into the PostgreSQL instance in the separate restore cluster.
-7. Executes V2 connectivity checks and V3 row-level data comparison.
+7. Executes V2 connectivity checks, confirms the V3 row count, then matches the
+  exact random probe write ID as the V4 `probe-write-preserved` invariant.
 8. Writes an audit-ready `DrillRun` document to the output path.
 9. Automatically cleans up test namespaces in both clusters.
 
@@ -87,7 +88,7 @@ Pass the generated evidence to `checkride-report`:
 go run ./cmd/checkride-report /tmp/k3d-evidence.json
 ```
 
-The evaluator will output the JSON report and exit with `0` (Verified), `1` (Failed), or `2` (Incomplete/Invalid):
+The evaluator will output the JSON report and exit with `0` (Verified), `1` (Failed), or `2` (Incomplete/Invalid). This previously captured V3 run is a historical example; a current successful lab run requests V4:
 
 ```json
 {
@@ -99,6 +100,12 @@ The evaluator will output the JSON report and exit with `0` (Verified), `1` (Fai
   "deepestPassed": "V3"
 }
 ```
+
+The lab's V4 check proves only that this drill's random probe write survived
+the restore. It is not an application-specific business invariant, an
+acknowledged-write ledger, an RPO measurement or authenticated provenance. If
+the V3 row-count check fails, the runner records a V3 failure without
+declaring V4 evidence.
 
 ## 6. Teardown
 

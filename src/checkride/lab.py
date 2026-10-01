@@ -124,6 +124,8 @@ def execute_isolated_drill(
     phases: list[dict] = []
     failure_at: str | None = None
     active_level = "V0"
+    requested_level = "V3"
+    has_v4_evidence = False
     created: list[str] = []
     error: BaseException | None = None
 
@@ -277,7 +279,7 @@ def execute_isolated_drill(
         active_level = "V2"
 
         def verify():
-            nonlocal active_level
+            nonlocal active_level, requested_level, has_v4_evidence
             run_kubectl(
                 restore_context, namespace, "exec", "postgres", "--", "pg_isready", "-U", "postgres"
             )
@@ -285,6 +287,46 @@ def execute_isolated_drill(
                 {"level": "V2", "name": "Restored PostgreSQL accepts connections", "passed": True}
             )
             active_level = "V3"
+            row_count = (
+                run_kubectl(
+                    restore_context,
+                    namespace,
+                    "exec",
+                    "postgres",
+                    "--",
+                    "psql",
+                    "-U",
+                    "postgres",
+                    "-At",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-c",
+                    "SELECT count(*) FROM recovery_probe",
+                )
+                .decode()
+                .strip()
+            )
+            if row_count != "1":
+                checks.append(
+                    {
+                        "level": "V3",
+                        "name": "recovery_probe contains exactly one row",
+                        "passed": False,
+                        "detail": f"expected 1 row, got {row_count or 'no result'}",
+                    }
+                )
+                raise RuntimeError("restored recovery_probe row count does not match")
+            checks.append(
+                {
+                    "level": "V3",
+                    "name": "recovery_probe contains exactly one row",
+                    "passed": True,
+                    "detail": "recovered row count is 1",
+                }
+            )
+            requested_level = "V4"
+            has_v4_evidence = True
+            active_level = "V4"
             found = (
                 run_kubectl(
                     restore_context,
@@ -304,31 +346,51 @@ def execute_isolated_drill(
                 .decode()
                 .strip()
             )
-            if found != write_id:
-                raise RuntimeError("restored write does not match source write")
             checks.append(
                 {
-                    "level": "V3",
-                    "name": "Restored table contains exactly the source write",
-                    "passed": True,
+                    "level": "V4",
+                    "name": "probe-write-preserved",
+                    "passed": found == write_id,
+                    "detail": (
+                        "restored write ID matches"
+                        if found == write_id
+                        else "restored write ID does not match the source write"
+                    ),
                 }
             )
+            if found != write_id:
+                raise RuntimeError("restored write does not match source write")
             return found
 
         record_phase("verify", verify)
     except (RuntimeError, subprocess.SubprocessError, OSError, KeyboardInterrupt) as exc:
         error = exc
-        checks.append(
-            {
-                "level": active_level,
-                "name": "Lab execution",
-                "passed": False,
-                "detail": str(exc)[:500],
-            }
-        )
+        if not any(check["level"] == active_level and not check["passed"] for check in checks):
+            checks.append(
+                {
+                    "level": active_level,
+                    "name": "Lab execution",
+                    "passed": False,
+                    "detail": str(exc)[:500],
+                }
+            )
     finally:
         completed_at = utc_timestamp()
         failure_at = failure_at or completed_at
+        if has_v4_evidence and not any(
+            check["level"] == "V4" and check["name"] == "probe-write-preserved" for check in checks
+        ):
+            checks.append(
+                {
+                    "level": "V4",
+                    "name": "probe-write-preserved",
+                    "passed": False,
+                    "detail": (
+                        "not evaluated because the lab run stopped before the application "
+                        "invariant check"
+                    ),
+                }
+            )
         for context in reversed(created):
             try:
                 run_kubectl(
@@ -355,7 +417,7 @@ def execute_isolated_drill(
             "apiVersion": "checkride/v1alpha1",
             "kind": "DrillRun",
             "metadata": {"name": namespace},
-            "spec": {"scenario": "isolated-postgresql-logical-restore", "upTo": "V3"},
+            "spec": {"scenario": "isolated-postgresql-logical-restore", "upTo": requested_level},
             "status": {
                 "failureAt": failure_at,
                 "completedAt": completed_at,
@@ -363,6 +425,8 @@ def execute_isolated_drill(
                 "checks": checks,
             },
         }
+        if has_v4_evidence:
+            result["spec"]["v4Evidence"] = {"invariants": ["probe-write-preserved"]}
         output.write_text(json.dumps(result, indent=2) + "\n")
         print(f"Recorded lab evidence in {output}")
     if error:
