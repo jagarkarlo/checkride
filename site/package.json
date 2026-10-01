@@ -4,13 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "astro dev --host 127.0.0.1",
-    "build": "../scripts/build-demo.sh && astro build",
+    "dev": "bash ../scripts/build-docs.sh && astro dev --host 127.0.0.1",
+    "build": "../scripts/build-demo.sh && bash ../scripts/build-docs.sh && astro build",
     "preview": "astro preview --host 127.0.0.1"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^7.3.1",
-    "@astrojs/starlight": "^0.42.4",
     "astro": "^7.3.5"
   }
 }

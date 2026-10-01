@@ -1,36 +1,29 @@
 import { defineConfig } from 'astro/config';
-import starlight from '@astrojs/starlight';
 
 export default defineConfig({
-  integrations: [starlight({
-    title: 'Checkride',
-    description: 'Recovery drills for Kubernetes applications. Restore, inspect, and prove what survived.',
-    social: [{ icon: 'github', label: 'Source code', href: 'https://github.com/jagarkarlo/checkride' }],
-    sidebar: [
-      { label: 'Product', items: [
-        { label: 'Overview', link: '/' },
-        { label: 'System design', link: '/product/' },
-        { label: 'Evidence model', link: '/evidence/' },
-        { label: 'Roadmap', link: '/roadmap/' },
-      ] },
-      { label: 'Start here', items: [
-        { label: 'Overview', link: '/docs/' },
-        { label: 'Run locally', slug: 'start' },
-        { label: 'k3d isolated lab runbook', slug: 'guides/k3d-isolated-restore' },
-        { label: 'CI/CD recovery gate', slug: 'guides/ci-recovery-gate' },
-      ] },
-      { label: 'Concepts', items: [
-        { label: 'How Checkride works', slug: 'concepts/how-it-works' },
-        { label: 'Verification levels', slug: 'levels' },
-        { label: 'Write ledger & exact RPO', slug: 'concepts/write-ledger-rpo' },
-        { label: 'Separate restore clusters', slug: 'concepts/isolated-restores' },
-        { label: 'Comparison', slug: 'comparison' },
-      ] },
-      { label: 'Reference', items: [
-        { label: 'Drill specification', slug: 'reference/drill-spec' },
-        { label: 'DrillRun evidence schema', slug: 'reference/drillrun-evidence' },
-      ] },
-    ],
-    customCss: ['./src/styles/theme.css'],
-  })],
+  vite: {
+    plugins: [{
+      name: 'checkride-static-apps',
+      configureServer(server) {
+        server.middlewares.use((request, response, next) => {
+          const url = new URL(request.url || '/', 'http://localhost');
+          if (url.pathname === '/docs' || url.pathname === '/demo') {
+            response.writeHead(302, { Location: `${url.pathname}/${url.search}` });
+            response.end();
+            return;
+          }
+          if ((url.pathname.startsWith('/docs/') || url.pathname === '/demo/') && url.pathname.endsWith('/')) {
+            request.url = `${url.pathname}index.html${url.search}`;
+          }
+          next();
+        });
+      },
+    }],
+  },
+  redirects: Object.fromEntries([
+    'start', 'levels', 'comparison',
+    'guides/k3d-isolated-restore', 'guides/ci-recovery-gate',
+    'concepts/how-it-works', 'concepts/write-ledger-rpo', 'concepts/isolated-restores',
+    'reference/drill-spec', 'reference/drillrun-evidence',
+  ].map((path) => [`/${path}/`, `/docs/${path}/`])),
 });

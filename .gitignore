@@ -9,10 +9,13 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
+/studio/test-results/
+/studio/playwright-report/
 
 # Node (Studio)
 node_modules/
 /site/public/demo/
+/site/public/docs/
 
 # Local lab and drill output
 *.kubeconfig
