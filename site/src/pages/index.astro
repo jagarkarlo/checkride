@@ -1,316 +1,177 @@
 ---
 import ProductLayout from '../layouts/ProductLayout.astro';
+import Shot from '../components/Shot.astro';
 
-const description = 'Recovery verification for Kubernetes applications and PostgreSQL. Validate drill contracts, run a disposable PostgreSQL restore, and evaluate V0–V4 evidence.';
----
-<ProductLayout title="Recovery, verified" description={description} current="overview">
-  <section class="hero-band">
-    <div class="hero-grid" aria-hidden="true"></div>
-    <div class="page-wrap hero-wrap">
-      <div class="hero-badges">
-        <span class="badge badge-accent"><span class="pulse-dot"></span> PRE-ALPHA</span>
-        <span class="badge">V0–V4 VERIFICATION</span>
-        <span class="badge">KUBERNETES & POSTGRESQL</span>
-        <a class="badge badge-link" href="https://github.com/jagarkarlo/checkride" target="_blank" rel="noopener noreferrer">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
-          GITHUB ↗
-        </a>
-      </div>
-      <h1>Backups are a promise.<br /><span>Recovery is the proof.</span></h1>
-      <p class="hero-copy">Backup tools report <code>Completed</code>. That proves a backup was written, not that your application will work when restored. Checkride currently validates drill contracts, runs one disposable PostgreSQL restore across two k3d clusters, and evaluates recorded V0–V4 evidence.</p>
-      <div class="hero-actions">
-        <a class="action-primary" href="/demo/index.html#/report">Open the live demo <span>↗</span></a>
-        <a class="action-secondary" href="#quickstart">Quick start guide <span>↓</span></a>
-        <a class="action-secondary" href="/docs/">Read documentation <span>→</span></a>
-      </div>
-      <div class="hero-status">
-        <span class="status-ring">01</span>
-        <div>
-          <strong>Now: disposable k3d PostgreSQL restore & V0–V4 evidence evaluation</strong>
-          <span>Next: unattended orchestration and multi-scenario harness</span>
-        </div>
-        <span class="status-line"></span>
-        <a class="status-end" href="/roadmap/">VIEW ROADMAP ↗</a>
-      </div>
-    </div>
-  </section>
+const description = 'Checkride runs restore drills and reports whether the application and its data actually came back: how deep recovery went, how long it took and how many acknowledged writes were lost.';
 
-  <section class="signal-band">
-    <div class="page-wrap signal-grid">
-      <span>NOT A BACKUP PRODUCT</span>
-      <span>SEPARATE CLUSTER ISOLATION</span>
-      <span>EXACT WRITE LEDGER RPO</span>
-      <span>ED25519 ATTESTATION</span>
-    </div>
-  </section>
-
-  <section class="feature-band">
-    <div class="page-wrap feature-grid">
-      <div class="feature-copy">
-        <p class="section-index">01 / THE QUESTION</p>
-        <h2>A green job is not a recovered application.</h2>
-        <p>A backup can complete while an application loses acknowledged writes, restores the wrong point in time, or fails because CRDs and operators were missing in the recovery cluster. Checkride makes recovery depth explicit, measurable, and reviewable.</p>
-        <a class="under-link" href="/evidence/">See what counts as proof <span>↗</span></a>
-      </div>
-      <div class="signal-graphic" aria-label="Five verification levels from backup status to correct application data">
-        <div class="signal-legend"><span>RECOVERY SIGNAL</span><span>V0 — V4</span></div>
-        {[
-          { id: "V0", label: "Backup status", proof: "Tool reported success", width: 38 },
-          { id: "V1", label: "Restore status", proof: "Job finished in cluster", width: 53 },
-          { id: "V2", label: "Workload health", proof: "Pods ready, HTTP/TCP 200", width: 66 },
-          { id: "V3", label: "Data structure", proof: "Tables, row counts, checksums", width: 82 },
-          { id: "V4", label: "Data correctness", proof: "Ledger RPO & business invariants", width: 100 },
-        ].map((level, i) => (
-          <div class:list={["signal-row", { active: i === 4 }]}>
-            <b>{level.id}</b>
-            <span>{level.label} <small class="signal-proof">· {level.proof}</small></span>
-            <i style={`--signal-width:${level.width}%`}></i>
-            <small>{i === 4 ? "DEEP" : "LEVEL"}</small>
-          </div>
-        ))}
-        <p class="signal-foot">A drill reports the deepest contiguous level passed. A failure at V2 stops the chain at V1.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="pipeline-band">
-    <div class="page-wrap">
-      <div class="section-heading">
-        <div>
-          <p class="section-index">02 / HOW IT WORKS</p>
-          <h2>Recovery evidence, step by step.</h2>
-        </div>
-        <p class="heading-sub">A practical flow, with today’s implementation boundaries.</p>
-      </div>
-      <div class="pipeline-steps">
-        <div class="pipeline-card">
-          <span class="step-num">01</span>
-          <h3>Declare drill</h3>
-          <p>Versioned YAML describes the scenario, restore target, verification depth, and RTO/RPO objectives.</p>
-          <code>Drill spec</code>
-          <small class="pipeline-state available">AVAILABLE · VALIDATOR</small>
-        </div>
-        <div class="pipeline-arrow" aria-hidden="true">→</div>
-        <div class="pipeline-card">
-          <span class="step-num">02</span>
-          <h3>Track writes</h3>
-          <p>An external ledger can record acknowledged writes so restored IDs can be checked for loss and gaps.</p>
-          <code>Write ledger</code>
-          <small class="pipeline-state foundation">AVAILABLE · LEDGER EVALUATION</small>
-        </div>
-        <div class="pipeline-arrow" aria-hidden="true">→</div>
-        <div class="pipeline-card">
-          <span class="step-num">03</span>
-          <h3>Isolated restore</h3>
-          <p>The current disposable lab restores seeded PostgreSQL data into a second k3d cluster; general application orchestration is not available.</p>
-          <code>Isolated cluster</code>
-          <small class="pipeline-state available">AVAILABLE · POSTGRESQL LAB</small>
-        </div>
-        <div class="pipeline-arrow" aria-hidden="true">→</div>
-        <div class="pipeline-card">
-          <span class="step-num">04</span>
-          <h3>Verify V0–V4</h3>
-          <p>The Go evaluator checks submitted observations, RTO/RPO objectives, and V0–V4 depth; it does not run the restore.</p>
-          <code>Contiguous levels</code>
-          <small class="pipeline-state available">AVAILABLE · GO EVALUATOR</small>
-        </div>
-        <div class="pipeline-arrow" aria-hidden="true">→</div>
-        <div class="pipeline-card">
-          <span class="step-num">05</span>
-          <h3>Attest & gate</h3>
-          <p>Detached Ed25519 signatures bind exact evidence bytes to a trusted key. The report CLI can return gate-friendly exit codes.</p>
-          <code>Attested report</code>
-          <small class="pipeline-state foundation">AVAILABLE · LOCAL CLI</small>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="quickstart-band" id="quickstart">
-    <div class="page-wrap">
-      <div class="section-heading">
-        <div>
-          <p class="section-index">03 / QUICK START</p>
-          <h2>Verify your first restore drill.</h2>
-        </div>
-        <a class="under-link" href="/docs/start/">Complete installation guide <span>↗</span></a>
-      </div>
-      <div class="quickstart-grid">
-        <div class="quickstart-step">
-          <div class="quickstart-step-head"><div class="step-badge">1</div><button class="copy-commands" type="button" data-copy-target="quickstart-install" data-copy-label="Copy CLI setup commands" aria-label="Copy CLI setup commands">Copy commands</button></div>
-          <h3>Clone, install & validate</h3>
-          <p>Checkride is not on PyPI yet. Clone with an account that has repository access, then validate a real example drill. This checks the contract, not a restore.</p>
-          <pre><code id="quickstart-install">git clone https://github.com/jagarkarlo/checkride.git
+const install = `git clone https://github.com/jagarkarlo/checkride.git
 cd checkride
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e ".[dev]"
-checkride validate examples/drills/mlflow-namespace-loss.yaml</code></pre>
-        </div>
-        <div class="quickstart-step">
-          <div class="quickstart-step-head"><div class="step-badge">2</div><button class="copy-commands" type="button" data-copy-target="quickstart-lab" data-copy-label="Copy lab commands" aria-label="Copy lab commands">Copy commands</button></div>
-          <h3>Run the isolated PostgreSQL drill</h3>
-          <p>Requires Docker, k3d, kubectl, Python 3.12+, and Go. Use only the dedicated disposable clusters; the run deletes its source namespace.</p>
-          <pre><code id="quickstart-lab">make lab-up
+checkride validate examples/drills/mlflow-namespace-loss.yaml`;
+
+const lab = `make lab-up
 python3 scripts/lab/restore.py --output /tmp/drill.json
-make lab-down</code></pre>
-        </div>
-        <div class="quickstart-step">
-          <div class="step-badge">3</div>
-          <h3>Evaluate report & verify signature</h3>
-          <p>Generate a signing key once, then create and verify a detached attestation for each run.</p>
-          <div class="quickstart-code-block">
-            <div class="quickstart-code-head"><span>ONE-TIME KEY SETUP</span><button class="copy-commands" type="button" data-copy-target="quickstart-key" data-copy-label="Copy key setup commands" aria-label="Copy key setup commands">Copy commands</button></div>
-            <pre><code id="quickstart-key">install -d -m 700 "$HOME/.config/checkride"
-go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing-key.pem" --public "$HOME/.config/checkride/trusted-key.pem"</code></pre>
-          </div>
-          <div class="quickstart-code-block">
-            <div class="quickstart-code-head"><span>FOR EACH RUN</span><button class="copy-commands" type="button" data-copy-target="quickstart-report" data-copy-label="Copy report commands" aria-label="Copy report commands">Copy commands</button></div>
-              <pre><code id="quickstart-report">go run ./cmd/checkride-report /tmp/drill.json
+make lab-down`;
+
+const key = `install -d -m 700 "$HOME/.config/checkride"
+go run ./cmd/checkride-attest keygen \\
+  --private "$HOME/.config/checkride/signing-key.pem" \\
+  --public "$HOME/.config/checkride/trusted-key.pem"`;
+
+const report = `go run ./cmd/checkride-report /tmp/drill.json
 attestation_dir=$(mktemp -d)
 attestation="$attestation_dir/run.attestation.json"
-go run ./cmd/checkride-attest sign --evidence /tmp/drill.json --key "$HOME/.config/checkride/signing-key.pem" --output "$attestation"
-  go run ./cmd/checkride-report --attestation "$attestation" --trusted-key "$HOME/.config/checkride/trusted-key.pem" /tmp/drill.json
-  rm -r "$attestation_dir"</code></pre>
+go run ./cmd/checkride-attest sign \\
+  --evidence /tmp/drill.json \\
+  --key "$HOME/.config/checkride/signing-key.pem" \\
+  --output "$attestation"
+go run ./cmd/checkride-report \\
+  --attestation "$attestation" \\
+  --trusted-key "$HOME/.config/checkride/trusted-key.pem" \\
+  /tmp/drill.json
+rm -r "$attestation_dir"`;
+
+const steps = [
+  { title: "Describe the drill", text: "A YAML file names the failure to simulate, where to restore, how deep to verify and your recovery time and data loss goals.", state: "Available", later: false },
+  { title: "Run the restore", text: "The lab runner backs up a seeded PostgreSQL database, deletes the source namespace and restores into a second k3d cluster. Restoring real applications is not built yet.", state: "Lab only", later: true },
+  { title: "Record what happened", text: "Check results, phase timings and, optionally, a ledger of acknowledged writes go into one DrillRun JSON file.", state: "Available", later: false },
+  { title: "Evaluate the evidence", text: "A Go program turns the file into a report. Its exit code lets a CI job fail on a bad drill.", state: "Available", later: false },
+  { title: "Sign the evidence", text: "An Ed25519 signature ties the exact file to a key you trust, so later edits are detectable.", state: "Available", later: false },
+];
+---
+<ProductLayout title="Find out whether a restore really worked" description={description} current="overview">
+  <section class="hero">
+    <div class="wrap">
+      <h1>Find out whether a restore really worked</h1>
+      <p class="lead">A finished backup job tells you a file was written. It does not tell you the application came back with its data. Checkride runs a restore drill, records what happened, and reports how far recovery got, how long it took and how many acknowledged writes were lost.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="/demo/index.html#/report">Open the demo</a>
+        <a class="btn" href="/docs/">Read the docs</a>
+      </div>
+      <p class="hero-note">Pre-alpha. Today it runs one disposable PostgreSQL restore on two local k3d clusters and evaluates the evidence. The demo runs in your browser and never contacts a cluster.</p>
+    </div>
+  </section>
+
+  <section class="wrap" aria-label="Screenshot">
+    <Shot name="report-lab" alt="Checkride Studio report for a recorded lab run: verified to V3, recovery time 16 seconds, with a per-level breakdown and a recovery timeline." caption="A recorded run from the two-cluster lab, opened in Studio. It reached V3. It has no write ledger, and its signature is unverified." />
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>What a report tells you</h2>
+        <p class="section-lead">One verdict, and the reasons behind it.</p>
+      </div>
+      <dl class="facts">
+        <div>
+          <dt>How deep recovery went</dt>
+          <dd>Five levels, from "the backup job succeeded" to "the data is correct". The report names the deepest level that passed in order, and the first check that failed.</dd>
+        </div>
+        <div>
+          <dt>How long it took</dt>
+          <dd>Recovery time runs from the moment of failure to completion, split into phases, with any time no phase accounts for shown separately.</dd>
+        </div>
+        <div>
+          <dt>How much data was lost</dt>
+          <dd>If you record acknowledged writes, Checkride compares them with what came back and reports the loss window and any gaps in the sequence.</dd>
+        </div>
+        <div>
+          <dt>What it cannot tell you</dt>
+          <dd>A report judges the evidence it is given. A signature shows the file was not changed afterwards. It does not show the runner told the truth. <a class="link" href="/evidence/">More on the evidence model</a>.</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>How a drill runs</h2>
+        <p class="section-lead">The whole flow, with what exists today marked.</p>
+      </div>
+      <ol class="steps">
+        {steps.map((step) => (
+          <li class="step">
+            <h3>{step.title}</h3>
+            <span class:list={["step-state", "pipeline-state", { later: step.later }]}>{step.state}</span>
+            <p>{step.text}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" id="quickstart">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Try it on your machine</h2>
+        <p class="section-lead">The repository is private for now, so step one needs an account with access.</p>
+      </div>
+      <div class="code-grid">
+        <div class="code-card quickstart-step">
+          <h3>1. Clone and validate a drill</h3>
+          <p>This checks the drill file against the contract. It does not run a restore. Checkride is not on PyPI yet, so install it from the clone.</p>
+          <div class="code-block">
+            <div class="code-head"><span>Shell</span><button class="copy" type="button" data-copy-target="quickstart-install" data-copy-label="Copy CLI setup commands" aria-label="Copy CLI setup commands">Copy</button></div>
+            <pre><code id="quickstart-install">{install}</code></pre>
           </div>
-          <p class="quickstart-note">Keep the private key outside the repository. Do not rerun key setup over existing keys.</p>
+        </div>
+        <div class="code-card quickstart-step">
+          <h3>2. Run the lab restore</h3>
+          <p>Needs Docker, k3d, kubectl, Python 3.12+ and Go. Use only the dedicated lab clusters. The run deletes its own source namespace.</p>
+          <div class="code-block">
+            <div class="code-head"><span>Shell</span><button class="copy" type="button" data-copy-target="quickstart-lab" data-copy-label="Copy lab commands" aria-label="Copy lab commands">Copy</button></div>
+            <pre><code id="quickstart-lab">{lab}</code></pre>
+          </div>
+        </div>
+        <div class="code-card quickstart-step">
+          <h3>3. Read and sign the result</h3>
+          <p>Create a signing key once, then sign and verify each run.</p>
+          <div class="code-block">
+            <div class="code-head"><span>Once</span><button class="copy" type="button" data-copy-target="quickstart-key" data-copy-label="Copy key setup commands" aria-label="Copy key setup commands">Copy</button></div>
+            <pre><code id="quickstart-key">{key}</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-head"><span>Each run</span><button class="copy" type="button" data-copy-target="quickstart-report" data-copy-label="Copy report commands" aria-label="Copy report commands">Copy</button></div>
+            <pre><code id="quickstart-report">{report}</code></pre>
+          </div>
+          <p class="code-note">Keep the private key out of the repository, and never run key setup over an existing key.</p>
         </div>
       </div>
+      <p class="prose" style="margin-top: 24px;">Prefer not to install anything? <a class="link" href="/demo/index.html#/report">Open the demo</a>. The demo evaluates evidence; it does not connect to Kubernetes. Or <a class="link" href="/docs/start/">follow the CLI setup</a> and the <a class="link" href="/docs/guides/k3d-isolated-restore/">lab walkthrough</a> in the docs.</p>
     </div>
   </section>
 
-  <section class="comparison-band">
-    <div class="page-wrap">
-      <div class="section-heading">
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Where it stands</h2>
+      </div>
+      <div class="split">
         <div>
-          <p class="section-index">04 / HOW CHECKRIDE COMPARES</p>
-          <h2>Beyond green backup checkboxes.</h2>
+          <h3>Works today</h3>
+          <ul class="ticks">
+            <li>Validate drill files from the CLI, the API or Studio</li>
+            <li>Run one PostgreSQL restore across two local k3d clusters, checked to V3</li>
+            <li>Evaluate evidence: level reached, recovery time by phase, exact data loss from a write ledger</li>
+            <li>Sign evidence and verify the signature from the command line</li>
+          </ul>
         </div>
-        <a class="under-link" href="/comparison/">Full comparison details <span>↗</span></a>
-      </div>
-      <div class="comparison-table-wrapper">
-        <table class="home-comparison-table">
-          <thead>
-            <tr>
-              <th>Capability</th>
-              <th>Standard backup tools</th>
-              <th>Kymaros</th>
-              <th>Databasus</th>
-              <th class="checkride-col">Checkride</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Restore environment</strong></td>
-              <td>In-place overwrite or manual</td>
-              <td>Sandbox namespace (shared cluster)</td>
-              <td>Docker container</td>
-              <td class="checkride-col"><strong>Isolated separate cluster (default)</strong></td>
-            </tr>
-            <tr>
-              <td><strong>Verification depth</strong></td>
-              <td>V0 (Backup completed)</td>
-              <td>V1–V2 (Velero status & pod health)</td>
-              <td>V3 (Table row counts)</td>
-              <td class="checkride-col"><strong>V0–V4 (Data correctness & invariants)</strong></td>
-            </tr>
-            <tr>
-              <td><strong>RTO measurement</strong></td>
-              <td>Not measured</td>
-              <td>Total test duration</td>
-              <td>Container startup time</td>
-              <td class="checkride-col"><strong>Phase-by-phase breakdown & SLA gate</strong></td>
-            </tr>
-            <tr>
-              <td><strong>RPO calculation</strong></td>
-              <td>Snapshot timestamp</td>
-              <td>Unmeasured</td>
-              <td>Unmeasured</td>
-              <td class="checkride-col"><strong>Exact acknowledged-write ledger</strong></td>
-            </tr>
-            <tr>
-              <td><strong>Evidence integrity</strong></td>
-              <td>Job log output</td>
-              <td>CRD status in Kubernetes</td>
-              <td>Terminal logs</td>
-              <td class="checkride-col"><strong>Detached Ed25519 signature sidecars</strong></td>
-            </tr>
-            <tr>
-              <td><strong>Evaluation engine</strong></td>
-              <td>None</td>
-              <td>Kubernetes Operator</td>
-              <td>Local script</td>
-              <td class="checkride-col"><strong>Go engine (CLI, API, CI gate, in-browser WASM)</strong></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <section class="workbench-band">
-    <div class="page-wrap">
-      <div class="section-heading">
         <div>
-          <p class="section-index">05 / THE WORKBENCH</p>
-          <h2>One drill. Inspectable end to end.</h2>
+          <h3>Not built yet</h3>
+          <ul class="ticks todo">
+            <li>Scheduled drills</li>
+            <li>Restoring real applications rather than a seeded table</li>
+            <li>Application-specific correctness checks at V4</li>
+            <li>Collecting evidence from the system itself instead of trusting the runner</li>
+            <li>Signature checks in the API and browser demo</li>
+          </ul>
         </div>
-        <a class="under-link" href="/product/">How the system fits together <span>↗</span></a>
       </div>
-      <figure class="studio-shot">
-        <img src="/images/studio-preview.png" alt="Checkride Studio design view with a fictional namespace-loss drill specification, its live plan and V0–V4 verification depth" width="1440" height="900" loading="lazy" />
-        <figcaption>
-          <span>CHECKRIDE STUDIO / DESIGN DRILL & REPORT REVIEW</span>
-          <span>Full Go verifier runs inside your browser via WebAssembly. No cluster connection required.</span>
-        </figcaption>
-      </figure>
-      <div class="workbench-actions">
-        <a class="action-primary" href="/demo/index.html#/report">Launch Studio in your browser <span>↗</span></a>
-      </div>
-    </div>
-  </section>
-
-  <section class="paths-band">
-    <div class="page-wrap">
-      <div class="paths-heading">
-        <div>
-          <p class="section-index">06 / CHOOSE A WORKFLOW</p>
-          <h2>Start with the proof you need.</h2>
-        </div>
-        <p>Three ways in. Each answers a different recovery question.</p>
-      </div>
-      <div class="paths-grid">
-        <article>
-          <p class="path-index">01 / IN YOUR BROWSER</p>
-          <h3>Inspect a report</h3>
-          <p>Explore the full Studio with sample evidence and the recorded lab run. The demo evaluates evidence; it does not connect to Kubernetes.</p>
-          <a class="under-link" href="/demo/index.html#/report">Open the browser demo <span>↗</span></a>
-        </article>
-        <article>
-          <p class="path-index">02 / LOCAL VALIDATION</p>
-          <h3>Check a drill spec</h3>
-          <p>Install the CLI, validate a drill contract and catch invalid fields before planning a recovery exercise. Validation does not execute a restore.</p>
-          <a class="under-link" href="/docs/start/">Follow the CLI setup <span>↗</span></a>
-        </article>
-        <article>
-          <p class="path-index">03 / DISPOSABLE K3D LAB</p>
-          <h3>Run one isolated restore</h3>
-          <p>Requires Docker, k3d, kubectl, Python and Go. This V0–V3 drill deletes its source namespace after backup; use only the dedicated disposable clusters.</p>
-          <a class="under-link" href="/docs/guides/k3d-isolated-restore/">Read the lab walkthrough <span>↗</span></a>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <section class="next-band">
-    <div class="page-wrap next-grid">
-      <div>
-        <p class="section-index">07 / WHAT IS NOT HERE YET</p>
-        <h2>Evidence first.<br /><span>Automation next.</span></h2>
-      </div>
-      <div class="next-copy">
-        <p>Checkride is pre-alpha: one PostgreSQL lab path is executable. General-purpose orchestration, automated scheduling, and complete V4 business checks are in active development.</p>
-        <a class="action-primary" href="/roadmap/">See the implementation roadmap <span>↗</span></a>
+      <div class="prose" style="margin-top: 36px;">
+        <p>If you already run Velero, <a class="link" href="https://github.com/kymaroshq/kymaros">Kymaros</a> restores those backups into sandbox namespaces on a schedule and scores the result, and it is further along than this project. Checkride is narrower and earlier. It is aimed at the question that comes after: did the right data come back, and how much was lost. The <a class="link" href="/docs/comparison/">alternatives page</a> goes into more detail. See the <a class="link" href="/roadmap/">roadmap</a> for what comes next.</p>
       </div>
     </div>
   </section>
@@ -323,93 +184,18 @@ go run ./cmd/checkride-attest sign --evidence /tmp/drill.json --key "$HOME/.conf
     if (!button) return;
     const target = document.getElementById(button.dataset.copyTarget ?? "");
     if (!target) return;
-    const label = button.dataset.copyLabel ?? "Copy commands";
+    const label = button.dataset.copyLabel ?? "Copy";
     try {
       await navigator.clipboard.writeText(target.textContent?.trim() ?? "");
       button.textContent = "Copied";
       button.setAttribute("aria-label", "Commands copied");
     } catch {
-      button.textContent = "Copy unavailable";
+      button.textContent = "Copy failed";
       button.setAttribute("aria-label", "Clipboard unavailable");
     }
     window.setTimeout(() => {
-      button.textContent = "Copy commands";
+      button.textContent = "Copy";
       button.setAttribute("aria-label", label);
     }, 1600);
   });
 </script>
-
-<style>
-  .hero-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 4px; font: 500 10px var(--mono); color: var(--muted); background: var(--surface); letter-spacing: 0.05em; }
-  .badge-accent { color: var(--mint); border-color: rgba(93, 240, 173, 0.3); }
-  .badge-link { color: var(--text); transition: border-color .15s, color .15s; }
-  .badge-link:hover { border-color: var(--mint); color: var(--mint); }
-  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-
-  .pipeline-band { padding: 80px 0; border-block: 1px solid var(--line); background: var(--surface); }
-  .heading-sub { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
-  .pipeline-steps { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr auto 1fr; align-items: center; gap: 12px; margin-top: 36px; }
-  .pipeline-card { display: flex; flex-direction: column; padding: 22px 18px; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; min-height: 190px; }
-  .step-num { font: 500 12px var(--mono); color: var(--mint); margin-bottom: 10px; }
-  .pipeline-card h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
-  .pipeline-card p { margin: 0 0 14px; font-size: 11px; line-height: 1.6; color: var(--muted); flex: 1; }
-  .pipeline-card code { display: inline-block; padding: 3px 6px; font: 9.5px var(--mono); color: var(--mint); background: rgba(93, 240, 173, 0.08); border-radius: 3px; align-self: flex-start; }
-  .pipeline-state { margin-top: 10px; font: 9px var(--mono); line-height: 1.4; color: var(--quiet); }
-  .pipeline-state.available { color: var(--mint); }
-  .pipeline-state.foundation { color: var(--amber); }
-  .pipeline-arrow { color: var(--quiet); font-size: 18px; font-weight: bold; }
-
-  .quickstart-band { padding: 80px 0; background: var(--bg); }
-  .quickstart-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 32px; }
-  .quickstart-step { min-width: 0; padding: 24px 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
-  .quickstart-step-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
-  .quickstart-step-head .step-badge { margin: 0; }
-  .copy-commands { min-height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font: 10px var(--mono); cursor: pointer; }
-  .copy-commands:hover { border-color: var(--mint); color: var(--mint); }
-  .copy-commands:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
-  .step-badge { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--mint); border-radius: 50%; color: var(--mint); font: 500 12px var(--mono); margin-bottom: 14px; }
-  .quickstart-step h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
-  .quickstart-step p { margin: 0 0 14px; font-size: 11.5px; line-height: 1.6; color: var(--muted); min-height: 40px; }
-  .quickstart-step pre { margin: 0; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; overflow-x: auto; }
-  .quickstart-step code { font: 10.5px var(--mono); color: var(--mint); line-height: 1.6; }
-  .quickstart-code-block + .quickstart-code-block { margin-top: 12px; }
-  .quickstart-code-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 6px; color: var(--quiet); font: 9px var(--mono); }
-  .quickstart-code-head .copy-commands { min-height: 27px; }
-  .quickstart-note { margin: 12px 0 0; color: var(--quiet); font-size: 10px; line-height: 1.5; }
-
-  .comparison-band { padding: 80px 0; border-block: 1px solid var(--line); background: var(--surface); }
-  .comparison-table-wrapper { overflow-x: auto; margin-top: 32px; }
-  .home-comparison-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
-  .home-comparison-table th { padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-  .home-comparison-table td { padding: 16px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; }
-  .home-comparison-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
-  .home-comparison-table .checkride-col { background: rgba(93, 240, 173, 0.05); color: var(--text); border-inline: 1px solid rgba(93, 240, 173, 0.2); }
-  .home-comparison-table th.checkride-col { color: var(--mint); border-top: 2px solid var(--mint); }
-
-  .workbench-actions { display: flex; justify-content: center; margin-top: 24px; }
-
-  .paths-band { padding: 76px 0 82px; border-block: 1px solid var(--line); background: var(--bg); }
-  .paths-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 30px; }
-  .paths-heading h2 { margin: 12px 0 0; font-size: 32px; font-weight: 600; line-height: 1.15; }
-  .paths-heading > p { max-width: 300px; margin: 0 0 3px; color: var(--muted); font-size: 12px; line-height: 1.7; }
-  .paths-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 34px; }
-  .paths-grid article { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; padding-top: 16px; border-top: 1px solid var(--line); }
-  .path-index { margin: 0 0 17px; color: var(--quiet); font: 9px var(--mono); }
-  .paths-grid h3 { margin: 0 0 9px; font-size: 19px; font-weight: 600; }
-  .paths-grid article > p:not(.path-index) { flex: 1; margin: 0 0 18px; color: var(--muted); font-size: 11.5px; line-height: 1.8; }
-  .signal-proof { color: var(--quiet); font-size: 9.5px; }
-
-  @media (max-width: 960px) {
-    .pipeline-steps { grid-template-columns: 1fr; gap: 16px; }
-    .pipeline-arrow { display: none; }
-    .quickstart-grid { grid-template-columns: 1fr; }
-    .paths-grid { grid-template-columns: 1fr; gap: 24px; }
-  }
-  @media (max-width: 650px) {
-    .paths-band, .quickstart-band, .pipeline-band, .comparison-band { padding-block: 54px; }
-    .paths-heading { align-items: flex-start; flex-direction: column; gap: 11px; margin-bottom: 25px; }
-    .paths-heading h2 { font-size: 27px; }
-    .home-comparison-table th, .home-comparison-table td { padding: 10px 12px; font-size: 11px; }
-  }
-</style>
