@@ -157,6 +157,7 @@ const steps = [
             <li>Run one PostgreSQL restore across two local k3d clusters, checked to V3</li>
             <li>Evaluate evidence: level reached, recovery time by phase, exact data loss from a write ledger</li>
             <li>Sign evidence and verify the signature from the command line</li>
+            <li>Push recovery metrics to Prometheus and chart them on a bundled Grafana dashboard</li>
           </ul>
         </div>
         <div>
@@ -171,8 +172,9 @@ const steps = [
         </div>
       </div>
       <div class="prose" style="margin-top: 36px;">
-        <p>If you already run Velero, <a class="link" href="https://github.com/kymaroshq/kymaros">Kymaros</a> restores those backups into sandbox namespaces on a schedule and scores the result, and it is further along than this project. Checkride is narrower and earlier. It is aimed at the question that comes after: did the right data come back, and how much was lost. The <a class="link" href="/docs/comparison/">alternatives page</a> goes into more detail. See the <a class="link" href="/roadmap/">roadmap</a> for what comes next.</p>
+        <p>Checkride does not orchestrate backups and does not replace a backup tool. It exercises the restore you already have and reports whether it actually worked. See the <a class="link" href="/docs/comparison/">alternatives page</a> for how that differs from a sandbox restore or a health check, and the <a class="link" href="/roadmap/">roadmap</a> for what comes next.</p>
       </div>
+
     </div>
   </section>
 </ProductLayout>
