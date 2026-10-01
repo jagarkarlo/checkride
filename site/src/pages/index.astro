@@ -1,7 +1,7 @@
 ---
 import ProductLayout from '../layouts/ProductLayout.astro';
 
-const description = 'Automated recovery drills and verification for Kubernetes applications and PostgreSQL. Design drills, measure RTO/RPO, and prove data correctness from V0 to V4.';
+const description = 'Recovery verification for Kubernetes applications and PostgreSQL. Validate drill contracts, run a disposable PostgreSQL restore, and evaluate V0–V4 evidence.';
 ---
 <ProductLayout title="Recovery, verified" description={description} current="overview">
   <section class="hero-band">
@@ -17,7 +17,7 @@ const description = 'Automated recovery drills and verification for Kubernetes a
         </a>
       </div>
       <h1>Backups are a promise.<br /><span>Recovery is the proof.</span></h1>
-      <p class="hero-copy">Backup tools report <code>Completed</code>. That proves a backup was written, not that your application will work when restored. Checkride restores workloads into an isolated separate cluster, measures real RTO, and mathematically proves acknowledged data survived (V0–V4).</p>
+      <p class="hero-copy">Backup tools report <code>Completed</code>. That proves a backup was written, not that your application will work when restored. Checkride currently validates drill contracts, runs one disposable PostgreSQL restore across two k3d clusters, and evaluates recorded V0–V4 evidence.</p>
       <div class="hero-actions">
         <a class="action-primary" href="/demo/index.html#/report">Open the live demo <span>↗</span></a>
         <a class="action-secondary" href="#quickstart">Quick start guide <span>↓</span></a>
@@ -78,44 +78,49 @@ const description = 'Automated recovery drills and verification for Kubernetes a
       <div class="section-heading">
         <div>
           <p class="section-index">02 / HOW IT WORKS</p>
-          <h2>Continuous recovery verification, step by step.</h2>
+          <h2>Recovery evidence, step by step.</h2>
         </div>
-        <p class="heading-sub">From drill specification to cryptographically attested report.</p>
+        <p class="heading-sub">A practical flow, with today’s implementation boundaries.</p>
       </div>
       <div class="pipeline-steps">
         <div class="pipeline-card">
           <span class="step-num">01</span>
           <h3>Declare drill</h3>
-          <p>Versioned YAML spec defines scenario, separate-cluster target, and strict RTO/RPO SLA objectives.</p>
+          <p>Versioned YAML describes the scenario, restore target, verification depth, and RTO/RPO objectives.</p>
           <code>Drill spec</code>
+          <small class="pipeline-state available">AVAILABLE · VALIDATOR</small>
         </div>
         <div class="pipeline-arrow" aria-hidden="true">→</div>
         <div class="pipeline-card">
           <span class="step-num">02</span>
           <h3>Track writes</h3>
-          <p>Client acknowledged writes are recorded in an external ledger before disaster injection.</p>
+          <p>An external ledger can record acknowledged writes so restored IDs can be checked for loss and gaps.</p>
           <code>Write ledger</code>
+          <small class="pipeline-state foundation">AVAILABLE · LEDGER EVALUATION</small>
         </div>
         <div class="pipeline-arrow" aria-hidden="true">→</div>
         <div class="pipeline-card">
           <span class="step-num">03</span>
           <h3>Isolated restore</h3>
-          <p>Application is recovered into a clean separate cluster, exposing missing CRDs or operators.</p>
+          <p>The current disposable lab restores seeded PostgreSQL data into a second k3d cluster; general application orchestration is not available.</p>
           <code>Isolated cluster</code>
+          <small class="pipeline-state available">AVAILABLE · POSTGRESQL LAB</small>
         </div>
         <div class="pipeline-arrow" aria-hidden="true">→</div>
         <div class="pipeline-card">
           <span class="step-num">04</span>
           <h3>Verify V0–V4</h3>
-          <p>Evaluates workload health, schema integrity, and exact transaction consistency without holes.</p>
+          <p>The Go evaluator checks submitted observations, RTO/RPO objectives, and V0–V4 depth; it does not run the restore.</p>
           <code>Contiguous levels</code>
+          <small class="pipeline-state available">AVAILABLE · GO EVALUATOR</small>
         </div>
         <div class="pipeline-arrow" aria-hidden="true">→</div>
         <div class="pipeline-card">
           <span class="step-num">05</span>
           <h3>Attest & gate</h3>
-          <p>Detached Ed25519 signature locks evidence bytes; CI gate blocks deployment on failed drills.</p>
+          <p>Detached Ed25519 signatures bind exact evidence bytes to a trusted key. The report CLI can return gate-friendly exit codes.</p>
           <code>Attested report</code>
+          <small class="pipeline-state foundation">AVAILABLE · LOCAL CLI</small>
         </div>
       </div>
     </div>
@@ -132,29 +137,43 @@ const description = 'Automated recovery drills and verification for Kubernetes a
       </div>
       <div class="quickstart-grid">
         <div class="quickstart-step">
-          <div class="step-badge">1</div>
-          <h3>Install CLI & validate a drill</h3>
-          <p>Install Checkride into a virtualenv and validate a drill contract without connecting to any cluster.</p>
-          <pre><code>pip install checkride
-checkride validate examples/drills/shop-namespace-loss.yaml</code></pre>
+          <div class="quickstart-step-head"><div class="step-badge">1</div><button class="copy-commands" type="button" data-copy-target="quickstart-install" data-copy-label="Copy CLI setup commands" aria-label="Copy CLI setup commands">Copy commands</button></div>
+          <h3>Clone, install & validate</h3>
+          <p>Checkride is not on PyPI yet. Clone with an account that has repository access, then validate a real example drill. This checks the contract, not a restore.</p>
+          <pre><code id="quickstart-install">git clone https://github.com/jagarkarlo/checkride.git
+cd checkride
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e ".[dev]"
+checkride validate examples/drills/mlflow-namespace-loss.yaml</code></pre>
         </div>
         <div class="quickstart-step">
-          <div class="step-badge">2</div>
+          <div class="quickstart-step-head"><div class="step-badge">2</div><button class="copy-commands" type="button" data-copy-target="quickstart-lab" data-copy-label="Copy lab commands" aria-label="Copy lab commands">Copy commands</button></div>
           <h3>Run the isolated PostgreSQL drill</h3>
-          <p>Creates two disposable k3d clusters, injects source loss, restores into target, and captures evidence.</p>
-          <pre><code>make lab-up
+          <p>Requires Docker, k3d, kubectl, Python 3.12+, and Go. Use only the dedicated disposable clusters; the run deletes its source namespace.</p>
+          <pre><code id="quickstart-lab">make lab-up
 python3 scripts/lab/restore.py --output /tmp/drill.json
 make lab-down</code></pre>
         </div>
         <div class="quickstart-step">
           <div class="step-badge">3</div>
           <h3>Evaluate report & verify signature</h3>
-          <p>Turn evidence into a V0–V4 report with phase RTO, then verify its detached Ed25519 attestation.</p>
-          <pre><code>go run ./cmd/checkride-report /tmp/drill.json
-go run ./cmd/checkride-attest sign \
-  --evidence /tmp/drill.json \
-  --key signing-key.pem \
-  --output /tmp/drill.attestation.json</code></pre>
+          <p>Generate a signing key once, then create and verify a detached attestation for each run.</p>
+          <div class="quickstart-code-block">
+            <div class="quickstart-code-head"><span>ONE-TIME KEY SETUP</span><button class="copy-commands" type="button" data-copy-target="quickstart-key" data-copy-label="Copy key setup commands" aria-label="Copy key setup commands">Copy commands</button></div>
+            <pre><code id="quickstart-key">install -d -m 700 "$HOME/.config/checkride"
+go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing-key.pem" --public "$HOME/.config/checkride/trusted-key.pem"</code></pre>
+          </div>
+          <div class="quickstart-code-block">
+            <div class="quickstart-code-head"><span>FOR EACH RUN</span><button class="copy-commands" type="button" data-copy-target="quickstart-report" data-copy-label="Copy report commands" aria-label="Copy report commands">Copy commands</button></div>
+              <pre><code id="quickstart-report">go run ./cmd/checkride-report /tmp/drill.json
+attestation_dir=$(mktemp -d)
+attestation="$attestation_dir/run.attestation.json"
+go run ./cmd/checkride-attest sign --evidence /tmp/drill.json --key "$HOME/.config/checkride/signing-key.pem" --output "$attestation"
+  go run ./cmd/checkride-report --attestation "$attestation" --trusted-key "$HOME/.config/checkride/trusted-key.pem" /tmp/drill.json
+  rm -r "$attestation_dir"</code></pre>
+          </div>
+          <p class="quickstart-note">Keep the private key outside the repository. Do not rerun key setup over existing keys.</p>
         </div>
       </div>
     </div>
@@ -297,6 +316,29 @@ go run ./cmd/checkride-attest sign \
   </section>
 </ProductLayout>
 
+<script>
+  document.addEventListener("click", async (event) => {
+    if (!(event.target instanceof Element)) return;
+    const button = event.target.closest<HTMLButtonElement>("[data-copy-target]");
+    if (!button) return;
+    const target = document.getElementById(button.dataset.copyTarget ?? "");
+    if (!target) return;
+    const label = button.dataset.copyLabel ?? "Copy commands";
+    try {
+      await navigator.clipboard.writeText(target.textContent?.trim() ?? "");
+      button.textContent = "Copied";
+      button.setAttribute("aria-label", "Commands copied");
+    } catch {
+      button.textContent = "Copy unavailable";
+      button.setAttribute("aria-label", "Clipboard unavailable");
+    }
+    window.setTimeout(() => {
+      button.textContent = "Copy commands";
+      button.setAttribute("aria-label", label);
+    }, 1600);
+  });
+</script>
+
 <style>
   .hero-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
   .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 4px; font: 500 10px var(--mono); color: var(--muted); background: var(--surface); letter-spacing: 0.05em; }
@@ -313,16 +355,28 @@ go run ./cmd/checkride-attest sign \
   .pipeline-card h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
   .pipeline-card p { margin: 0 0 14px; font-size: 11px; line-height: 1.6; color: var(--muted); flex: 1; }
   .pipeline-card code { display: inline-block; padding: 3px 6px; font: 9.5px var(--mono); color: var(--mint); background: rgba(93, 240, 173, 0.08); border-radius: 3px; align-self: flex-start; }
+  .pipeline-state { margin-top: 10px; font: 9px var(--mono); line-height: 1.4; color: var(--quiet); }
+  .pipeline-state.available { color: var(--mint); }
+  .pipeline-state.foundation { color: var(--amber); }
   .pipeline-arrow { color: var(--quiet); font-size: 18px; font-weight: bold; }
 
   .quickstart-band { padding: 80px 0; background: var(--bg); }
   .quickstart-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 32px; }
-  .quickstart-step { padding: 24px 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+  .quickstart-step { min-width: 0; padding: 24px 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+  .quickstart-step-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .quickstart-step-head .step-badge { margin: 0; }
+  .copy-commands { min-height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--muted); font: 10px var(--mono); cursor: pointer; }
+  .copy-commands:hover { border-color: var(--mint); color: var(--mint); }
+  .copy-commands:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
   .step-badge { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--mint); border-radius: 50%; color: var(--mint); font: 500 12px var(--mono); margin-bottom: 14px; }
   .quickstart-step h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
   .quickstart-step p { margin: 0 0 14px; font-size: 11.5px; line-height: 1.6; color: var(--muted); min-height: 40px; }
   .quickstart-step pre { margin: 0; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; overflow-x: auto; }
   .quickstart-step code { font: 10.5px var(--mono); color: var(--mint); line-height: 1.6; }
+  .quickstart-code-block + .quickstart-code-block { margin-top: 12px; }
+  .quickstart-code-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 6px; color: var(--quiet); font: 9px var(--mono); }
+  .quickstart-code-head .copy-commands { min-height: 27px; }
+  .quickstart-note { margin: 12px 0 0; color: var(--quiet); font-size: 10px; line-height: 1.5; }
 
   .comparison-band { padding: 80px 0; border-block: 1px solid var(--line); background: var(--surface); }
   .comparison-table-wrapper { overflow-x: auto; margin-top: 32px; }
