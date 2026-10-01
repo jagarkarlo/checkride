@@ -165,16 +165,24 @@ reports an error. The [lab walkthrough](site/src/content/docs/start.md) covers
 prerequisites and proxy-restricted image pulls. This is not production-safe
 orchestration.
 
-The Astro site now has separate overview, product, evidence, lab demo and roadmap pages,
-with Astro view transitions and a persistent Starlight documentation section.
-Run it locally:
+The Astro product site connects the full browser Studio with MkDocs Material
+documentation under `/docs/`. Install Python 3.12+, Node 22+ and Go, then build
+the demo and documentation before starting the site:
 
 ```bash
-cd site && npm ci && npm run dev
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e ".[docs]"
+npm ci --prefix studio
+npm ci --prefix site
+npm run build --prefix site
+npm run dev --prefix site
 ```
 
-Open `http://127.0.0.1:4321`. The site is reference documentation; the
-interactive Studio remains a local app backed by the Go API. Checkride is
+Open `http://127.0.0.1:4321`. Rebuild docs after Markdown changes with
+`bash scripts/build-docs.sh`; `mkdocs build --strict` checks navigation and
+internal Markdown links. The demo at `/demo/` evaluates reports in the browser;
+the standalone Studio can also connect to the local Go API. Checkride is
 pre-alpha and only executes the narrow disposable lab drill. A paid enterprise
 edition is not planned until the open-source restore workflow works reliably
 end to end and operators validate a concrete need for supported deployments,
