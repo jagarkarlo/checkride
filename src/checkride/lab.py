@@ -6,6 +6,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 DEFAULT_SOURCE_CONTEXT = "k3d-checkride-source"
@@ -23,15 +24,15 @@ def run_kubectl(
     *args: str,
     input_data: bytes | None = None,
 ) -> bytes:
-    command = ["kubectl", "--context", context]
+    command = ["kubectl", "--context", context, "--request-timeout=200s"]
     if namespace:
         command.extend(["-n", namespace])
     command.extend(args)
     env = os.environ.copy()
     for key in ("NO_PROXY", "no_proxy"):
-        env[key] = ",".join(filter(None, (env.get(key), "0.0.0.0")))
+        env[key] = ",".join(filter(None, (env.get(key), "0.0.0.0,127.0.0.1,localhost")))
     return subprocess.run(
-        command, input=input_data, capture_output=True, check=True, env=env
+        command, input=input_data, capture_output=True, check=True, env=env, timeout=210
     ).stdout
 
 
@@ -63,6 +64,7 @@ def check_cluster_health(context: str) -> dict:
             "reachable": True,
             "uid": uid,
             "ready_nodes": ready_nodes,
+            "total_nodes": len(nodes_raw.split()),
         }
     except Exception as exc:
         return {
@@ -70,6 +72,7 @@ def check_cluster_health(context: str) -> dict:
             "reachable": False,
             "error": str(exc)[:200],
             "ready_nodes": 0,
+            "total_nodes": 0,
         }
 
 
@@ -80,22 +83,49 @@ def execute_isolated_drill(
     image: str = DEFAULT_POSTGRES_IMAGE,
 ) -> dict:
     """Execute a PostgreSQL logical backup and restore across two distinct k3d clusters."""
+    for context in (source_context, restore_context):
+        if not context.startswith("k3d-checkride-"):
+            raise RuntimeError("only local k3d-checkride-* lab contexts are allowed")
+        server = (
+            run_kubectl(
+                context,
+                None,
+                "config",
+                "view",
+                "--minify",
+                "-o",
+                "jsonpath={.clusters[0].cluster.server}",
+            )
+            .decode()
+            .strip()
+        )
+        endpoint = urlsplit(server)
+        if endpoint.scheme != "https" or endpoint.hostname not in (
+            "localhost",
+            "127.0.0.1",
+            "0.0.0.0",
+            "::1",
+        ):
+            raise RuntimeError("lab contexts must address a local Kubernetes API endpoint")
     identities = [
         run_kubectl(
             context, None, "get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"
-        )
+        ).strip()
         for context in (source_context, restore_context)
     ]
     if not all(identities) or identities[0] == identities[1]:
         raise RuntimeError("source and restore contexts must address distinct clusters")
 
+    output.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(descriptor)
     namespace = f"checkride-{uuid4().hex[:12]}"
     checks: list[dict] = []
     phases: list[dict] = []
     failure_at: str | None = None
     active_level = "V0"
     created: list[str] = []
-    error: Exception | None = None
+    error: BaseException | None = None
 
     def record_phase(name: str, action):
         started_at = utc_timestamp()
@@ -114,8 +144,42 @@ def execute_isolated_drill(
                 "run",
                 "postgres",
                 f"--image={image}",
-                "--env=POSTGRES_HOST_AUTH_METHOD=trust",
-                "--port=5432",
+                "--restart=Never",
+                "--overrides="
+                + json.dumps(
+                    {
+                        "spec": {
+                            "automountServiceAccountToken": False,
+                            "terminationGracePeriodSeconds": 5,
+                            "containers": [
+                                {
+                                    "name": "postgres",
+                                    "image": image,
+                                    "env": [
+                                        {"name": "POSTGRES_HOST_AUTH_METHOD", "value": "trust"}
+                                    ],
+                                    "args": ["postgres", "-c", "listen_addresses=127.0.0.1"],
+                                    "readinessProbe": {
+                                        "exec": {
+                                            "command": [
+                                                "pg_isready",
+                                                "-h",
+                                                "127.0.0.1",
+                                                "-U",
+                                                "postgres",
+                                            ]
+                                        },
+                                        "periodSeconds": 2,
+                                    },
+                                    "resources": {
+                                        "requests": {"cpu": "100m", "memory": "128Mi"},
+                                        "limits": {"cpu": "1", "memory": "512Mi"},
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ),
             )
             run_kubectl(
                 context,
@@ -252,7 +316,7 @@ def execute_isolated_drill(
             return found
 
         record_phase("verify", verify)
-    except (RuntimeError, subprocess.CalledProcessError, KeyboardInterrupt) as exc:
+    except (RuntimeError, subprocess.SubprocessError, OSError, KeyboardInterrupt) as exc:
         error = exc
         checks.append(
             {
@@ -264,6 +328,7 @@ def execute_isolated_drill(
         )
     finally:
         completed_at = utc_timestamp()
+        failure_at = failure_at or completed_at
         for context in reversed(created):
             try:
                 run_kubectl(
@@ -275,7 +340,7 @@ def execute_isolated_drill(
                     "--wait=true",
                     "--timeout=120s",
                 )
-            except subprocess.CalledProcessError as exc:
+            except (RuntimeError, subprocess.SubprocessError, OSError, KeyboardInterrupt) as exc:
                 print(f"Cleanup failed for {context}/{namespace}: {exc}", file=sys.stderr)
                 checks.append(
                     {
@@ -292,13 +357,12 @@ def execute_isolated_drill(
             "metadata": {"name": namespace},
             "spec": {"scenario": "isolated-postgresql-logical-restore", "upTo": "V3"},
             "status": {
-                "failureAt": failure_at or utc_timestamp(),
+                "failureAt": failure_at,
                 "completedAt": completed_at,
                 "phases": phases,
                 "checks": checks,
             },
         }
-        output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(result, indent=2) + "\n")
         print(f"Recorded lab evidence in {output}")
     if error:
