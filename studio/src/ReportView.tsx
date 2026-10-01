@@ -10,6 +10,8 @@ import {
   LoaderCircle,
   Play,
   Save,
+  ShieldAlert,
+  ShieldCheck,
   Upload,
   XCircle,
 } from "lucide-react";
@@ -269,6 +271,11 @@ function ReportBody({ report, onCopy, copied }: { report: Report; onCopy: () => 
           </span>
           <h2>{report.headline}</h2>
           <p className="mono-meta">{report.name}</p>
+          <div className={`provenance-status ${report.provenance?.status ?? "unverified"}`} role="status" aria-label="Evidence provenance">
+            {report.provenance?.status === "verified" ? <ShieldCheck size={14} aria-hidden="true" /> : <ShieldAlert size={14} aria-hidden="true" />}
+            <span>{report.provenance?.status === "verified" ? `${report.provenance.algorithm ?? "Signature"} verified` : "Evidence signature unverified"}</span>
+            {report.provenance?.keyId && <code title={report.provenance.keyId}>key {report.provenance.keyId.slice(0, 16)}</code>}
+          </div>
         </div>
         <div className="verdict-actions">
           <button className="tool" type="button" title="Download the computed report as JSON" onClick={() => download(`${report.name}.report.json`, JSON.stringify(report, null, 2), "application/json")}>

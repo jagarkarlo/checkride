@@ -112,3 +112,7 @@ html[data-theme=light] .panel { background: transparent; }
   .sample-rows strong, .sample-rows small { overflow-wrap: anywhere; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+.provenance-status { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 8px; color: var(--ink-3); font-size: 11px; line-height: 1.4; }
+.provenance-status svg { flex: none; color: var(--warn); }
+.provenance-status.verified svg { color: var(--ok); }
+.provenance-status code { color: var(--ink-2); font: 10px var(--mono); overflow-wrap: anywhere; }

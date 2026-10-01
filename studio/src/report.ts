@@ -62,6 +62,13 @@ export interface Finding {
   message: string;
 }
 
+export interface Provenance {
+  status: "verified" | "unverified";
+  algorithm?: string;
+  keyId?: string;
+  evidenceSHA256?: string;
+}
+
 export interface Report {
   name: string;
   drill?: string;
@@ -75,6 +82,7 @@ export interface Report {
   levels: LevelResult[];
   rto: RTOResult | null;
   rpo: RPOResult | null;
+  provenance?: Provenance;
   findings: Finding[];
 }
 
@@ -152,6 +160,7 @@ export function reportMarkdown(report: Report): string {
     `- Drill: ${report.drill || "—"} (${report.scenario || "unspecified scenario"})`,
     `- Failure injected: ${report.failureAt}`,
     `- Requested depth: ${report.requestedLevel}; deepest passed: ${report.deepestPassed ?? "none"}; first failed: ${report.firstFailed ?? "none"}`,
+    `- Evidence provenance: ${report.provenance?.status ?? "unverified"}${report.provenance?.keyId ? ` (${report.provenance.keyId})` : ""}`,
   ];
   if (report.rto) {
     const objective = report.rto.objectiveSeconds === null ? "no objective" : `objective ${formatDuration(report.rto.objectiveSeconds)}`;

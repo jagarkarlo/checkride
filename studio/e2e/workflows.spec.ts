@@ -1,6 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
+test("homepage directs users to the right recovery workflow", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Start with the proof you need." })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open the browser demo/ })).toHaveAttribute("href", "/demo/index.html#/report");
+  await expect(page.getByRole("link", { name: /Follow the CLI setup/ })).toHaveAttribute("href", "/docs/start/");
+  await expect(page.getByRole("link", { name: /Read the lab walkthrough/ })).toHaveAttribute("href", "/docs/guides/k3d-isolated-restore/");
+  await expect(page.getByText("The demo evaluates evidence; it does not connect to Kubernetes.")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test("saved evidence survives reload, compares and deletes", async ({ page }) => {
   await page.goto("/demo/");
   await expect(page.getByRole("heading", { name: "Recovery runs" })).toBeVisible();
@@ -35,6 +45,7 @@ test("imported evidence uses the browser engine and exports the original", async
     const source = await readFile(new URL("../../examples/runs/k3d-postgresql.run.json", import.meta.url));
   await page.locator(".run-library input[type=file]").setInputFiles({ name: "lab.json", mimeType: "application/json", buffer: source });
   await expect(page.getByRole("heading", { name: "Verified to V3" })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Evidence provenance" })).toContainText("signature unverified");
   await expect(page.locator(".api-status")).toContainText("Go engine");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download original evidence" }).click();
