@@ -1,0 +1,11 @@
+@font-face { font-family: 'DM Sans'; src: url('../assets/fonts/dm-sans-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('../assets/fonts/dm-sans-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('../assets/fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+:root { --md-text-font: 'DM Sans'; --md-code-font: 'IBM Plex Mono'; --md-primary-fg-color: #17694d; --md-accent-fg-color: #b94c22; }
+[data-md-color-scheme='default'] { --md-default-bg-color: #fafcfa; --md-typeset-a-color: #17694d; }
+[data-md-color-scheme='slate'] { --md-default-bg-color: #131718; --md-typeset-a-color: #77dbad; --md-primary-fg-color: #1e4939; --md-accent-fg-color: #f4b86a; }
+.md-header { box-shadow: none; }
+.md-typeset h1, .md-typeset h2 { font-weight: 700; letter-spacing: 0; }
+.md-typeset h1 { color: var(--md-default-fg-color); }
+.md-typeset table:not([class]) { border-radius: 4px; }
+.md-nav__title { letter-spacing: 0; }

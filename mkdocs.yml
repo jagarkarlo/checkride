@@ -1,0 +1,74 @@
+site_name: Checkride
+site_description: Run an isolated recovery drill. Inspect what survived.
+docs_dir: site/src/content/docs
+site_dir: site/public/docs
+repo_url: https://github.com/jagarkarlo/checkride
+repo_name: GitHub
+edit_uri: ''
+strict: true
+theme:
+  name: material
+  font: false
+  icon:
+    logo: material/check-decagram-outline
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.footer
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+plugins:
+  - search
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+extra_css:
+  - stylesheets/checkride.css
+nav:
+  - Get Started:
+      - Overview: index.md
+      - Installation: start.md
+      - First restore drill: guides/k3d-isolated-restore.md
+      - CI recovery gate: guides/ci-recovery-gate.md
+  - Understand the Evidence:
+      - How it works: concepts/how-it-works.md
+      - Verification levels: levels.md
+      - Write ledger and RPO: concepts/write-ledger-rpo.md
+      - Isolated restores: concepts/isolated-restores.md
+      - Alternatives: comparison.md
+  - Reference:
+      - Drill specification: reference/drill-spec.md
+      - DrillRun evidence: reference/drillrun-evidence.md
+  - Product: /
+  - Live Demo: /demo/index.html
+extra:
+  generator: false

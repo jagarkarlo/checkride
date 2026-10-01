@@ -78,4 +78,4 @@ Configures post-restore verification:
 Service level objectives for recovery:
 - `rto`: Recovery Time Objective formatted as a compact duration (`15m`, `1h30m`, `90s`) or seconds.
 - `rpo`: Recovery Point Objective formatted as a compact duration or seconds.
-- `timeout`: Maximum permitted execution time before the drill is aborted as failed.
+- `timeout`: Planned whole-drill execution budget. The current spec validator checks its syntax, but no general-purpose executor consumes the spec yet. The disposable lab runner instead bounds each Kubernetes command to 210 seconds; do not treat this field as an enforced deadline today.
