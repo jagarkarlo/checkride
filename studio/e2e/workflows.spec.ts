@@ -25,30 +25,59 @@ test("theme preference persists across product, docs and demo pages", async ({ p
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
-test("homepage directs users to the right recovery workflow", async ({ page }) => {
+test("homepage explains the product and its commands", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Start with the proof you need." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Copy CLI setup commands" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Copy lab commands" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Copy report commands" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Copy key setup commands" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Find out whether a restore really worked" })).toBeVisible();
+  await expect(page.locator(".hero").getByRole("link", { name: "Open the demo" })).toHaveAttribute("href", "/demo/index.html#/report");
+  await expect(page.getByText("The demo evaluates evidence; it does not connect to Kubernetes.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What a report tells you" })).toBeVisible();
+  await expect(page.locator(".step")).toHaveCount(5);
+  await expect(page.locator(".step-state", { hasText: "Lab only" })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Not built yet" })).toBeVisible();
+
   await expect(page.locator("#quickstart-install")).toContainText("git clone https://github.com/jagarkarlo/checkride.git");
   await expect(page.locator("#quickstart-install")).toContainText("examples/drills/mlflow-namespace-loss.yaml");
-  await expect(page.locator(".quickstart-step").first()).toContainText("Checkride is not on PyPI yet");
-  await expect(page.locator(".pipeline-state")).toHaveCount(5);
-  await expect(page.getByRole("link", { name: /Open the browser demo/ })).toHaveAttribute("href", "/demo/index.html#/report");
-  await expect(page.getByRole("link", { name: /Follow the CLI setup/ })).toHaveAttribute("href", "/docs/start/");
-  await expect(page.getByRole("link", { name: /Read the lab walkthrough/ })).toHaveAttribute("href", "/docs/guides/k3d-isolated-restore/");
-  await expect(page.getByText("The demo evaluates evidence; it does not connect to Kubernetes.")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Verify your first restore drill." })).toBeVisible();
+  await expect(page.locator("#quickstart")).toContainText("not on PyPI yet");
+  for (const label of ["Copy CLI setup commands", "Copy lab commands", "Copy key setup commands", "Copy report commands"]) {
+    await expect(page.getByRole("button", { name: label })).toBeVisible();
+  }
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   const copyButton = page.locator('button[data-copy-target="quickstart-install"]');
   await copyButton.click();
   await expect(copyButton).toHaveText("Copied");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("git clone https://github.com/jagarkarlo/checkride.git");
-  await expect(page.getByRole("heading", { name: "Beyond green backup checkboxes." })).toBeVisible();
+
   await expect(page.getByRole("link", { name: "GitHub repository" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("site stays readable, self-hosted and free of decoration", async ({ page }) => {
+  const external: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.hostname !== "127.0.0.1" && url.hostname !== "localhost") external.push(url.hostname);
+  });
+  for (const path of ["/", "/product/", "/evidence/", "/roadmap/"]) {
+    await page.goto(path);
+    await expect(page.locator("h1")).toHaveCount(1);
+    const smallText = await page.evaluate(() => {
+      const found: string[] = [];
+      for (const element of document.querySelectorAll("main *, header *, footer *")) {
+        const own = [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
+        if (own && parseFloat(getComputedStyle(element).fontSize) < 13) found.push(`${element.tagName}.${element.className}`);
+      }
+      return found;
+    });
+    expect(smallText, `${path} has text under 13px`).toEqual([]);
+    const effects = await page.evaluate(() =>
+      [...document.querySelectorAll("main *")].filter((element) => {
+        const style = getComputedStyle(element);
+        return style.textShadow !== "none" || /rgba?\([^)]*\)\s+0px 0px \d+px/.test(style.boxShadow) || style.textTransform === "uppercase";
+      }).map((element) => `${element.tagName}.${element.className}`),
+    );
+    expect(effects, `${path} has glow or uppercase labels`).toEqual([]);
+  }
+  expect(external).toEqual([]);
 });
 
 test("saved evidence survives reload, compares and deletes", async ({ page }) => {
