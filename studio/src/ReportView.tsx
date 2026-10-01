@@ -3,11 +3,13 @@ import {
   CheckCircle2,
   CircleDashed,
   ClipboardCopy,
+  Download,
   FileJson,
   FileText,
   Info,
   LoaderCircle,
   Play,
+  Save,
   Upload,
   XCircle,
 } from "lucide-react";
@@ -18,19 +20,8 @@ import type { CodeEditorHandle } from "./CodeEditor";
 import { fieldPathOf, inspectJSON, locateField, scenarioLabels } from "./drill";
 import { formatDuration, isReport, objectiveUsage, reportMarkdown, timelineBars } from "./report";
 import type { LevelResult, Report, RPOResult, RTOResult } from "./report";
-
-const sampleSources = import.meta.glob<string>("../../examples/runs/*.run.json", { query: "?raw", import: "default" });
-const sampleInfo: Record<string, { label: string; summary: string }> = {
-  "k3d-postgresql": { label: "Isolated PostgreSQL restore", summary: "Recorded local lab · V3" },
-  "mlflow-namespace-loss": { label: "MLflow namespace loss", summary: "V4 with ledger · verified" },
-  "crud-cluster-loss": { label: "CRUD cluster loss", summary: "V3 · row counts fail, RTO missed" },
-};
-const samples = Object.entries(sampleSources)
-  .map(([path, load]) => {
-    const id = path.split("/").pop()!.replace(".run.json", "");
-    return { id, load, ...(sampleInfo[id] ?? { label: id, summary: "Example run" }) };
-  })
-  .sort((a, b) => a.label.localeCompare(b.label));
+import { saveRun } from "./runStore";
+import { samples } from "./samples";
 
 const verdictLabel = { verified: "Verified", failed: "Failed", incomplete: "Incomplete" } as const;
 
@@ -42,7 +33,7 @@ function download(name: string, text: string, type: string) {
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
-export function ReportView({ onReachability }: { onReachability: (online: boolean) => void }) {
+export function ReportView({ onReachability, selection }: { onReachability: (online: boolean) => void; selection?: { source: string; sampleId: string } }) {
   const [source, setSource] = useState("");
   const [sampleId, setSampleId] = useState("");
   const [sourceError, setSourceError] = useState("");
@@ -53,17 +44,22 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
   const [isBuilding, setIsBuilding] = useState(false);
   const [tab, setTab] = useState<"report" | "evidence">("report");
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const generation = useRef(0);
   const editorRef = useRef<CodeEditorHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inspection = useMemo(() => inspectJSON(source), [source]);
 
   const build = useCallback(
-    async (text: string) => {
+    async (text: string, current = ++generation.current) => {
       setIsBuilding(true);
       setRequestError("");
+      setSaved(false);
       try {
         const response = await request("/api/v1/runs/report", text);
         const payload: unknown = await response.json();
+        if (current !== generation.current) return;
         onReachability(true);
         if (response.ok && isReport(payload)) {
           setReport(payload);
@@ -76,10 +72,11 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
         setProblems(Array.isArray(errors) ? errors.filter((item): item is string => typeof item === "string") : [`HTTP ${response.status}`]);
         setTab("evidence");
       } catch (error) {
+        if (current !== generation.current) return;
         onReachability(false);
         setRequestError(error instanceof Error ? error.message : "Could not reach the Checkride API.");
       } finally {
-        setIsBuilding(false);
+        if (current === generation.current) setIsBuilding(false);
       }
     },
     [onReachability],
@@ -89,18 +86,28 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
     async (id: string) => {
       const sample = samples.find((item) => item.id === id);
       if (!sample) return;
-      const text = await sample.load();
-      setSource(text);
-      setSampleId(id);
-      await build(text);
+      const current = ++generation.current;
+      try {
+        const text = await sample.load();
+        if (current !== generation.current) return;
+        setSourceError("");
+        setSource(text);
+        setSampleId(id);
+        await build(text, current);
+      } catch (error) { if (current === generation.current) setSourceError(String(error)); }
     },
     [build],
   );
 
   useEffect(() => {
-    const preferred = window.location.pathname.startsWith("/demo/") ? "k3d-postgresql" : "mlflow-namespace-loss";
-    if (samples.length > 0) void loadSample(samples.find((item) => item.id === preferred)?.id ?? samples[0].id);
-  }, [loadSample]);
+    if (selection) {
+      setSource(selection.source);
+      setSampleId(selection.sampleId);
+      setSourceError("");
+      void build(selection.source);
+    } else if (samples.length > 0) void loadSample("k3d-postgresql");
+    return () => { generation.current++; };
+  }, [loadSample, build, selection]);
 
   function jumpTo(message: string) {
     const path = fieldPathOf(message);
@@ -112,9 +119,19 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
 
   async function copyMarkdown() {
     if (!report) return;
-    await navigator.clipboard.writeText(reportMarkdown(report));
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+    try {
+      await navigator.clipboard.writeText(reportMarkdown(report));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch { setSourceError("Clipboard access denied. Download the Markdown report instead."); }
+  }
+
+  async function save() {
+    if (!report || stale) return;
+    setSaving(true);
+    try { await saveRun(builtFrom, report, sampleId); setSaved(true); setSourceError(""); }
+    catch (error) { setSourceError(error instanceof Error ? error.message : "Browser storage is unavailable."); }
+    finally { setSaving(false); }
   }
 
   const stale = report !== null && builtFrom !== source;
@@ -162,16 +179,13 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
                 setSource(text);
                 setSampleId("");
                 void build(text);
-              });
+              }).catch(() => setSourceError("Could not read the selected file."));
           }}
         />
         <button className="rail-action" type="button" onClick={() => fileInputRef.current?.click()}>
           <Upload size={14} /> Import DrillRun JSON
         </button>
-        <p className="rail-empty">
-          A DrillRun records phases, level checks and the write ledger. The orchestrator will produce it; until then, record a
-          manual drill in this format.
-        </p>
+        <a className="rail-action" href="#/runs">Saved runs</a>
       </aside>
 
       <section className="report-main" aria-label="Drill report">
@@ -184,6 +198,8 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
           </button>
           <div className="report-actions">
             {stale && <span className="stale-inline">Evidence edited</span>}
+            <button className="tool" type="button" disabled={!report || stale || isBuilding || saving || saved} onClick={() => void save()} title="Save original evidence and report in this browser"><Save size={15} /> {saved ? "Saved" : saving ? "Saving..." : "Save run"}</button>
+            <button className="icon-button" type="button" disabled={!source} aria-label="Download original evidence" title="Download original DrillRun evidence" onClick={() => download("checkride.run.json", source, "application/json")}><Download size={15} /></button>
             <button className="primary" type="button" disabled={isBuilding || !inspection.ok || source.length === 0} onClick={() => void build(source)}>
               {isBuilding ? <LoaderCircle className="spin" size={15} /> : <Play size={14} fill="currentColor" />}
               {isBuilding ? "Building…" : "Build report"}
@@ -193,7 +209,7 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
 
         {requestError && (
           <div className="banner bad">
-            <XCircle size={15} /> {requestError} Start the API with <code>go run ./cmd/checkride-api</code>.
+            <XCircle size={15} /> {requestError}
           </div>
         )}
         {sourceError && <div className="banner bad"><XCircle size={15} /> {sourceError}</div>}
@@ -216,7 +232,7 @@ export function ReportView({ onReachability }: { onReachability: (online: boolea
                 ref={editorRef}
                 value={source}
                 errorLine={inspection.ok ? null : inspection.line}
-                onChange={setSource}
+                onChange={(text) => { generation.current++; setIsBuilding(false); setSource(text); setSampleId(""); setSaved(false); }}
                 onSubmit={() => void build(source)}
               />
             </div>
@@ -252,7 +268,7 @@ function ReportBody({ report, onCopy, copied }: { report: Report; onCopy: () => 
             {verdictLabel[report.verdict]} · {scenarioLabels[report.scenario ?? ""] ?? report.scenario ?? "drill"}
           </span>
           <h2>{report.headline}</h2>
-          <p className="mono-meta">{report.drill ?? report.scenario ?? "Drill run"} · recorded evidence · timestamps in JSON export</p>
+          <p className="mono-meta">{report.name}</p>
         </div>
         <div className="verdict-actions">
           <button className="tool" type="button" title="Download the computed report as JSON" onClick={() => download(`${report.name}.report.json`, JSON.stringify(report, null, 2), "application/json")}>
@@ -285,7 +301,6 @@ function ReportBody({ report, onCopy, copied }: { report: Report; onCopy: () => 
       <section className="panel">
         <header className="panel-head">
           <h3>Verification depth</h3>
-          <span className="card-sub">select a level for its checks</span>
         </header>
         <ol className="level-track">
           {report.levels.map((item) => (

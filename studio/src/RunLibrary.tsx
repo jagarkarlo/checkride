@@ -1,0 +1,131 @@
+import { ArrowRight, ArrowUpRight, CheckCircle2, Database, FileJson, FlaskConical, GitCompareArrows, Search, Trash2, Upload, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { formatDuration } from "./report";
+import { deleteRun, evidenceLabel, listRuns } from "./runStore";
+import type { SavedRun } from "./runStore";
+import { samples } from "./samples";
+
+export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: string) => void }) {
+  const [runs, setRuns] = useState<SavedRun[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [compare, setCompare] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<SavedRun | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    void listRuns().then((saved) => { if (active) setRuns(saved); })
+      .catch((reason: unknown) => { if (active) setError(message(reason)); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (pendingDelete) dialog.current?.showModal();
+    else dialog.current?.close();
+  }, [pendingDelete]);
+
+  async function remove() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await deleteRun(pendingDelete.id);
+      setRuns((current) => current.filter((run) => run.id !== pendingDelete.id));
+      setSelected((current) => current.filter((id) => id !== pendingDelete.id));
+      setPendingDelete(null);
+      setError("");
+    } catch (reason) { setError(message(reason)); }
+    finally { setDeleting(false); }
+  }
+
+  const matching = runs.filter((run) => (filter === "all" || run.report.verdict === filter) &&
+    `${run.report.name} ${run.report.scenario ?? ""}`.toLowerCase().includes(search.toLowerCase()));
+  const compared = selected.map((id) => runs.find((run) => run.id === id)).filter((run): run is SavedRun => !!run);
+
+  return <main className="run-library">
+    <header className="library-heading">
+      <div><p className="workspace-label"><Database size={14} /> Local workspace</p><h1>Recovery runs</h1></div>
+      <div className="library-actions">
+        <a className="tool" href={location.pathname.startsWith("/demo/") ? "/docs/guides/k3d-isolated-restore/" : "http://127.0.0.1:4321/docs/guides/k3d-isolated-restore/"}><FlaskConical size={16} /> Run a lab drill <ArrowUpRight size={13} /></a>
+        <button type="button" className="primary" onClick={() => fileInput.current?.click()}><Upload size={15} /> Import evidence</button>
+      </div>
+    </header>
+    <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={(event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      if (file.size > 16 * 1024 * 1024) { setError("Evidence exceeds the 16 MiB limit."); return; }
+      void file.text().then((source) => onOpen(source, "")).catch((reason: unknown) => setError(message(reason)));
+    }} />
+    <section className="library-stats" aria-label="Saved run totals">
+      <div><span>Saved runs</span><strong>{runs.length}</strong></div>
+      <div><span>Verified</span><strong className="ok">{runs.filter((run) => run.report.verdict === "verified").length}</strong></div>
+      <div><span>Needs attention</span><strong className="attention">{runs.filter((run) => run.report.verdict !== "verified").length}</strong></div>
+      <div><span>With RPO evidence</span><strong>{runs.filter((run) => run.report.rpo !== null).length}</strong></div>
+    </section>
+    {error && <p className="banner bad" role="alert">{error}</p>}
+    <section className="saved-runs" aria-labelledby="saved-heading">
+      <div className="section-toolbar">
+        <h2 id="saved-heading">Run history <span>{runs.length}</span></h2>
+        <label className="run-search"><Search size={15} /><input type="search" placeholder="Search runs" aria-label="Search runs" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+        <select aria-label="Filter verdict" value={filter} onChange={(event) => setFilter(event.target.value)}>
+          <option value="all">All verdicts</option><option value="verified">Verified</option><option value="failed">Failed</option><option value="incomplete">Incomplete</option>
+        </select>
+        <button type="button" className="tool compare-action" disabled={selected.length !== 2} onClick={() => setCompare(!compare)}><GitCompareArrows size={15} /> {compare ? "Close comparison" : `Compare (${selected.length}/2)`}</button>
+      </div>
+      {loading ? <p className="library-empty" role="status">Loading saved runs...</p> : matching.length === 0 ? <div className="library-empty">
+        <FileJson size={25} /><h3>{runs.length ? "No matching runs" : "No saved runs yet"}</h3>
+        {!runs.length && <button type="button" className="tool" onClick={() => fileInput.current?.click()}>Import a DrillRun <ArrowRight size={15} /></button>}
+      </div> : <div className="table-scroll"><table className="runs-table">
+        <thead><tr><th aria-label="Comparison selection" /><th>Run</th><th>Evidence</th><th>Verdict</th><th>Depth</th><th>Recovery time</th><th>Data loss</th><th aria-label="Actions" /></tr></thead>
+        <tbody>{matching.map((run) => <tr key={run.id}>
+          <td><input type="checkbox" aria-label={`Compare ${run.report.name}`} checked={selected.includes(run.id)} disabled={selected.length === 2 && !selected.includes(run.id)} onChange={(event) => { setCompare(false); setSelected(event.target.checked ? [...selected, run.id] : selected.filter((id) => id !== run.id)); }} /></td>
+          <td><button type="button" className="run-name" onClick={() => onOpen(run.source, run.sampleId)}>{run.report.name}</button><small>{run.report.scenario ?? "Unspecified scenario"}</small></td>
+          <td><span className="evidence-kind">{evidenceLabel(run.sampleId)}</span></td>
+          <td><span className={`verdict-tag ${run.report.verdict}`}>{run.report.verdict}</span></td>
+          <td className="mono">{run.report.deepestPassed ?? "None"}</td>
+          <td className="mono">{formatDuration(run.report.rto?.seconds)}</td>
+          <td className="mono">{formatDuration(run.report.rpo?.seconds)}</td>
+          <td><button type="button" className="icon-button" title={`Delete ${run.report.name}`} aria-label={`Delete ${run.report.name}`} onClick={() => setPendingDelete(run)}><Trash2 size={15} /></button></td>
+        </tr>)}</tbody>
+      </table></div>}
+    </section>
+    {compare && compared.length === 2 && <RunComparison runs={compared} onClose={() => setCompare(false)} />}
+    <section className="sample-section" aria-labelledby="examples-heading">
+      <div className="section-toolbar"><h2 id="examples-heading">Example evidence</h2><span className="workspace-label">1 recorded lab · 2 synthetic</span></div>
+      <div className="sample-rows">{samples.map((sample) => <button type="button" key={sample.id} onClick={() => {
+        void sample.load().then((source) => onOpen(source, sample.id)).catch((reason: unknown) => setError(message(reason)));
+      }}><span className={`sample-symbol ${sample.id === "k3d-postgresql" ? "recorded" : ""}`}>{sample.id === "k3d-postgresql" ? <CheckCircle2 size={20} /> : <FlaskConical size={20} />}</span><span><strong>{sample.label}</strong><small>{sample.summary}</small></span><ArrowRight size={17} /></button>)}</div>
+    </section>
+    <dialog ref={dialog} className="delete-dialog" onCancel={() => setPendingDelete(null)}>
+      <h2>Delete saved run?</h2><p>{pendingDelete?.report.name}</p><p>This removes the browser copy. Export any evidence you need before deleting.</p>
+      <div className="library-actions"><button className="tool" type="button" disabled={deleting} onClick={() => setPendingDelete(null)}>Cancel</button><button className="primary danger" type="button" disabled={deleting} onClick={() => void remove()}><Trash2 size={15} /> {deleting ? "Deleting..." : "Delete run"}</button></div>
+    </dialog>
+  </main>;
+}
+
+function RunComparison({ runs, onClose }: { runs: SavedRun[]; onClose: () => void }) {
+  const [baseline, candidate] = runs.map((run) => run.report);
+  const sameScenario = !!baseline.scenario && baseline.scenario === candidate.scenario && baseline.requestedLevel === candidate.requestedLevel;
+  const rows = [
+    ["Verdict", baseline.verdict, candidate.verdict],
+    ["Depth reached", baseline.deepestPassed ?? "None", candidate.deepestPassed ?? "None"],
+    ["Recovery time", formatDuration(baseline.rto?.seconds), formatDuration(candidate.rto?.seconds)],
+    ["Data loss window", formatDuration(baseline.rpo?.seconds), formatDuration(candidate.rpo?.seconds)],
+    ["Acknowledged writes lost", baseline.rpo?.lost ?? "Unmeasured", candidate.rpo?.lost ?? "Unmeasured"],
+    ...["V0", "V1", "V2", "V3", "V4"].map((id) => [id, baseline.levels.find((level) => level.id === id)?.status ?? "not-checked", candidate.levels.find((level) => level.id === id)?.status ?? "not-checked"]),
+  ];
+  return <section className="run-comparison" aria-label="Run comparison">
+    <div className="section-toolbar"><h2>Run comparison</h2><button className="icon-button" type="button" aria-label="Close comparison" title="Close comparison" onClick={onClose}><X size={17} /></button></div>
+    {!sameScenario && <p className="comparison-notice">Different scenarios or requested depths. Timing is not a like-for-like comparison.</p>}
+    <div className="table-scroll"><table className="runs-table comparison-table"><thead><tr><th>Measure</th>{runs.map((run) => <th key={run.id}>{run.report.name}<small>{evidenceLabel(run.sampleId)}</small></th>)}</tr></thead><tbody>{rows.map(([label, first, second]) => <tr key={label}><th>{label}</th><td>{first}</td><td className={first !== second ? "changed" : ""}>{second}</td></tr>)}</tbody></table></div>
+  </section>;
+}
+
+function message(reason: unknown) { return reason instanceof Error ? reason.message : "Could not access browser storage."; }
