@@ -1,22 +1,24 @@
-# Checkride
+# Nostekon
 
 **Don't assume you can recover. Prove it, every day.**
 
 [![CI](https://github.com/jagarkarlo/checkride/actions/workflows/ci.yml/badge.svg)](https://github.com/jagarkarlo/checkride/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Checkride verifies recovery evidence and runs a narrow, disposable PostgreSQL
+Nostekon verifies recovery evidence and runs a narrow, disposable PostgreSQL
 logical-restore drill across two separate k3d clusters. It measures recovery
 phases and acknowledged-write loss, then checks them against explicit policy.
 Whole-application recovery of GitOps state, CloudNativePG point-in-time backups,
 volumes, Secrets and object storage is planned, not implemented.
 
-> A checkride is the practical exam where a pilot has to fly the manoeuvres.
-> Saying you could is not enough.
+> *Nostekon* (pronounced nos-TEK-on) is coined from the Greek *nóstos*
+> (return, homecoming) and *tekmḗrion* (conclusive proof). A finished backup
+> suggests recovery might work. A verified restore proves it.
 
 > [!NOTE]
-> **Status: pre-alpha.** Checkride is being built as a master's thesis project
-> (2026-2027). Interfaces will change without notice.
+> **Status: pre-alpha.** Nostekon is being built as a master's thesis project
+> (2026-2027). Interfaces will change without notice. The CLI, Python package,
+> Go module and evidence `apiVersion` still use the name `checkride`.
 
 ## Why
 
@@ -276,7 +278,7 @@ npm run dev --prefix site
 Open `http://127.0.0.1:4321`. Rebuild docs after Markdown changes with
 `bash scripts/build-docs.sh`; `mkdocs build --strict` checks navigation and
 internal Markdown links. The demo at `/demo/` evaluates reports in the browser;
-the standalone Studio can also connect to the local Go API. Checkride is
+the standalone Studio can also connect to the local Go API. Nostekon is
 pre-alpha and only executes the narrow disposable lab drill. A paid enterprise
 edition is not planned until the open-source restore workflow works reliably
 end to end and operators validate a concrete need for supported deployments,
@@ -284,12 +286,12 @@ policy controls, or fleet-wide reporting.
 
 ## Related projects
 
-Checkride builds on these tools and is evaluated against them:
+Nostekon builds on these tools and is evaluated against them:
 
 - [CloudNativePG](https://github.com/cloudnative-pg/cloudnative-pg) with the
   [Barman Cloud plugin](https://github.com/cloudnative-pg/plugin-barman-cloud)
   and [Velero](https://github.com/velero-io/velero) create the backups that
-  Checkride restores.
+  Nostekon restores.
 - [Kymaros](https://github.com/kymaroshq/kymaros) restores Velero backups into
   sandbox namespaces and checks workload health (V2).
 - [Databasus](https://github.com/databasus/databasus) restores PostgreSQL

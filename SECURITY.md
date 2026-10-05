@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Checkride is pre-alpha. Only the latest commit on `main` receives fixes.
+Nostekon is pre-alpha. Only the latest commit on `main` receives fixes.
 
 ## Reporting a vulnerability
 
@@ -12,7 +12,7 @@ Please do not open a public issue. Report vulnerabilities privately through
 Include the affected version or commit, the steps to reproduce, and the impact
 you observed. You can expect an acknowledgement within seven days.
 
-## Operating Checkride safely
+## Operating Nostekon safely
 
 - Drills need broad permissions on the clusters they touch. Use dedicated lab
   or restore clusters and short-lived credentials.

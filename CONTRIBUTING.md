@@ -1,6 +1,6 @@
-# Contributing to Checkride
+# Contributing to Nostekon
 
-Thanks for your interest. Checkride is in an early, fast-moving stage, so
+Thanks for your interest. Nostekon is in an early, fast-moving stage, so
 please open an issue before starting larger changes.
 
 ## Development setup
@@ -39,7 +39,7 @@ databases and restore data by design.
 
 ## Reporting bugs
 
-Open an issue with the Checkride version, the drill spec (without secrets), and
+Open an issue with the Nostekon version, the drill spec (without secrets), and
 the command output. Report security problems privately as described in
 [SECURITY.md](SECURITY.md).
 
