@@ -2,12 +2,15 @@
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
+
+from checkride.ledger import Ledger
 
 DEFAULT_SOURCE_CONTEXT = "k3d-checkride-source"
 DEFAULT_RESTORE_CONTEXT = "k3d-checkride-restore"
@@ -119,6 +122,13 @@ def execute_isolated_drill(
     output.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.close(descriptor)
+    ledger_path = output.with_name(output.name + ".ledger.db")
+    try:
+        descriptor = os.open(ledger_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        os.close(descriptor)
+    except OSError:
+        output.unlink()
+        raise
     namespace = f"checkride-{uuid4().hex[:12]}"
     checks: list[dict] = []
     phases: list[dict] = []
@@ -126,6 +136,9 @@ def execute_isolated_drill(
     active_level = "V0"
     requested_level = "V3"
     has_v4_evidence = False
+    ledger: Ledger | None = None
+    acknowledged: list[dict] = []
+    present: list[str] | None = None
     created: list[str] = []
     error: BaseException | None = None
 
@@ -137,6 +150,7 @@ def execute_isolated_drill(
             phases.append({"name": name, "startedAt": started_at, "endedAt": utc_timestamp()})
 
     try:
+        ledger = Ledger(ledger_path)
         for context in (source_context, restore_context):
             run_kubectl(context, None, "create", "namespace", namespace)
             created.append(context)
@@ -223,6 +237,9 @@ def execute_isolated_drill(
                 "-c",
                 f"INSERT INTO recovery_probe VALUES ('{write_id}')",
             )
+            acked_at = datetime.now(UTC)
+            ledger.record(write_id, acked_at)
+            acknowledged.append({"writeId": write_id, "ackedAt": acked_at.isoformat()})
             dump = run_kubectl(
                 source_context,
                 namespace,
@@ -279,7 +296,7 @@ def execute_isolated_drill(
         active_level = "V2"
 
         def verify():
-            nonlocal active_level, requested_level, has_v4_evidence
+            nonlocal active_level, requested_level, has_v4_evidence, present
             run_kubectl(
                 restore_context, namespace, "exec", "postgres", "--", "pg_isready", "-U", "postgres"
             )
@@ -346,6 +363,7 @@ def execute_isolated_drill(
                 .decode()
                 .strip()
             )
+            present = found.splitlines() if found else []
             checks.append(
                 {
                     "level": "V4",
@@ -363,7 +381,13 @@ def execute_isolated_drill(
             return found
 
         record_phase("verify", verify)
-    except (RuntimeError, subprocess.SubprocessError, OSError, KeyboardInterrupt) as exc:
+    except (
+        RuntimeError,
+        subprocess.SubprocessError,
+        OSError,
+        sqlite3.Error,
+        KeyboardInterrupt,
+    ) as exc:
         error = exc
         if not any(check["level"] == active_level and not check["passed"] for check in checks):
             checks.append(
@@ -427,6 +451,10 @@ def execute_isolated_drill(
         }
         if has_v4_evidence:
             result["spec"]["v4Evidence"] = {"invariants": ["probe-write-preserved"]}
+        if present is not None:
+            result["status"]["ledger"] = {"acks": acknowledged, "present": present}
+        if ledger is not None:
+            ledger.close()
         output.write_text(json.dumps(result, indent=2) + "\n")
         print(f"Recorded lab evidence in {output}")
     if error:

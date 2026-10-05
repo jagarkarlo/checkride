@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from checkride import lab as restore
+from checkride.ledger import Ledger
 
 SOURCE = restore.DEFAULT_SOURCE_CONTEXT
 RESTORE = restore.DEFAULT_RESTORE_CONTEXT
@@ -108,6 +109,24 @@ def test_mismatched_restored_write_is_failed_v4_evidence(tmp_path):
     assert len([item for item in commands if item[2][:2] == ("delete", "namespace")]) == 2
 
 
+def test_lab_captures_acknowledged_writes_in_host_ledger(tmp_path):
+    commands = []
+    output = tmp_path / "run.json"
+    with patch.object(restore, "run_kubectl", side_effect=fake_kubectl(commands)):
+        evidence = restore.execute_isolated_drill(output)
+
+    with Ledger(output.with_name(output.name + ".ledger.db")) as ledger:
+        acks = ledger.acks()
+    assert len(acks) == 1
+    assert acks[0].write_id == commands_write_id(commands)
+    assert acks[0].acked_at <= datetime.fromisoformat(evidence["status"]["failureAt"])
+    assert evidence["status"]["ledger"] == {
+        "acks": [{"writeId": acks[0].write_id, "ackedAt": acks[0].acked_at.isoformat()}],
+        "present": [acks[0].write_id],
+    }
+    assert output.with_name(output.name + ".ledger.db").stat().st_mode & 0o777 == 0o600
+
+
 def test_wrong_probe_row_count_fails_v3_without_claiming_v4(tmp_path):
     commands = []
     output = tmp_path / "run.json"
@@ -125,6 +144,49 @@ def test_wrong_probe_row_count_fails_v3_without_claiming_v4(tmp_path):
     assert row_count["level"] == "V3" and row_count["passed"] is False
     assert evidence["spec"]["upTo"] == "V3"
     assert "v4Evidence" not in evidence["spec"]
+
+
+@pytest.mark.parametrize("stage", ["insert", "query"])
+def test_unmeasured_restore_never_reports_ledger_loss(tmp_path, stage):
+    commands = []
+    execute = fake_kubectl(commands)
+
+    def failing(context, namespace, *args, input_data=None):
+        if (stage == "insert" and any(arg.startswith("INSERT INTO") for arg in args)) or (
+            stage == "query" and "SELECT write_id FROM recovery_probe" in args
+        ):
+            raise subprocess.CalledProcessError(1, "psql")
+        return execute(context, namespace, *args, input_data=input_data)
+
+    output = tmp_path / "run.json"
+    with (
+        patch.object(restore, "run_kubectl", side_effect=failing),
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        restore.execute_isolated_drill(output)
+    evidence = json.loads(output.read_text())
+    assert "ledger" not in evidence["status"]
+    with Ledger(output.with_name(output.name + ".ledger.db")) as ledger:
+        assert len(ledger.acks()) == (0 if stage == "insert" else 1)
+    assert {item[0] for item in commands if item[2][:2] == ("delete", "namespace")} == {
+        SOURCE,
+        RESTORE,
+    }
+
+
+def test_existing_host_ledger_is_never_overwritten(tmp_path):
+    output = tmp_path / "run.json"
+    ledger_path = output.with_name(output.name + ".ledger.db")
+    ledger_path.write_text("previous ledger")
+    commands = []
+    with (
+        patch.object(restore, "run_kubectl", side_effect=fake_kubectl(commands)),
+        pytest.raises(FileExistsError),
+    ):
+        restore.execute_isolated_drill(output)
+    assert ledger_path.read_text() == "previous ledger"
+    assert not output.exists()
+    assert all(item[2][0] in ("get", "config") for item in commands)
 
 
 def test_same_cluster_contexts_are_rejected_before_mutation(tmp_path):
