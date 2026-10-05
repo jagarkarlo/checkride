@@ -1,0 +1,65 @@
+{
+  "apiVersion": "nostekon/lab-suite/v1alpha1",
+  "kind": "LabSuiteResult",
+  "startedAt": "2026-10-05T14:10:31.062855Z",
+  "completedAt": "2026-10-05T14:12:06.751986Z",
+  "status": "passed",
+  "passed": true,
+  "cases": [
+    {
+      "name": "zero-loss",
+      "drillRun": "zero-loss.drillrun.json",
+      "ledger": "zero-loss.drillrun.json.ledger.db",
+      "expectedExitCode": 0,
+      "observedExitCode": 0,
+      "passed": true,
+      "rpo": {
+        "acknowledged": 10,
+        "recovered": 10,
+        "lost": 0,
+        "holes": 0,
+        "unexpected": 0,
+        "seconds": 0.0,
+        "objectiveSeconds": 0,
+        "met": true
+      }
+    },
+    {
+      "name": "tail-loss",
+      "drillRun": "tail-loss.drillrun.json",
+      "ledger": "tail-loss.drillrun.json.ledger.db",
+      "expectedExitCode": 1,
+      "observedExitCode": 1,
+      "passed": true,
+      "error": "acknowledged-write ledger failed 0s RPO objective: 2 lost, 0 holes, 0 unexpected",
+      "rpo": {
+        "acknowledged": 12,
+        "recovered": 10,
+        "lost": 2,
+        "holes": 0,
+        "unexpected": 0,
+        "seconds": 0.946288,
+        "objectiveSeconds": 0,
+        "met": false
+      }
+    },
+    {
+      "name": "budget-loss",
+      "drillRun": "budget-loss.drillrun.json",
+      "ledger": "budget-loss.drillrun.json.ledger.db",
+      "expectedExitCode": 0,
+      "observedExitCode": 0,
+      "passed": true,
+      "rpo": {
+        "acknowledged": 12,
+        "recovered": 10,
+        "lost": 2,
+        "holes": 0,
+        "unexpected": 0,
+        "seconds": 0.911597,
+        "objectiveSeconds": 60,
+        "met": true
+      }
+    }
+  ]
+}
