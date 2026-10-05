@@ -85,6 +85,30 @@ jobs:
             (.levels[] | select(.id == "V4") | .checks |
               any(.source == "ledger" and .passed == false))
           ' lab-results/tail-loss.report.json >/dev/null
+      - name: Verify acknowledged-write loss within an explicit RPO budget
+        run: |
+          checkride lab run --writes 10 --after-backup-writes 2 --rpo-seconds 60 \
+            --output lab-results/budget-loss.drillrun.json
+          "$RUNNER_TEMP/checkride-report" lab-results/budget-loss.drillrun.json \
+            >lab-results/budget-loss.report.json
+          jq -e '
+            .verdict == "verified" and
+            .requestedLevel == "V4" and
+            .deepestPassed == "V4" and
+            .firstFailed == null and
+            .rpo.acknowledged == 12 and
+            .rpo.recovered == 10 and
+            .rpo.lost == 2 and
+            .rpo.holes == 0 and
+            .rpo.unexpected == 0 and
+            .rpo.consistent == true and
+            .rpo.seconds > 0 and
+            .rpo.seconds <= 60 and
+            .rpo.objectiveSeconds == 60 and
+            .rpo.met == true and
+            (.levels[] | select(.id == "V4") | .checks |
+              any(.source == "ledger" and .passed == true))
+          ' lab-results/budget-loss.report.json >/dev/null
       - name: Remove disposable clusters
         if: always()
         run: |
