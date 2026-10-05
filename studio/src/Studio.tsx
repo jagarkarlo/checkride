@@ -244,7 +244,7 @@ export function Studio({ onReachability }: { onReachability: (online: boolean) =
                 <XCircle size={18} className="bad" />
                 <div>
                   <strong>Could not reach the API</strong>
-                  <p>{requestError} Start it with <code>go run ./cmd/checkride-api</code>.</p>
+                  <p>{requestError} Start it with <code>go run ./cmd/nostekon-api</code>.</p>
                 </div>
               </div>
             ) : !latest ? (

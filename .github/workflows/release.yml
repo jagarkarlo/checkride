@@ -48,7 +48,7 @@ jobs:
           for target in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
             os=${target%/*}; arch=${target#*/}; ext=""
             if [ "$os" = windows ]; then ext=.exe; fi
-            for cmd in checkride-api checkride-report checkride-attest; do
+            for cmd in nostekon-api nostekon-report nostekon-attest; do
               GOOS=$os GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "release/${cmd}_${os}_${arch}${ext}" "./cmd/$cmd"
             done
           done
@@ -57,7 +57,7 @@ jobs:
         run: |
           npm ci
           npm run build
-          tar -czf ../release/checkride-studio.tar.gz -C dist .
+          tar -czf ../release/nostekon-studio.tar.gz -C dist .
       - name: Checksums
         working-directory: release
         run: sha256sum * > SHA256SUMS
@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/checkride
+      url: https://pypi.org/p/nostekon
     permissions:
       id-token: write
     steps:
@@ -108,5 +108,5 @@ jobs:
           name: release
           path: release/
       - name: Select Python distributions
-        run: mkdir dist && cp release/checkride-*.whl release/checkride-[0-9]*.tar.gz dist/
+        run: mkdir dist && cp release/nostekon-*.whl release/nostekon-[0-9]*.tar.gz dist/
       - uses: pypa/gh-action-pypi-publish@release/v1

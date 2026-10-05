@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jagarkarlo/checkride/internal/attest"
+	"github.com/jagarkarlo/nostekon/internal/attest"
 )
 
 func TestRunWritesVerifiedReport(t *testing.T) {

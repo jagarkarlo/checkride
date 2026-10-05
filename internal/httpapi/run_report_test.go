@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jagarkarlo/checkride/internal/attest"
+	"github.com/jagarkarlo/nostekon/internal/attest"
 )
 
 func postRunReport(t *testing.T, body, contentType string) *httptest.ResponseRecorder {

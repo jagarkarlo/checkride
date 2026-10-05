@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jagarkarlo/checkride/internal/verify"
+	"github.com/jagarkarlo/nostekon/internal/verify"
 )
 
 // Sample is one Prometheus gauge value with its help text.

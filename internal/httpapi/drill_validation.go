@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jagarkarlo/checkride/internal/verify"
+	"github.com/jagarkarlo/nostekon/internal/verify"
 )
 
 const maxDrillRequestBytes = 1 << 20

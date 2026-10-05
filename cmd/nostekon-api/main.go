@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jagarkarlo/checkride/internal/attest"
-	"github.com/jagarkarlo/checkride/internal/httpapi"
+	"github.com/jagarkarlo/nostekon/internal/attest"
+	"github.com/jagarkarlo/nostekon/internal/httpapi"
 )
 
 func main() {

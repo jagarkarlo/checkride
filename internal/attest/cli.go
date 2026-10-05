@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/jagarkarlo/checkride/internal/verify"
+	"github.com/jagarkarlo/nostekon/internal/verify"
 )
 
 type commandFlags struct {
@@ -20,7 +20,7 @@ type commandFlags struct {
 
 func Run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
-		fmt.Fprintln(stderr, "usage: checkride-attest <keygen|sign|verify> [options]")
+		fmt.Fprintln(stderr, "usage: nostekon-attest <keygen|sign|verify> [options]")
 		return 2
 	}
 	switch args[0] {
@@ -31,7 +31,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case "verify":
 		return runVerify(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "unknown command %q\nusage: checkride-attest <keygen|sign|verify> [options]\n", args[0])
+		fmt.Fprintf(stderr, "unknown command %q\nusage: nostekon-attest <keygen|sign|verify> [options]\n", args[0])
 		return 2
 	}
 }
@@ -45,7 +45,7 @@ func runKeygen(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if flags.NArg() != 0 || *privatePath == "" || *publicPath == "" {
-		fmt.Fprintln(stderr, "usage: checkride-attest keygen --private PRIVATE.pem --public PUBLIC.pem")
+		fmt.Fprintln(stderr, "usage: nostekon-attest keygen --private PRIVATE.pem --public PUBLIC.pem")
 		return 2
 	}
 	if err := WriteKeyPair(*privatePath, *publicPath); err != nil {
@@ -71,7 +71,7 @@ func runSign(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if flags.NArg() != 0 || *evidencePath == "" || *keyPath == "" || *outputPath == "" {
-		fmt.Fprintln(stderr, "usage: checkride-attest sign --evidence RUN.json --key PRIVATE.pem --output RUN.attestation.json")
+		fmt.Fprintln(stderr, "usage: nostekon-attest sign --evidence RUN.json --key PRIVATE.pem --output RUN.attestation.json")
 		return 2
 	}
 	evidence, err := ReadEvidence(*evidencePath)
@@ -111,7 +111,7 @@ func runVerify(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if flags.NArg() != 0 || *evidencePath == "" || *attestationPath == "" || *trustedKeyPath == "" {
-		fmt.Fprintln(stderr, "usage: checkride-attest verify --evidence RUN.json --attestation RUN.attestation.json --trusted-key TRUSTED.pem")
+		fmt.Fprintln(stderr, "usage: nostekon-attest verify --evidence RUN.json --attestation RUN.attestation.json --trusted-key TRUSTED.pem")
 		return 2
 	}
 	evidence, err := ReadEvidence(*evidencePath)

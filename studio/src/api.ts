@@ -1,8 +1,8 @@
 declare global {
   interface Window {
     Go: new () => { importObject: WebAssembly.Imports; run: (instance: WebAssembly.Instance) => Promise<void> };
-    checkrideRequest?: (path: string, body: string) => { status: number; body: string };
-    checkrideReady?: () => void;
+    nostekonRequest?: (path: string, body: string) => { status: number; body: string };
+    nostekonReady?: () => void;
   }
 }
 
@@ -17,10 +17,10 @@ function loadEngine(): Promise<void> {
     script.onload = async () => {
       try {
         const go = new window.Go();
-        const response = await fetch(`${import.meta.env.BASE_URL}checkride-browser.wasm`);
+        const response = await fetch(`${import.meta.env.BASE_URL}nostekon-browser.wasm`);
         if (!response.ok) throw new Error("Could not download the browser validation engine.");
         const { instance } = await WebAssembly.instantiate(await response.arrayBuffer(), go.importObject);
-        window.checkrideReady = resolve;
+        window.nostekonReady = resolve;
         void go.run(instance).catch(reject);
       } catch (error) {
         reject(error);
@@ -39,7 +39,7 @@ export async function request(path: string, body = "", signal?: AbortSignal, ext
   }
   await loadEngine();
   if (signal?.aborted) throw signal.reason;
-  const result = window.checkrideRequest?.(path, body);
+  const result = window.nostekonRequest?.(path, body);
   if (!result) throw new Error("The browser validation engine is unavailable.");
   return new Response(result.status === 204 ? null : result.body, {
     status: result.status,

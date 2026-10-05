@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jagarkarlo/checkride/internal/verify"
+	"github.com/jagarkarlo/nostekon/internal/verify"
 )
 
 func loadRun(t *testing.T, name string) *verify.Evidence {

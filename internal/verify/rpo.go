@@ -14,7 +14,7 @@ type Ack struct {
 	AckedAt time.Time `json:"ackedAt"`
 }
 
-// RPOMeasurement mirrors checkride.ledger.RpoReport; tests/contracts keeps the
+// RPOMeasurement mirrors nostekon.ledger.RpoReport; tests/contracts keeps the
 // two implementations in agreement.
 type RPOMeasurement struct {
 	FailureAt     time.Time

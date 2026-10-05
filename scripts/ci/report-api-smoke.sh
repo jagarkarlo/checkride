@@ -14,8 +14,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-go build -o /tmp/checkride-api-smoke ./cmd/checkride-api
-/tmp/checkride-api-smoke >"$log_file" 2>&1 &
+go build -o /tmp/nostekon-api-smoke ./cmd/nostekon-api
+/tmp/nostekon-api-smoke >"$log_file" 2>&1 &
 api_pid=$!
 for attempt in {1..30}; do
   if curl --fail --silent --show-error http://127.0.0.1:8080/healthz >/dev/null; then
@@ -61,9 +61,9 @@ jq -e '(.title == "Nostekon DrillRun") and ((.properties.status.required // []) 
   /tmp/checkride-drillrun-schema.json >/dev/null
 
 set +e
-go run ./cmd/checkride-report examples/runs/crud-cluster-loss.run.json >/dev/null
+go run ./cmd/nostekon-report examples/runs/crud-cluster-loss.run.json >/dev/null
 failed_exit=$?
-go run ./cmd/checkride-report examples/runs/mlflow-namespace-loss.run.json >/dev/null
+go run ./cmd/nostekon-report examples/runs/mlflow-namespace-loss.run.json >/dev/null
 verified_exit=$?
 set -e
 test "$failed_exit" -eq 1

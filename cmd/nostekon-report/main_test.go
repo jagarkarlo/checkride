@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/jagarkarlo/checkride/internal/cli"
+	"github.com/jagarkarlo/nostekon/internal/cli"
 )
 
 func TestRunReportCommand(t *testing.T) {

@@ -12,7 +12,7 @@ docs_routes=(/docs/ /docs/start/ /docs/levels/ /docs/comparison/
   /docs/reference/drill-spec/ /docs/reference/drillrun-evidence/)
 expected_assets=(/images/report-lab-dark.png /images/report-lab-light.png /images/report-failed-dark.png
   /images/report-failed-light.png /fonts/dm-sans-latin-400-normal.woff2 /fonts/ibm-plex-mono-latin-400-normal.woff2
-  /demo/checkride-browser.wasm /demo/wasm_exec.js)
+  /demo/nostekon-browser.wasm /demo/wasm_exec.js)
 
 for route in "${expected_routes[@]}" "${docs_routes[@]}"; do
   test -s "$site_dir/dist${route}index.html"

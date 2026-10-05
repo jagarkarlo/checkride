@@ -8,9 +8,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/jagarkarlo/checkride/internal/attest"
-	"github.com/jagarkarlo/checkride/internal/metrics"
-	"github.com/jagarkarlo/checkride/internal/verify"
+	"github.com/jagarkarlo/nostekon/internal/attest"
+	"github.com/jagarkarlo/nostekon/internal/metrics"
+	"github.com/jagarkarlo/nostekon/internal/verify"
 )
 
 const maxReportInputBytes = 16 << 20
@@ -18,7 +18,7 @@ const maxReportInputBytes = 16 << 20
 // Run evaluates a captured DrillRun file. The exported entry point is shared
 // by the standalone command and tests.
 func Run(args []string, stdout, stderr io.Writer) int {
-	usage := "usage: checkride-report [--attestation FILE --trusted-key PUBLIC.pem] [--pushgateway-url URL [--pushgateway-job NAME] [--pushgateway-instance NAME]] <run.json>"
+	usage := "usage: nostekon-report [--attestation FILE --trusted-key PUBLIC.pem] [--pushgateway-url URL [--pushgateway-job NAME] [--pushgateway-instance NAME]] <run.json>"
 	if len(args) == 0 || len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
 		fmt.Fprintln(stderr, usage)
 		if len(args) == 1 {
@@ -26,7 +26,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		}
 		return 2
 	}
-	flags := flag.NewFlagSet("checkride-report", flag.ContinueOnError)
+	flags := flag.NewFlagSet("nostekon-report", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	attestationPath := flags.String("attestation", "", "detached Ed25519 attestation JSON file")
 	trustedKeyPath := flags.String("trusted-key", "", "trusted Ed25519 PKIX public key PEM")

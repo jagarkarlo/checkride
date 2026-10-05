@@ -38,7 +38,7 @@ jobs:
           nostekon lab run --writes 10 --output lab-results/drillrun.json
       - name: Evaluate V4 evidence
         run: |
-          go run ./cmd/checkride-report lab-results/drillrun.json >lab-results/report.json
+          go run ./cmd/nostekon-report lab-results/drillrun.json >lab-results/report.json
           jq -e '
             .verdict == "verified" and
             .requestedLevel == "V4" and
@@ -63,8 +63,8 @@ jobs:
           else
             test "$?" -eq 1
           fi
-          go build -o "$RUNNER_TEMP/checkride-report" ./cmd/checkride-report
-          if "$RUNNER_TEMP/checkride-report" lab-results/tail-loss.drillrun.json \
+          go build -o "$RUNNER_TEMP/nostekon-report" ./cmd/nostekon-report
+          if "$RUNNER_TEMP/nostekon-report" lab-results/tail-loss.drillrun.json \
             >lab-results/tail-loss.report.json; then
             echo "Tail-loss report unexpectedly passed" >&2
             exit 1
@@ -89,7 +89,7 @@ jobs:
         run: |
           nostekon lab run --writes 10 --after-backup-writes 2 --rpo-seconds 60 \
             --output lab-results/budget-loss.drillrun.json
-          "$RUNNER_TEMP/checkride-report" lab-results/budget-loss.drillrun.json \
+          "$RUNNER_TEMP/nostekon-report" lab-results/budget-loss.drillrun.json \
             >lab-results/budget-loss.report.json
           jq -e '
             .verdict == "verified" and

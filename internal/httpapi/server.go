@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jagarkarlo/checkride/internal/schema"
+	"github.com/jagarkarlo/nostekon/internal/schema"
 )
 
 func NewHandler() http.Handler {

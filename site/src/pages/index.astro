@@ -16,18 +16,18 @@ python3 scripts/lab/restore.py --output /tmp/drill.json
 make lab-down`;
 
 const key = `install -d -m 700 "$HOME/.config/checkride"
-go run ./cmd/checkride-attest keygen \\
+go run ./cmd/nostekon-attest keygen \\
   --private "$HOME/.config/checkride/signing-key.pem" \\
   --public "$HOME/.config/checkride/trusted-key.pem"`;
 
-const report = `go run ./cmd/checkride-report /tmp/drill.json
+const report = `go run ./cmd/nostekon-report /tmp/drill.json
 attestation_dir=$(mktemp -d)
 attestation="$attestation_dir/run.attestation.json"
-go run ./cmd/checkride-attest sign \\
+go run ./cmd/nostekon-attest sign \\
   --evidence /tmp/drill.json \\
   --key "$HOME/.config/checkride/signing-key.pem" \\
   --output "$attestation"
-go run ./cmd/checkride-report \\
+go run ./cmd/nostekon-report \\
   --attestation "$attestation" \\
   --trusted-key "$HOME/.config/checkride/trusted-key.pem" \\
   /tmp/drill.json

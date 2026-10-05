@@ -24,7 +24,7 @@ type LevelInfo struct {
 	Evidence string
 }
 
-// Levels matches checkride.levels.LEVELS.
+// Levels matches nostekon.levels.LEVELS.
 var Levels = [...]LevelInfo{
 	V0: {"Did the backup report success?", "Backup tool status"},
 	V1: {"Did the restore report success?", "Restore tool status"},

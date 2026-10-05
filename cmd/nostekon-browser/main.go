@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall/js"
 
-	"github.com/jagarkarlo/checkride/internal/httpapi"
+	"github.com/jagarkarlo/nostekon/internal/httpapi"
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 		handler.ServeHTTP(response, request)
 		return map[string]any{"status": response.Code, "body": response.Body.String()}
 	})
-	js.Global().Set("checkrideRequest", bridge)
-	js.Global().Get("checkrideReady").Invoke()
+	js.Global().Set("nostekonRequest", bridge)
+	js.Global().Get("nostekonReady").Invoke()
 	select {}
 }

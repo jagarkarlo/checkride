@@ -11,5 +11,5 @@ fi
 npm run build --prefix studio -- --base=/demo/
 mkdir -p site/public/demo
 cp -R studio/dist/. site/public/demo/
-GOOS=js GOARCH=wasm go build -o site/public/demo/checkride-browser.wasm ./cmd/checkride-browser
+GOOS=js GOARCH=wasm go build -o site/public/demo/nostekon-browser.wasm ./cmd/nostekon-browser
 cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" site/public/demo/wasm_exec.js

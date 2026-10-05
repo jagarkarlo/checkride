@@ -8,8 +8,8 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/jagarkarlo/checkride/internal/attest"
-	"github.com/jagarkarlo/checkride/internal/verify"
+	"github.com/jagarkarlo/nostekon/internal/attest"
+	"github.com/jagarkarlo/nostekon/internal/verify"
 )
 
 // Ledgers of a few hundred thousand writes fit; larger drills should sample.

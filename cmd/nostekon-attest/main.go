@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/jagarkarlo/checkride/internal/attest"
+	"github.com/jagarkarlo/nostekon/internal/attest"
 )
 
 func main() {
