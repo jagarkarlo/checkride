@@ -11,7 +11,7 @@ test("theme preference persists across product, docs and demo pages", async ({ p
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.locator("[data-theme-toggle]")).toHaveText("🌙");
   await expect(page.locator("[data-theme-toggle]")).toHaveAttribute("title", "Switch to dark mode");
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("checkride-theme"))).toBe("light");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("nostekon-theme"))).toBe("light");
 
   await page.getByRole("link", { name: "Product", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -21,7 +21,7 @@ test("theme preference persists across product, docs and demo pages", async ({ p
 
   await page.locator('label[for="__palette_1"]').click();
   await expect(page.locator("body")).toHaveAttribute("data-md-color-scheme", "slate");
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("checkride-theme"))).toBe("dark");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("nostekon-theme"))).toBe("dark");
 
   await page.goto("/demo/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -48,7 +48,7 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     for (const theme of ["light", "dark"]) {
-      await page.evaluate((value) => localStorage.setItem("checkride-theme", value), theme);
+      await page.evaluate((value) => localStorage.setItem("nostekon-theme", value), theme);
       for (const path of ["/roadmap/", "/demo/", "/docs/"]) {
         await page.goto(path);
         const mark = page.locator(path === "/demo/" ? ".brand-mark" : path === "/docs/" ? ".md-header .md-logo img" : ".wordmark-mark");

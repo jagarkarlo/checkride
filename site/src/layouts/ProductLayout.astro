@@ -32,7 +32,7 @@ const navigation = [
     <script is:inline>
       const readThemePreference = () => {
         try {
-          const stored = localStorage.getItem('checkride-theme');
+          const stored = localStorage.getItem('nostekon-theme');
           if (stored === 'light' || stored === 'dark') return stored;
         } catch {}
         return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
@@ -61,7 +61,7 @@ const navigation = [
         if (!(event.target instanceof Element) || !event.target.closest('[data-theme-toggle]')) return;
         const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
         document.documentElement.dataset.theme = next;
-        try { localStorage.setItem('checkride-theme', next); } catch { /* storage unavailable */ }
+        try { localStorage.setItem('nostekon-theme', next); } catch { /* storage unavailable */ }
         renderThemeButton(next);
         document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'light' ? '#f6f7f9' : '#0f1318');
       });

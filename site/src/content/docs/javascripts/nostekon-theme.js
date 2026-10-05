@@ -1,5 +1,5 @@
 (() => {
-  const key = "checkride-theme";
+  const key = "nostekon-theme";
 
   const applySharedTheme = () => {
     let theme;

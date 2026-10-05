@@ -3,7 +3,7 @@ import { defineConfig } from 'astro/config';
 export default defineConfig({
   vite: {
     plugins: [{
-      name: 'checkride-static-apps',
+      name: 'nostekon-static-apps',
       configureServer(server) {
         server.middlewares.use((request, response, next) => {
           const url = new URL(request.url || '/', 'http://localhost');

@@ -20,6 +20,7 @@ export const RUN_LIMIT = 50;
 const SOURCE_LIMIT = 16 * 1024 * 1024;
 
 async function database() {
+  // Pre-rename name kept so runs already saved in the browser stay available.
   return openDB<RunDatabase>("checkride-runs", 1, {
     upgrade(db) { db.createObjectStore("runs", { keyPath: "id" }); },
   });

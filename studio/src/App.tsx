@@ -20,13 +20,13 @@ export function App() {
   const [apiState, setAPIState] = useState<APIState>("checking");
   const [selection, setSelection] = useState<{ source: string; sampleId: string }>();
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem("checkride-theme") ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); }
+    try { return localStorage.getItem("nostekon-theme") ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); }
     catch { return "dark"; }
   });
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    try { localStorage.setItem("checkride-theme", theme); } catch { /* storage unavailable */ }
+    try { localStorage.setItem("nostekon-theme", theme); } catch { /* storage unavailable */ }
   }, [theme]);
 
   const checkAPI = useCallback(async (signal?: AbortSignal) => {

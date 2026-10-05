@@ -52,9 +52,9 @@ validation:
     not_found: warn
     anchors: warn
 extra_css:
-  - stylesheets/checkride.css
+  - stylesheets/nostekon.css
 extra_javascript:
-  - javascripts/checkride-theme.js
+  - javascripts/nostekon-theme.js
 nav:
   - Get Started:
       - Overview: index.md
