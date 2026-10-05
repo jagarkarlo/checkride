@@ -166,6 +166,82 @@ def test_lab_run_returns_error_on_exception(
     assert "error: lab restore drill failed: cluster unreachable" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("passed", [True, False])
+def test_lab_suite_command_forwards_configuration_and_gates_result(tmp_path, monkeypatch, passed):
+    from checkride import lab_suite
+
+    arguments = {}
+
+    def execute(**kwargs):
+        arguments.update(kwargs)
+        return {"passed": passed, "status": "passed" if passed else "failed", "cases": []}
+
+    monkeypatch.setattr(lab_suite, "execute_lab_suite", execute)
+    output = tmp_path / "suite"
+    code = main(
+        [
+            "lab",
+            "suite",
+            "--output-dir",
+            str(output),
+            "--writes",
+            "5",
+            "--rpo-seconds",
+            "120",
+            "--source-context",
+            "k3d-checkride-a",
+            "--restore-context",
+            "k3d-checkride-b",
+            "--image",
+            "postgres:16.8",
+        ]
+    )
+    assert code == (0 if passed else 1)
+    assert arguments == {
+        "output": output,
+        "source_context": "k3d-checkride-a",
+        "restore_context": "k3d-checkride-b",
+        "image": "postgres:16.8",
+        "write_count": 5,
+        "rpo_seconds": 120,
+    }
+
+
+def test_lab_suite_command_defaults(tmp_path, monkeypatch):
+    from checkride import lab_suite
+
+    arguments = {}
+
+    def execute(**kwargs):
+        arguments.update(kwargs)
+        return {"passed": True, "status": "passed", "cases": []}
+
+    monkeypatch.setattr(lab_suite, "execute_lab_suite", execute)
+    assert main(["lab", "suite", "--output-dir", str(tmp_path / "suite")]) == 0
+    assert arguments["write_count"] == 10
+    assert arguments["rpo_seconds"] == 60
+
+
+@pytest.mark.parametrize(
+    "exception,code", [(RuntimeError("cluster broke"), 1), (KeyboardInterrupt(), 130)]
+)
+def test_lab_suite_command_restores_signal_handler_on_failure(
+    tmp_path, monkeypatch, exception, code
+):
+    import signal
+
+    from checkride import lab_suite
+
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def execute(**kwargs):
+        raise exception
+
+    monkeypatch.setattr(lab_suite, "execute_lab_suite", execute)
+    assert main(["lab", "suite", "--output-dir", str(tmp_path / "suite")]) == code
+    assert signal.getsignal(signal.SIGTERM) == previous
+
+
 def test_lab_status_reports_ready_and_not_ready(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

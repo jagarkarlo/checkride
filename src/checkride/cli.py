@@ -181,6 +181,48 @@ def _cmd_lab_run(args: argparse.Namespace) -> int:
         signal.signal(signal.SIGTERM, previous)
 
 
+def _cmd_lab_suite(args: argparse.Namespace) -> int:
+    from checkride.lab_suite import (
+        DEFAULT_POSTGRES_IMAGE,
+        DEFAULT_RESTORE_CONTEXT,
+        DEFAULT_SOURCE_CONTEXT,
+        execute_lab_suite,
+    )
+
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt("lab suite interrupted")
+
+    previous = signal.signal(signal.SIGTERM, interrupt)
+    try:
+        result = execute_lab_suite(
+            output=Path(args.output_dir),
+            source_context=args.source_context or DEFAULT_SOURCE_CONTEXT,
+            restore_context=args.restore_context or DEFAULT_RESTORE_CONTEXT,
+            image=args.image or DEFAULT_POSTGRES_IMAGE,
+            write_count=args.writes,
+            rpo_seconds=args.rpo_seconds,
+        )
+        for case in result["cases"]:
+            state = "PASS" if case["passed"] else "FAIL"
+            measurement = case.get("rpo")
+            detail = (
+                f"{measurement['lost']} writes lost, RPO {measurement['seconds']:.6f}s"
+                if measurement
+                else "RPO unmeasured"
+            )
+            print(f"{state:<5} {case['name']:<12} {detail}")
+        print(f"Lab suite {result['status']}; summary: {Path(args.output_dir) / 'suite.json'}")
+        return 0 if result["passed"] else 1
+    except KeyboardInterrupt:
+        print("error: lab suite interrupted; inspect summary and cleanup messages", file=sys.stderr)
+        return 130
+    except Exception as error:
+        print(f"error: lab suite failed: {error}", file=sys.stderr)
+        return 1
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
 def _cmd_lab_status(args: argparse.Namespace) -> int:
     from checkride.lab import DEFAULT_RESTORE_CONTEXT, DEFAULT_SOURCE_CONTEXT, check_cluster_health
 
@@ -303,6 +345,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="permitted tail-loss window, 0 to 86400 seconds (default: 0)",
     )
     lab_run.set_defaults(handler=_cmd_lab_run)
+
+    lab_suite = lab_commands.add_parser(
+        "suite", help="run zero-loss, expected-loss and budgeted-loss policy regression cases"
+    )
+    lab_suite.add_argument(
+        "--output-dir",
+        required=True,
+        metavar="DIR",
+        help="new private directory for suite evidence",
+    )
+    lab_suite.add_argument("--source-context", default=None, help="source lab kubectl context")
+    lab_suite.add_argument("--restore-context", default=None, help="restore lab kubectl context")
+    lab_suite.add_argument(
+        "--image", default=None, help="PostgreSQL image (default: postgres:16.8)"
+    )
+    lab_suite.add_argument(
+        "--writes", type=int, default=10, help="writes before each backup, 1 to 98 (default: 10)"
+    )
+    lab_suite.add_argument(
+        "--rpo-seconds",
+        type=int,
+        default=60,
+        help="budget for the permitted-loss case, 1 to 86400 seconds (default: 60)",
+    )
+    lab_suite.set_defaults(handler=_cmd_lab_suite)
 
     return parser
 
