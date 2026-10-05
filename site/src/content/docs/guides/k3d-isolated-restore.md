@@ -211,9 +211,27 @@ and cleanup messages before rerunning with a fresh directory. A forcibly killed
 process can leave a running or partial summary and namespaces requiring cleanup;
 the summary is not an atomic crash-recovery mechanism.
 
+Cancellation during cleanup takes precedence over an earlier execution error.
+The runner still attempts cleanup for both created namespaces and records both
+the original failure and cleanup cancellation in the DrillRun checks. Cleanup
+is best-effort: an attempted deletion does not prove that the namespace was
+removed. Check any cleanup failures before starting another suite.
+
+Cancellation during case execution records `observedExitCode: 130`. If the
+drill has already finished and cancellation occurs during policy evaluation,
+its original observed exit (`0` or `1`) is preserved instead. In both cases,
+the summary records `status: interrupted`, `passed: false` and a completion
+timestamp. The unfinished case records `error: lab interrupted`; earlier
+completed case results and artifacts are retained, and no later case starts.
+Repeated cancellation during final evidence/checkpoint writing is not covered
+by this guarantee and can leave partial artifacts.
+
 Verified on 2026-10-05 with three real two-cluster restores: drill exits 0/1/0,
 lost writes 0/2/2, every measured RPO field matching the independent Go evaluator,
 private artifact permissions and all six temporary namespaces removed.
+The cancellation precedence and evaluation checkpoints above were verified
+separately with command-boundary tests on 2026-10-05, including interruption
+during each of the three cases. Those tests did not run against live clusters.
 
 ### Review a suite in Studio
 
