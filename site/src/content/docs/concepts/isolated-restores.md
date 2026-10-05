@@ -25,11 +25,11 @@ Regulation (EU) 2022/2554 (Digital Operational Resilience Act - DORA) mandates i
 
 > *"Financial entities shall periodically test their business continuity plans and ICT response and recovery plans [...] including restoration onto physically and logically segregated systems."*
 
-Checkride makes segregated restoration the **default contract** for every drill. While same-cluster namespace restoration is supported for rapid local development, the Checkride validator emits an explicit lint warning whenever a drill targets the source cluster.
+Nostekon makes segregated restoration the **default contract** for every drill. While same-cluster namespace restoration is supported for rapid local development, the Nostekon validator emits an explicit lint warning whenever a drill targets the source cluster.
 
 ## Architecture of the k3d test lab
 
-In the Checkride local development lab, segregation is modeled using two isolated k3d clusters:
+In the Nostekon local development lab, segregation is modeled using two isolated k3d clusters:
 - `k3d-checkride-source`: Hosts the live workload, database, and scheduled backup agents.
 - `k3d-checkride-restore`: An empty, independent cluster with its own control plane, etcd, network namespace, and storage volumes.
 
@@ -46,4 +46,4 @@ In the Checkride local development lab, segregation is modeled using two isolate
                    └────────────── Isolated Backup ─────────────┘
 ```
 
-By ensuring that the restore cluster starts with no pre-existing application CRDs or Secrets, Checkride guarantees that the restore drill proves whether the application can truly stand on its own.
+By ensuring that the restore cluster starts with no pre-existing application CRDs or Secrets, Nostekon guarantees that the restore drill proves whether the application can truly stand on its own.

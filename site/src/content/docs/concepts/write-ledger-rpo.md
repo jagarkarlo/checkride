@@ -1,11 +1,11 @@
 ---
 title: Write ledger & exact RPO
-description: How Checkride measures exact data loss instead of estimating Recovery Point Objective.
+description: How Nostekon measures exact data loss instead of estimating Recovery Point Objective.
 ---
 
 Most backup vendors quote an RPO based on snapshot schedules: *"We snapshot every 15 minutes, so your RPO is 15 minutes."* In reality, that is only your maximum theoretical data loss window. If a database transaction commits 2 seconds before an ungraceful node crash, did that transaction survive?
 
-Checkride introduces an **acknowledged-write ledger** to measure the exact recovery point down to individual records.
+Nostekon introduces an **acknowledged-write ledger** to measure the exact recovery point down to individual records.
 
 ## Ground truth outside the cluster
 
@@ -24,7 +24,7 @@ CREATE TABLE acks (
 
 ## How exact RPO is calculated
 
-After restoring the database into the segregated restore cluster, Checkride inspects the restored database and queries for all present write IDs.
+After restoring the database into the segregated restore cluster, Nostekon inspects the restored database and queries for all present write IDs.
 
 ```
 Expected writes:   [ w001 ] ── [ w002 ] ── [ w003 ] ── [ w004 ] ── [ w005 ]
@@ -47,7 +47,7 @@ The evaluator classifies each write acknowledged at or before `failure_at`:
 
 In a consistent Point-in-Time Recovery (PITR), transaction logs are replayed sequentially. A restored database should never contain a newer write if an older acknowledged write is missing.
 
-If Checkride detects a write $w_j$ present while an earlier write $w_i$ ($i < j$) is missing, it flags a **hole**:
+If Nostekon detects a write $w_j$ present while an earlier write $w_i$ ($i < j$) is missing, it flags a **hole**:
 - **Consistent Restore:** `holes == 0`.
 - **Inconsistent Restore:** `holes > 0`. This indicates data corruption, partial partition restore, or silent transaction loss. Inconsistent restores fail V4 verification automatically.
 

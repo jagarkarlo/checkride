@@ -1,4 +1,4 @@
-site_name: Checkride
+site_name: Nostekon
 site_description: Run an isolated recovery drill. Inspect what survived.
 docs_dir: site/src/content/docs
 site_dir: site/public/docs

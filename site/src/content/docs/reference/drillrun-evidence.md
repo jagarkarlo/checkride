@@ -3,7 +3,7 @@ title: DrillRun evidence schema & report reference
 description: Reference documentation for recorded DrillRun evidence documents and the computed verification report.
 ---
 
-Checkride strictly distinguishes between what you intend to test (`Drill`) and what was observed during an actual test run (`DrillRun`).
+Nostekon strictly distinguishes between what you intend to test (`Drill`) and what was observed during an actual test run (`DrillRun`).
 
 ## `DrillRun` schema (`checkride/v1alpha1`)
 

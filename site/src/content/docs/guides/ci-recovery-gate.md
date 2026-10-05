@@ -3,7 +3,7 @@ title: CI/CD recovery gate
 description: How to gate deployments and pull requests on verified disaster recovery evidence.
 ---
 
-A core tenet of Checkride is that recovery is not an annual checklist; it is a **continuous pipeline gate**. If a new database schema migration breaks Point-in-Time Recovery or an ingress change prevents pods from starting after restore, CI should fail before the code ever reaches production.
+A core tenet of Nostekon is that recovery is not an annual checklist; it is a **continuous pipeline gate**. If a new database schema migration breaks Point-in-Time Recovery or an ingress change prevents pods from starting after restore, CI should fail before the code ever reaches production.
 
 ## Using `checkride-report` as a gate
 
@@ -17,7 +17,7 @@ The `checkride-report` binary evaluates a captured `DrillRun` evidence document 
 
 ## GitHub Actions example
 
-### Run Checkride's isolated lab gate
+### Run Nostekon's isolated lab gate
 
 The repository includes `.github/workflows/lab.yml`, named **Isolated restore
 lab**. In GitHub's **Actions** tab, select that workflow and **Run workflow**
@@ -25,7 +25,7 @@ on the branch you want to test. It is manual-only and runs on an ephemeral
 GitHub-hosted Ubuntu runner; it needs no production credentials or cluster
 access.
 
-The job installs k3d v5.8.3, creates the two dedicated Checkride clusters,
+The job installs k3d v5.8.3, creates the two dedicated lab clusters,
 runs a ten-write PostgreSQL source-namespace-loss drill and evaluates its
 evidence. It requires a verified V4 report with all ten writes recovered,
 no holes or unexpected IDs, and RPO `0s`. A verified V3 report is not sufficient.

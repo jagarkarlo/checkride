@@ -11,12 +11,12 @@ Ensure the following tools are installed:
 - **Docker:** 24.0+ (engine running)
 - **k3d:** v5.4+ (`k3d version`)
 - **kubectl:** v1.28+
-- **Python:** 3.12+ with Checkride installed (`pip install -e .`)
+- **Python:** 3.12+ with Nostekon installed (`pip install -e .`)
 - **Go:** 1.25+ (for `checkride-report`)
 
 ## 1. Create the segregated clusters
 
-Checkride bundles declarative cluster definitions in `lab/k3d/source.yaml` and `lab/k3d/restore.yaml`. Run:
+Nostekon bundles declarative cluster definitions in `lab/k3d/source.yaml` and `lab/k3d/restore.yaml`. Run:
 
 ```bash
 make lab-up

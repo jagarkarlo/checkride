@@ -1,11 +1,11 @@
 ---
 title: Project overview
-description: Install Checkride, run an isolated restore and inspect the evidence.
+description: Install Nostekon, run an isolated restore and inspect the evidence.
 ---
 
-# Checkride Documentation
+# Nostekon Documentation
 
-Checkride tests whether an application and its data can recover, not just whether a backup exists. Start with a disposable PostgreSQL restore across two separate k3d clusters, then inspect the recorded evidence in Studio.
+Nostekon tests whether an application and its data can recover, not just whether a backup exists. Start with a disposable PostgreSQL restore across two separate k3d clusters, then inspect the recorded evidence in Studio. The CLI, Python package and evidence format still use the name `checkride`.
 
 !!! warning "Pre-alpha: disposable labs only"
     The runner creates and deletes its own namespaces, including the source after backup. Do not use shared or production clusters. Reports evaluate supplied observations; they do not authenticate evidence or certify compliance.

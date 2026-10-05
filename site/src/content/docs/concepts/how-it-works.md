@@ -1,13 +1,13 @@
 ---
-title: How Checkride works
+title: How Nostekon works
 description: The end-to-end lifecycle of an automated Kubernetes recovery drill.
 ---
 
-Most disaster recovery solutions stop after taking a snapshot and verifying that the backup job returned an exit code of zero. Checkride tests the opposite end of the pipeline: **restoration and data correctness**.
+Most disaster recovery solutions stop after taking a snapshot and verifying that the backup job returned an exit code of zero. Nostekon tests the opposite end of the pipeline: **restoration and data correctness**.
 
 ## The core recovery loop
 
-Checkride structures every recovery test as an isolated, verifiable loop:
+Nostekon structures every recovery test as an isolated, verifiable loop:
 
 ```
 [ Drill Specification ]
@@ -48,10 +48,10 @@ You author a declarative `Drill` document (`checkride/v1alpha1`) specifying:
 To calculate exact Recovery Point Objective (RPO), the application records write acknowledgements into an append-only ledger stored **outside** the cluster under test. When failure strikes, the ledger represents the objective ground truth of what users were promised had been committed.
 
 ### 3. Segregated restoration
-Rather than restoring into a test namespace inside the same cluster—which reuses existing Operators, CustomResourceDefinitions (CRDs), storage classes, and shared Secrets—Checkride restores onto a physically or logically segregated cluster. This directly satisfies regulatory requirements such as **EU DORA Article 12(3)**.
+Rather than restoring into a test namespace inside the same cluster—which reuses existing Operators, CustomResourceDefinitions (CRDs), storage classes, and shared Secrets—Nostekon restores onto a physically or logically segregated cluster. This directly satisfies regulatory requirements such as **EU DORA Article 12(3)**.
 
 ### 4. Hierarchical V0–V4 verification
-Once pods schedule and database engines start, Checkride executes verification in strictly ordered levels:
+Once pods schedule and database engines start, Nostekon executes verification in strictly ordered levels:
 - **V0:** Did the backup tool confirm completion?
 - **V1:** Did the restore tool report successful completion?
 - **V2:** Are pods running and passing HTTP/TCP health probes?
@@ -59,7 +59,7 @@ Once pods schedule and database engines start, Checkride executes verification i
 - **V4:** Do business invariants hold, and does the restored state match acknowledged writes?
 
 ### 5. Audit-grade evidence reporting
-The output of every run is a versioned `DrillRun` evidence document. The Checkride verifier parses this evidence to compute:
+The output of every run is a versioned `DrillRun` evidence document. The Nostekon verifier parses this evidence to compute:
 - The deepest contiguous verification level passed.
 - The earliest failing check.
 - Wall-clock Recovery Time Objective (RTO) breakdown with uncovered gaps.

@@ -25,7 +25,7 @@ The **Evidence report** view includes two synthetic runs and four locally record
 
 ## Run the isolated PostgreSQL lab drill
 
-Verified on 2026-09-29 with k3d v5.8.3, k3s v1.35.8-k3s1, PostgreSQL 16.8 and Docker 28.3.2. Requires Docker, k3d, kubectl, Python 3.12+ and Go. Use only the two disposable Checkride k3d clusters: the script creates and deletes uniquely named namespaces and **deletes the source namespace after taking the dump**. Never point these kube context names at shared clusters.
+Verified on 2026-09-29 with k3d v5.8.3, k3s v1.35.8-k3s1, PostgreSQL 16.8 and Docker 28.3.2. Requires Docker, k3d, kubectl, Python 3.12+ and Go. Use only the two disposable k3d lab clusters: the script creates and deletes uniquely named namespaces and **deletes the source namespace after taking the dump**. Never point these kube context names at shared clusters.
 
 From the repository root:
 

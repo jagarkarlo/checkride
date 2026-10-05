@@ -212,7 +212,7 @@ test("invalid imported evidence cannot be saved as a previous green result", asy
 test("docs, deep links, search and demo navigation work", async ({ page }) => {
   const response = await page.goto("/docs/");
   expect(response?.status()).toBe(200);
-  await expect(page.getByRole("heading", { name: /^Checkride Documentation/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Nostekon Documentation/ })).toBeVisible();
   await page.getByRole("link", { name: "Installation", exact: true }).first().click();
   await expect(page).toHaveURL(/\/docs\/start\//);
   const search = page.getByRole("textbox", { name: "Search", exact: true });
