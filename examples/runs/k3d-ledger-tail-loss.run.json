@@ -1,0 +1,139 @@
+{
+  "apiVersion": "checkride/v1alpha1",
+  "kind": "DrillRun",
+  "metadata": {
+    "name": "checkride-27594ad68a97"
+  },
+  "spec": {
+    "scenario": "isolated-postgresql-logical-restore",
+    "upTo": "V4",
+    "v4Evidence": {
+      "invariants": [
+        "probe-write-preserved"
+      ]
+    },
+    "objectives": {
+      "rpo": "0s"
+    }
+  },
+  "status": {
+    "failureAt": "2026-10-05T11:16:02.137986Z",
+    "completedAt": "2026-10-05T11:16:13.336542Z",
+    "phases": [
+      {
+        "name": "source loss",
+        "startedAt": "2026-10-05T11:16:02.138009Z",
+        "endedAt": "2026-10-05T11:16:11.817646Z"
+      },
+      {
+        "name": "restore",
+        "startedAt": "2026-10-05T11:16:11.817692Z",
+        "endedAt": "2026-10-05T11:16:12.198296Z"
+      },
+      {
+        "name": "verify",
+        "startedAt": "2026-10-05T11:16:12.198335Z",
+        "endedAt": "2026-10-05T11:16:13.336506Z"
+      }
+    ],
+    "checks": [
+      {
+        "level": "V0",
+        "name": "PostgreSQL logical backup",
+        "passed": true
+      },
+      {
+        "level": "V1",
+        "name": "PostgreSQL logical restore",
+        "passed": true
+      },
+      {
+        "level": "V2",
+        "name": "Restored PostgreSQL accepts connections",
+        "passed": true
+      },
+      {
+        "level": "V3",
+        "name": "recovery_probe contains exactly 10 rows",
+        "passed": true,
+        "detail": "recovered row count is 10"
+      },
+      {
+        "level": "V4",
+        "name": "probe-write-preserved",
+        "passed": true,
+        "detail": "restored write ID matches"
+      },
+      {
+        "level": "V4",
+        "name": "Lab execution",
+        "passed": false,
+        "detail": "acknowledged-write ledger failed 0s RPO objective: 2 lost, 0 holes, 0 unexpected"
+      }
+    ],
+    "ledger": {
+      "acks": [
+        {
+          "writeId": "dcead9595e6f41dd83c07bf9086226b6",
+          "ackedAt": "2026-10-05T11:15:58.797414+00:00"
+        },
+        {
+          "writeId": "e045b83fcf914531b77713b749a96d37",
+          "ackedAt": "2026-10-05T11:15:59.023831+00:00"
+        },
+        {
+          "writeId": "ec2ce72fd77f48fb8722ca3a668fbfeb",
+          "ackedAt": "2026-10-05T11:15:59.265264+00:00"
+        },
+        {
+          "writeId": "9cd4beec886f483daf2939dd901d3b2d",
+          "ackedAt": "2026-10-05T11:15:59.503759+00:00"
+        },
+        {
+          "writeId": "c8e883433b834f6c92b8378b2ed05f2f",
+          "ackedAt": "2026-10-05T11:15:59.819110+00:00"
+        },
+        {
+          "writeId": "c2bf058ab33145d99236d92a8499a586",
+          "ackedAt": "2026-10-05T11:16:00.073307+00:00"
+        },
+        {
+          "writeId": "bab3ebbc379b43ea9660ac5cfd505b65",
+          "ackedAt": "2026-10-05T11:16:00.382447+00:00"
+        },
+        {
+          "writeId": "f0d1436990cd4ad1bee9e605e898fec9",
+          "ackedAt": "2026-10-05T11:16:00.616664+00:00"
+        },
+        {
+          "writeId": "aefee95c429245fa84daa50833ee67d9",
+          "ackedAt": "2026-10-05T11:16:00.897333+00:00"
+        },
+        {
+          "writeId": "3438df51d7a64533bf9ad6855d84229f",
+          "ackedAt": "2026-10-05T11:16:01.159879+00:00"
+        },
+        {
+          "writeId": "275a09b6e2a44e18b688abe5a9ceccc6",
+          "ackedAt": "2026-10-05T11:16:01.807954+00:00"
+        },
+        {
+          "writeId": "5221261de245491bb7dae85468265a54",
+          "ackedAt": "2026-10-05T11:16:02.133085+00:00"
+        }
+      ],
+      "present": [
+        "dcead9595e6f41dd83c07bf9086226b6",
+        "e045b83fcf914531b77713b749a96d37",
+        "ec2ce72fd77f48fb8722ca3a668fbfeb",
+        "9cd4beec886f483daf2939dd901d3b2d",
+        "c8e883433b834f6c92b8378b2ed05f2f",
+        "c2bf058ab33145d99236d92a8499a586",
+        "bab3ebbc379b43ea9660ac5cfd505b65",
+        "f0d1436990cd4ad1bee9e605e898fec9",
+        "aefee95c429245fa84daa50833ee67d9",
+        "3438df51d7a64533bf9ad6855d84229f"
+      ]
+    }
+  }
+}

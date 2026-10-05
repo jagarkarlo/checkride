@@ -51,6 +51,41 @@ func TestVerifiedRunReachesRequestedLevel(t *testing.T) {
 	}
 }
 
+func TestRecordedLabLedgerPolicies(t *testing.T) {
+	cases := []struct {
+		name    string
+		verdict Verdict
+		lost    int
+		seconds float64
+	}{
+		{"k3d-ledger-zero-loss", Verified, 0, 0},
+		{"k3d-ledger-tail-loss", Failed, 2, 0.978107},
+		{"k3d-ledger-budget-loss", Verified, 2, 0.949153},
+	}
+	for _, sample := range cases {
+		t.Run(sample.name, func(t *testing.T) {
+			report := Build(loadRun(t, sample.name+".run.json"))
+			if report.Verdict != sample.verdict || report.RPO == nil {
+				t.Fatalf("verdict=%s, RPO=%+v", report.Verdict, report.RPO)
+			}
+			rpo := report.RPO
+			if rpo.Acknowledged != 10+sample.lost || rpo.Recovered != 10 || rpo.Lost != sample.lost || rpo.Holes != 0 || rpo.Unexpected != 0 || rpo.Seconds != sample.seconds {
+				t.Fatalf("recorded RPO = %+v", rpo)
+			}
+			if rpo.Met == nil || *rpo.Met != (sample.verdict == Verified) {
+				t.Fatalf("RPO objective = %+v", rpo)
+			}
+			deepest := "V4"
+			if sample.verdict == Failed {
+				deepest = "V3"
+			}
+			if report.DeepestPassed == nil || *report.DeepestPassed != deepest {
+				t.Fatalf("deepest passed = %v", report.DeepestPassed)
+			}
+		})
+	}
+}
+
 func TestLedgerTailLossNeedsAnRPOObjectiveForV4(t *testing.T) {
 	evidence := loadRun(t, "mlflow-namespace-loss.run.json")
 	evidence.hasRPO = false
