@@ -8,10 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing release tag to rebuild, for example v0.1.0"
+        description: "Existing Nostekon release tag to rebuild, for example v0.1.1"
         required: true
         type: string
-        default: v0.1.0
       publish-pypi:
         description: "Also publish the Python package to PyPI (public, irreversible)"
         type: boolean
@@ -26,6 +25,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+      - name: Require a Nostekon release tag
+        shell: bash
+        run: |
+          if [[ ! -f src/nostekon/__init__.py ]]; then
+            printf '%s\n' 'This tag predates Nostekon. Create a new release tag; do not republish the historical release.' >&2
+            exit 1
+          fi
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
