@@ -159,6 +159,29 @@ test("saved evidence survives reload, compares and deletes", async ({ page }) =>
   await expect(page.locator(".saved-runs tbody tr")).toHaveCount(1);
 });
 
+test("run comparison exposes different recovery policies", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/demo/");
+  for (const label of ["PostgreSQL RPO exceeded", "PostgreSQL loss within budget"]) {
+    await page.getByRole("button", { name: new RegExp(label) }).click();
+    await page.getByRole("button", { name: "Save run", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible();
+  }
+  await page.getByRole("link", { name: "Runs", exact: true }).click();
+  await page.getByRole("checkbox").nth(0).check();
+  await page.getByRole("checkbox").nth(1).check();
+  await page.getByRole("button", { name: "Compare (2/2)" }).click();
+  const comparison = page.getByRole("region", { name: "Run comparison" });
+  await expect(comparison).toContainText("Different recovery objectives. Verdicts use different policies.");
+  const objective = comparison.getByRole("row").filter({ hasText: "RPO objective" });
+  await expect(objective).toContainText("0s");
+  await expect(objective).toContainText("1m");
+  await expect(comparison.getByRole("row").filter({ hasText: "Acknowledged writes lost" }).getByRole("cell")).toHaveText(["2", "2"]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: testInfo.outputPath("policy-comparison-mobile.png"), fullPage: true });
+});
+
 test("imported evidence uses the browser engine and exports the original", async ({ page }) => {
   await page.goto("/demo/");
     const source = await readFile(new URL("../../examples/runs/k3d-postgresql.run.json", import.meta.url));

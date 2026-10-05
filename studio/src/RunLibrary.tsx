@@ -113,10 +113,14 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
 function RunComparison({ runs, onClose }: { runs: SavedRun[]; onClose: () => void }) {
   const [baseline, candidate] = runs.map((run) => run.report);
   const sameScenario = !!baseline.scenario && baseline.scenario === candidate.scenario && baseline.requestedLevel === candidate.requestedLevel;
+  const differentObjectives = (baseline.rto?.objectiveSeconds ?? null) !== (candidate.rto?.objectiveSeconds ?? null)
+    || (baseline.rpo?.objectiveSeconds ?? null) !== (candidate.rpo?.objectiveSeconds ?? null);
   const rows = [
     ["Verdict", baseline.verdict, candidate.verdict],
     ["Depth reached", baseline.deepestPassed ?? "None", candidate.deepestPassed ?? "None"],
+    ["RTO objective", formatDuration(baseline.rto?.objectiveSeconds), formatDuration(candidate.rto?.objectiveSeconds)],
     ["Recovery time", formatDuration(baseline.rto?.seconds), formatDuration(candidate.rto?.seconds)],
+    ["RPO objective", formatDuration(baseline.rpo?.objectiveSeconds), formatDuration(candidate.rpo?.objectiveSeconds)],
     ["Data loss window", formatDuration(baseline.rpo?.seconds), formatDuration(candidate.rpo?.seconds)],
     ["Acknowledged writes lost", baseline.rpo?.lost ?? "Unmeasured", candidate.rpo?.lost ?? "Unmeasured"],
     ...["V0", "V1", "V2", "V3", "V4"].map((id) => [id, baseline.levels.find((level) => level.id === id)?.status ?? "not-checked", candidate.levels.find((level) => level.id === id)?.status ?? "not-checked"]),
@@ -124,6 +128,7 @@ function RunComparison({ runs, onClose }: { runs: SavedRun[]; onClose: () => voi
   return <section className="run-comparison" aria-label="Run comparison">
     <div className="section-toolbar"><h2>Run comparison</h2><button className="icon-button" type="button" aria-label="Close comparison" title="Close comparison" onClick={onClose}><X size={17} /></button></div>
     {!sameScenario && <p className="comparison-notice">Different scenarios or requested depths. Timing is not a like-for-like comparison.</p>}
+    {differentObjectives && <p className="comparison-notice">Different recovery objectives. Verdicts use different policies.</p>}
     <div className="table-scroll"><table className="runs-table comparison-table"><thead><tr><th>Measure</th>{runs.map((run) => <th key={run.id}>{run.report.name}<small>{evidenceLabel(run.sampleId)}</small></th>)}</tr></thead><tbody>{rows.map(([label, first, second]) => <tr key={label}><th>{label}</th><td>{first}</td><td className={first !== second ? "changed" : ""}>{second}</td></tr>)}</tbody></table></div>
   </section>;
 }
