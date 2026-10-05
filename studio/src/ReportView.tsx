@@ -23,7 +23,7 @@ import { fieldPathOf, inspectJSON, locateField, scenarioLabels } from "./drill";
 import { formatDuration, isReport, objectiveUsage, reportMarkdown, timelineBars } from "./report";
 import type { LevelResult, Report, RPOResult, RTOResult } from "./report";
 import { saveRun } from "./runStore";
-import { samples } from "./samples";
+import { isRecordedSample, samples } from "./samples";
 
 const verdictLabel = { verified: "Verified", failed: "Failed", incomplete: "Incomplete" } as const;
 
@@ -149,6 +149,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
   }
 
   const stale = report !== null && builtFrom !== source;
+  const recordedSample = isRecordedSample(sampleId);
 
   return (
     <div className="layout report-layout">
@@ -172,7 +173,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
         {sampleId && (
           <div className="sample-caveat">
             <AlertTriangle size={14} />
-            <p><strong>{sampleId === "k3d-postgresql" ? "Recorded local lab run" : "Illustrative evidence"}</strong>{sampleId === "k3d-postgresql" ? "This file came from a disposable two-cluster PostgreSQL restore. It is runner-reported, not cryptographically attested or production data." : "These traces are synthetic examples. They are not recorded from a real restore or production cluster."}</p>
+            <p><strong>{recordedSample ? "Recorded local lab run" : "Illustrative evidence"}</strong>{recordedSample ? "This file came from a disposable two-cluster PostgreSQL restore. It is runner-reported, not cryptographically attested or production data." : "These traces are synthetic examples. They are not recorded from a real restore or production cluster."}</p>
           </div>
         )}
         <input

@@ -98,10 +98,10 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
     </section>
     {compare && compared.length === 2 && <RunComparison runs={compared} onClose={() => setCompare(false)} />}
     <section className="sample-section" aria-labelledby="examples-heading">
-      <div className="section-toolbar"><h2 id="examples-heading">Example evidence</h2><span className="workspace-label">1 recorded lab · 2 synthetic</span></div>
+      <div className="section-toolbar"><h2 id="examples-heading">Example evidence</h2><span className="workspace-label">{samples.filter((sample) => sample.recorded).length} recorded lab · {samples.filter((sample) => !sample.recorded).length} synthetic</span></div>
       <div className="sample-rows">{samples.map((sample) => <button type="button" key={sample.id} onClick={() => {
         void sample.load().then((source) => onOpen(source, sample.id)).catch((reason: unknown) => setError(message(reason)));
-      }}><span className={`sample-symbol ${sample.id === "k3d-postgresql" ? "recorded" : ""}`}>{sample.id === "k3d-postgresql" ? <CheckCircle2 size={20} /> : <FlaskConical size={20} />}</span><span><strong>{sample.label}</strong><small>{sample.summary}</small></span><ArrowRight size={17} /></button>)}</div>
+      }}><span className={`sample-symbol ${sample.recorded ? "recorded" : ""}`}>{sample.recorded ? <CheckCircle2 size={20} /> : <FlaskConical size={20} />}</span><span><strong>{sample.label}</strong><small>{sample.summary}</small></span><ArrowRight size={17} /></button>)}</div>
     </section>
     <dialog ref={dialog} className="delete-dialog" onCancel={() => setPendingDelete(null)}>
       <h2>Delete saved run?</h2><p>{pendingDelete?.report.name}</p><p>This removes the browser copy. Export any evidence you need before deleting.</p>

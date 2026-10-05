@@ -2,6 +2,7 @@ import { openDB } from "idb";
 import type { DBSchema } from "idb";
 import { isReport } from "./report";
 import type { Report } from "./report";
+import { isRecordedSample } from "./samples";
 
 export interface SavedRun {
   id: string;
@@ -62,5 +63,5 @@ export async function deleteRun(id: string): Promise<void> {
 }
 
 export function evidenceLabel(sampleId: string): string {
-  return sampleId === "k3d-postgresql" ? "Recorded lab" : sampleId ? "Synthetic sample" : "Imported evidence";
+  return isRecordedSample(sampleId) ? "Recorded lab" : sampleId ? "Synthetic sample" : "Imported evidence";
 }

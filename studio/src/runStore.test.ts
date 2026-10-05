@@ -43,6 +43,10 @@ describe("saved run library", () => {
 
   it("does not call synthetic or imported data recorded lab evidence", () => {
     expect(evidenceLabel("k3d-postgresql")).toBe("Recorded lab");
+    for (const id of ["k3d-ledger-zero-loss", "k3d-ledger-tail-loss", "k3d-ledger-budget-loss"]) {
+      expect(evidenceLabel(id)).toBe("Recorded lab");
+    }
+    expect(evidenceLabel("k3d-unknown")).not.toBe("Recorded lab");
     expect(evidenceLabel("crud-cluster-loss")).toBe("Synthetic sample");
     expect(evidenceLabel("")).toBe("Imported evidence");
   });
