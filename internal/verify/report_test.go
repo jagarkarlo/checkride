@@ -157,7 +157,7 @@ func TestFailedRunReportsFirstFailureAndMissedRTO(t *testing.T) {
 }
 
 const minimalRun = `{
-	"apiVersion": "checkride/v1alpha1", "kind": "DrillRun",
+	"apiVersion": "nostekon/v1alpha1", "kind": "DrillRun",
 	"metadata": {"name": "demo"},
 	"spec": {"upTo": "V2", "objectives": {"rpo": 10}},
 	"status": {
@@ -223,6 +223,19 @@ func TestParseEvidenceRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestParseEvidenceAcceptsCurrentAndLegacyAPIVersions(t *testing.T) {
+	for _, version := range []string{"nostekon/v1alpha1", "checkride/v1alpha1"} {
+		body := strings.Replace(minimalRun, `"nostekon/v1alpha1"`, `"`+version+`"`, 1)
+		if _, err := ParseEvidence([]byte(body)); err != nil {
+			t.Errorf("%s: %v", version, err)
+		}
+	}
+	body := strings.Replace(minimalRun, `"nostekon/v1alpha1"`, `"nostekon/v2"`, 1)
+	if _, err := ParseEvidence([]byte(body)); err == nil || !strings.Contains(err.Error(), "apiVersion: must be nostekon/v1alpha1") {
+		t.Fatalf("unknown apiVersion error = %v", err)
+	}
+}
+
 func TestParseObjectiveRejectsOverflow(t *testing.T) {
 	for _, value := range []string{`9223372037`, `"999999999999999999h"`} {
 		if _, _, err := parseObjective([]byte(value)); err == nil {
@@ -232,7 +245,7 @@ func TestParseObjectiveRejectsOverflow(t *testing.T) {
 }
 
 func TestV4RequiresDeclaredCorrectnessEvidence(t *testing.T) {
-	withoutEvidence := `{"apiVersion":"checkride/v1alpha1","kind":"DrillRun","metadata":{"name":"demo"},"spec":{"upTo":"V4"},"status":{"failureAt":"2026-10-01T10:00:00Z","completedAt":"2026-10-01T10:00:30Z","checks":[{"level":"V0","name":"backup","passed":true},{"level":"V1","name":"restore","passed":true},{"level":"V2","name":"health","passed":true},{"level":"V3","name":"rows","passed":true},{"level":"V4","name":"correct","passed":true}]}}`
+	withoutEvidence := `{"apiVersion":"nostekon/v1alpha1","kind":"DrillRun","metadata":{"name":"demo"},"spec":{"upTo":"V4"},"status":{"failureAt":"2026-10-01T10:00:00Z","completedAt":"2026-10-01T10:00:30Z","checks":[{"level":"V0","name":"backup","passed":true},{"level":"V1","name":"restore","passed":true},{"level":"V2","name":"health","passed":true},{"level":"V3","name":"rows","passed":true},{"level":"V4","name":"correct","passed":true}]}}`
 	_, err := ParseEvidence([]byte(withoutEvidence))
 	if validation, ok := err.(*ValidationError); !ok || !strings.Contains(validation.Error(), "spec.v4Evidence: V4 requires") {
 		t.Fatalf("err = %v, want V4 evidence error", err)

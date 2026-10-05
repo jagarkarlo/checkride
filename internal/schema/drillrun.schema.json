@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:checkride:schema:drillrun:v1alpha1",
-  "title": "Checkride DrillRun",
+  "$id": "urn:nostekon:schema:drillrun:v1alpha1",
+  "title": "Nostekon DrillRun",
   "description": "Recorded evidence for one restore drill. This document describes observations; it does not prove that the reported runner is truthful.",
   "type": "object",
   "additionalProperties": false,
   "required": ["apiVersion", "kind", "metadata", "spec", "status"],
   "properties": {
-    "apiVersion": {"const": "checkride/v1alpha1"},
+    "apiVersion": {"enum": ["nostekon/v1alpha1", "checkride/v1alpha1"]},
     "kind": {"const": "DrillRun"},
     "metadata": {
       "type": "object",

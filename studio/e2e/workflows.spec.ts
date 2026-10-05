@@ -38,7 +38,7 @@ test("browser demo refuses to claim it verified a detached attestation", async (
   await page.locator('input[data-testid="attestation-input"]').setInputFiles({
     name: "run.attestation.json",
     mimeType: "application/json",
-    buffer: Buffer.from('{"apiVersion":"checkride/attestation/v1alpha1"}'),
+    buffer: Buffer.from('{"apiVersion":"nostekon/attestation/v1alpha1"}'),
   });
   await expect(page.locator(".attestation-boundary")).toContainText("browser demo cannot verify");
 });

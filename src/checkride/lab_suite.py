@@ -95,7 +95,7 @@ def execute_lab_suite(
     output.mkdir(mode=0o700, parents=True)
     descriptor = os.open(output / "suite.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     summary = {
-        "apiVersion": "checkride/lab-suite/v1alpha1",
+        "apiVersion": "nostekon/lab-suite/v1alpha1",
         "kind": "LabSuiteResult",
         "startedAt": utc_timestamp(),
         "completedAt": None,

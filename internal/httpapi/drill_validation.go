@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/jagarkarlo/checkride/internal/verify"
 )
 
 const maxDrillRequestBytes = 1 << 20
@@ -135,8 +137,8 @@ func validateDrill(document drillDocument) ([]string, []string) {
 	var warnings []string
 	if document.APIVersion == nil {
 		problems = append(problems, "apiVersion: field required")
-	} else if *document.APIVersion != "checkride/v1alpha1" {
-		problems = append(problems, "apiVersion: must be checkride/v1alpha1")
+	} else if *document.APIVersion != verify.APIVersion && *document.APIVersion != verify.LegacyAPIVersion {
+		problems = append(problems, "apiVersion: must be "+verify.APIVersion)
 	}
 	if document.Kind == nil {
 		problems = append(problems, "kind: field required")

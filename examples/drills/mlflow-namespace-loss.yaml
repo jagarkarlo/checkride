@@ -1,4 +1,4 @@
-apiVersion: checkride/v1alpha1
+apiVersion: nostekon/v1alpha1
 kind: Drill
 metadata:
   name: mlflow-namespace-loss

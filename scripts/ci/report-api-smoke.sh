@@ -57,7 +57,7 @@ curl --fail --silent --show-error -D "$schema_headers" \
   http://127.0.0.1:8080/api/v1/schemas/drillrun >/tmp/checkride-drillrun-schema.json
 trap 'rm -f "$schema_headers" /tmp/checkride-drillrun-schema.json; cleanup' EXIT
 grep -qi '^Content-Type: application/schema+json' "$schema_headers"
-jq -e '(.title == "Checkride DrillRun") and ((.properties.status.required // []) | index("completedAt") != null)' \
+jq -e '(.title == "Nostekon DrillRun") and ((.properties.status.required // []) | index("completedAt") != null)' \
   /tmp/checkride-drillrun-schema.json >/dev/null
 
 set +e

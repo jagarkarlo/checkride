@@ -123,7 +123,7 @@ func TestRunExitCodesForFailedAndVerified(t *testing.T) {
 }
 
 func TestRunExitsTwoForIncompleteReport(t *testing.T) {
-	const evidence = `{"apiVersion":"checkride/v1alpha1","kind":"DrillRun","metadata":{"name":"incomplete"},"spec":{"upTo":"V2"},"status":{"failureAt":"2026-10-01T10:00:00Z","completedAt":"2026-10-01T10:00:30Z","checks":[{"level":"V0","name":"backup","passed":true},{"level":"V2","name":"health","passed":true}]}}`
+	const evidence = `{"apiVersion":"nostekon/v1alpha1","kind":"DrillRun","metadata":{"name":"incomplete"},"spec":{"upTo":"V2"},"status":{"failureAt":"2026-10-01T10:00:00Z","completedAt":"2026-10-01T10:00:30Z","checks":[{"level":"V0","name":"backup","passed":true},{"level":"V2","name":"health","passed":true}]}}`
 	file := t.TempDir() + "/incomplete.json"
 	if err := os.WriteFile(file, []byte(evidence), 0o600); err != nil {
 		t.Fatal(err)

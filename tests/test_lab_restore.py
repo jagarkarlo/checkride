@@ -57,6 +57,7 @@ def test_lab_suite_measures_all_three_policy_outcomes(tmp_path):
     with patch.object(restore, "run_kubectl", side_effect=fake_kubectl(commands)):
         result = execute_lab_suite(output, write_count=3)
     assert result["passed"] is True
+    assert result["apiVersion"] == "nostekon/lab-suite/v1alpha1"
     assert json.loads((output / "suite.json").read_text()) == result
     assert output.stat().st_mode & 0o777 == 0o700
     assert (output / "suite.json").stat().st_mode & 0o777 == 0o600
@@ -70,6 +71,9 @@ def test_lab_suite_measures_all_three_policy_outcomes(tmp_path):
         assert case["passed"] is True
         assert case["rpo"]["recovered"] == 3
         assert (output / case["drillRun"]).is_file()
+        assert json.loads((output / case["drillRun"]).read_text())["apiVersion"] == (
+            "nostekon/v1alpha1"
+        )
         assert (output / case["ledger"]).is_file()
 
 

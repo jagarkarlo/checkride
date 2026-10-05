@@ -20,14 +20,19 @@ import (
 )
 
 const (
-	Version          = "checkride/attestation/v1alpha1"
+	Version          = "nostekon/attestation/v1alpha1"
+	LegacyVersion    = "checkride/attestation/v1alpha1"
 	Algorithm        = "Ed25519"
 	maxEvidenceBytes = 16 << 20
 	maxSidecarBytes  = 16 << 10
 	maxTrustedKeys   = 128
 )
 
-var signingContext = []byte("checkride/drillrun-attestation/v1alpha1\x00")
+// Each version signs under its own context, so a legacy signature cannot be relabelled.
+var signingContexts = map[string][]byte{
+	Version:       []byte("nostekon/drillrun-attestation/v1alpha1\x00"),
+	LegacyVersion: []byte("checkride/drillrun-attestation/v1alpha1\x00"),
+}
 
 type Sidecar struct {
 	APIVersion     string `json:"apiVersion"`
@@ -47,7 +52,7 @@ func Sign(evidence []byte, privateKey ed25519.PrivateKey) (Sidecar, error) {
 		return Sidecar{}, errors.New("invalid Ed25519 private key")
 	}
 	digest := sha256.Sum256(evidence)
-	message := append(append([]byte(nil), signingContext...), digest[:]...)
+	message := append(append([]byte(nil), signingContexts[Version]...), digest[:]...)
 	signature := ed25519.Sign(privateKey, message)
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 	return Sidecar{
@@ -60,7 +65,8 @@ func Sign(evidence []byte, privateKey ed25519.PrivateKey) (Sidecar, error) {
 }
 
 func Verify(evidence []byte, sidecar Sidecar, trustedKey ed25519.PublicKey) error {
-	if sidecar.APIVersion != Version {
+	context, supported := signingContexts[sidecar.APIVersion]
+	if !supported {
 		return fmt.Errorf("unsupported attestation apiVersion %q", sidecar.APIVersion)
 	}
 	if sidecar.Algorithm != Algorithm {
@@ -81,7 +87,7 @@ func Verify(evidence []byte, sidecar Sidecar, trustedKey ed25519.PublicKey) erro
 	if err != nil || len(signature) != ed25519.SignatureSize {
 		return errors.New("attestation signature is malformed")
 	}
-	message := append(append([]byte(nil), signingContext...), digest[:]...)
+	message := append(append([]byte(nil), context...), digest[:]...)
 	if !ed25519.Verify(trustedKey, message, signature) {
 		return errors.New("attestation signature verification failed")
 	}

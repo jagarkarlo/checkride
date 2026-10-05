@@ -484,7 +484,7 @@ def execute_isolated_drill(
                 )
                 error = error or exc
         result = {
-            "apiVersion": "checkride/v1alpha1",
+            "apiVersion": "nostekon/v1alpha1",
             "kind": "DrillRun",
             "metadata": {"name": namespace},
             "spec": {"scenario": "isolated-postgresql-logical-restore", "upTo": requested_level},

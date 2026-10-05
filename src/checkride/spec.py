@@ -22,7 +22,8 @@ from pydantic.alias_generators import to_camel
 
 from checkride.levels import Level, parse_level
 
-API_VERSION = "checkride/v1alpha1"
+API_VERSION = "nostekon/v1alpha1"
+LEGACY_API_VERSION = "checkride/v1alpha1"
 
 _DNS_LABEL = r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
 _DURATION = re.compile(r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?")
@@ -153,7 +154,7 @@ class Drill(_Model):
 
 
 class DrillSpec(_Model):
-    api_version: Literal["checkride/v1alpha1"]
+    api_version: Literal["nostekon/v1alpha1", "checkride/v1alpha1"]
     kind: Literal["Drill"]
     metadata: Metadata
     spec: Drill

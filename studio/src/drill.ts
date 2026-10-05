@@ -1,5 +1,5 @@
 export interface DrillDocument {
-  apiVersion: "checkride/v1alpha1";
+  apiVersion: "nostekon/v1alpha1";
   kind: "Drill";
   metadata: { name: string };
   spec: Record<string, unknown>;
@@ -18,7 +18,7 @@ export const templates: Template[] = [
     label: "Namespace loss",
     summary: "Namespace deleted; prove orders survive with V4 evidence.",
     document: {
-      apiVersion: "checkride/v1alpha1",
+      apiVersion: "nostekon/v1alpha1",
       kind: "Drill",
       metadata: { name: "shop-namespace-loss" },
       spec: {
@@ -45,7 +45,7 @@ export const templates: Template[] = [
     label: "Cluster loss",
     summary: "Whole source cluster gone; rebuild elsewhere and check data shape.",
     document: {
-      apiVersion: "checkride/v1alpha1",
+      apiVersion: "nostekon/v1alpha1",
       kind: "Drill",
       metadata: { name: "billing-cluster-loss" },
       spec: {
@@ -62,7 +62,7 @@ export const templates: Template[] = [
     label: "Bad migration",
     summary: "Schema migration corrupted data; recover to a point in time.",
     document: {
-      apiVersion: "checkride/v1alpha1",
+      apiVersion: "nostekon/v1alpha1",
       kind: "Drill",
       metadata: { name: "catalog-bad-migration" },
       spec: {
@@ -79,7 +79,7 @@ export const templates: Template[] = [
     label: "Lost secret",
     summary: "Credentials Secret deleted; check the workload comes back healthy.",
     document: {
-      apiVersion: "checkride/v1alpha1",
+      apiVersion: "nostekon/v1alpha1",
       kind: "Drill",
       metadata: { name: "gateway-lost-secret" },
       spec: {

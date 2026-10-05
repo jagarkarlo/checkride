@@ -30,7 +30,7 @@ def minimal_drill(**spec: Any) -> dict[str, Any]:
     }
     body.update(spec)
     return {
-        "apiVersion": "checkride/v1alpha1",
+        "apiVersion": "nostekon/v1alpha1",
         "kind": "Drill",
         "metadata": {"name": "demo"},
         "spec": body,
@@ -124,8 +124,13 @@ def test_unknown_fields_are_rejected(tmp_path: Path) -> None:
 
 
 def test_wrong_api_version_is_rejected(tmp_path: Path) -> None:
-    document = minimal_drill() | {"apiVersion": "checkride/v2"}
+    document = minimal_drill() | {"apiVersion": "nostekon/v2"}
     assert any(error.startswith("apiVersion:") for error in errors_of(tmp_path, document))
+
+
+def test_legacy_checkride_api_version_is_accepted(tmp_path: Path) -> None:
+    document = minimal_drill() | {"apiVersion": "checkride/v1alpha1"}
+    assert load_drill(write_drill(tmp_path, document)).api_version == "checkride/v1alpha1"
 
 
 def test_lint_warns_about_weak_evidence(tmp_path: Path) -> None:

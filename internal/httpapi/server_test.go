@@ -59,7 +59,7 @@ func TestDrillRunSchemaEndpoint(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &document); err != nil {
 		t.Fatalf("schema is not JSON: %v", err)
 	}
-	if document["title"] != "Checkride DrillRun" {
+	if document["title"] != "Nostekon DrillRun" {
 		t.Fatalf("schema title = %v", document["title"])
 	}
 }

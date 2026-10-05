@@ -3,6 +3,9 @@ package attest
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +27,34 @@ func TestSignAndVerifyEvidence(t *testing.T) {
 	}
 	if sidecar.KeyID != KeyID(publicKey) {
 		t.Fatalf("key id = %q, want %q", sidecar.KeyID, KeyID(publicKey))
+	}
+	if sidecar.APIVersion != "nostekon/attestation/v1alpha1" {
+		t.Fatalf("apiVersion = %q", sidecar.APIVersion)
+	}
+}
+
+func TestVerifyAcceptsLegacyCheckrideSignatures(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence := []byte(`{"kind":"DrillRun"}`)
+	digest := sha256.Sum256(evidence)
+	message := append([]byte("checkride/drillrun-attestation/v1alpha1\x00"), digest[:]...)
+	legacy := Sidecar{
+		APIVersion:     "checkride/attestation/v1alpha1",
+		Algorithm:      Algorithm,
+		KeyID:          KeyID(publicKey),
+		EvidenceSHA256: hex.EncodeToString(digest[:]),
+		Signature:      base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, message)),
+	}
+	if err := Verify(evidence, legacy, publicKey); err != nil {
+		t.Fatalf("legacy signature: %v", err)
+	}
+	relabelled := legacy
+	relabelled.APIVersion = Version
+	if err := Verify(evidence, relabelled, publicKey); err == nil {
+		t.Fatal("a legacy signature must not verify under the current version")
 	}
 }
 

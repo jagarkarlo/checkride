@@ -34,7 +34,7 @@ def test_validate_accepts_the_examples(capsys: pytest.CaptureFixture[str]) -> No
 
 def test_validate_reports_errors(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     broken = tmp_path / "broken.yaml"
-    broken.write_text("apiVersion: checkride/v1alpha1\nkind: Drill\n")
+    broken.write_text("apiVersion: nostekon/v1alpha1\nkind: Drill\n")
     missing = tmp_path / "missing.yaml"
     assert main(["validate", str(broken), str(missing)]) == 1
     output = capsys.readouterr().out

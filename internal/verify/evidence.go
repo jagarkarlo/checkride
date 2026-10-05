@@ -13,6 +13,12 @@ import (
 )
 
 const (
+	APIVersion = "nostekon/v1alpha1"
+	// LegacyAPIVersion keeps evidence recorded before the Nostekon rename readable.
+	LegacyAPIVersion = "checkride/v1alpha1"
+)
+
+const (
 	maxPhases          = 64
 	maxChecks          = 256
 	maxWrites          = 200_000
@@ -118,8 +124,8 @@ func (e *Evidence) validate() []string {
 	var problems []string
 	add := func(format string, args ...any) { problems = append(problems, fmt.Sprintf(format, args...)) }
 
-	if e.APIVersion != "checkride/v1alpha1" {
-		add("apiVersion: must be checkride/v1alpha1")
+	if e.APIVersion != APIVersion && e.APIVersion != LegacyAPIVersion {
+		add("apiVersion: must be %s", APIVersion)
 	}
 	if e.Kind != "DrillRun" {
 		add("kind: must be DrillRun")

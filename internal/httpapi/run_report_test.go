@@ -169,7 +169,7 @@ func TestRunReportStatusCodes(t *testing.T) {
 		{"malformed JSON", `{"kind":`, "application/json", http.StatusBadRequest},
 		{"unknown field", `{"surprise": true}`, "application/json", http.StatusBadRequest},
 		{"trailing value", `{} {}`, "application/json", http.StatusBadRequest},
-		{"invalid evidence", `{"apiVersion": "checkride/v1alpha1", "kind": "DrillRun", "metadata": {"name": "x"}}`, "application/json", http.StatusUnprocessableEntity},
+		{"invalid evidence", `{"apiVersion": "nostekon/v1alpha1", "kind": "DrillRun", "metadata": {"name": "x"}}`, "application/json", http.StatusUnprocessableEntity},
 		{"too large", `{"metadata": {"name": "` + strings.Repeat("a", maxRunRequestBytes) + `"}}`, "application/json", http.StatusRequestEntityTooLarge},
 	}
 	for _, tc := range cases {

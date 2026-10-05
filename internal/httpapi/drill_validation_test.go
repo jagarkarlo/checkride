@@ -9,7 +9,7 @@ import (
 )
 
 const validDrillJSON = `{
-	"apiVersion": "checkride/v1alpha1",
+	"apiVersion": "nostekon/v1alpha1",
 	"kind": "Drill",
 	"metadata": {"name": "demo"},
 	"spec": {
@@ -52,6 +52,17 @@ func TestValidateDrillAcceptsValidSpec(t *testing.T) {
 	result := decodeValidationResponse(t, response)
 	if !result.Valid || len(result.Errors) != 0 || len(result.Warnings) != 0 {
 		t.Fatalf("unexpected validation result: %+v", result)
+	}
+}
+
+func TestValidateDrillAcceptsLegacyAPIVersion(t *testing.T) {
+	legacy := strings.Replace(validDrillJSON, "nostekon/v1alpha1", "checkride/v1alpha1", 1)
+	if result := decodeValidationResponse(t, postDrillValidation(legacy)); !result.Valid {
+		t.Fatalf("legacy drill rejected: %+v", result)
+	}
+	unknown := strings.Replace(validDrillJSON, "nostekon/v1alpha1", "nostekon/v2", 1)
+	if result := decodeValidationResponse(t, postDrillValidation(unknown)); result.Valid {
+		t.Fatal("unknown apiVersion accepted")
 	}
 }
 
