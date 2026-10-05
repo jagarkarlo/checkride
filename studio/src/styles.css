@@ -376,6 +376,20 @@ button.finding:hover { filter: brightness(1.12); }
 .delete-dialog p { font-size: 13.5px; line-height: 1.6; overflow-wrap: anywhere; }
 .delete-dialog .library-actions { justify-content: flex-end; }
 
+.suite-stats strong { font-size: 25px; }
+.suite-stats small { font-size: 16px; color: var(--ink-3); }
+.suite-agreement { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 0 0 22px; font-size: 14px; }
+.suite-agreement span { margin-left: auto; color: var(--ink-2); font-size: 13px; }
+.suite-table { min-width: 1040px; }
+.suite-table tbody th { width: 230px; border-bottom-color: var(--line-2); color: var(--ink); font-size: 13px; }
+.suite-table th, .suite-table td { padding-top: 22px; padding-bottom: 22px; }
+.suite-table td { white-space: nowrap; }
+.suite-findings { margin-top: 32px; border-top: 1px solid var(--line); padding-top: 16px; }
+.suite-findings h2 { font-size: 16px; }
+.suite-findings h3 { font-size: 14px; }
+.suite-findings li, .suite-findings p { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.suite-loading { display: flex; align-items: center; gap: 10px; min-height: 140px; color: var(--ink-2); }
+
 /* Responsive */
 @media (max-width: 1240px) {
   .layout { grid-template-columns: minmax(0, 1fr) 340px; }
@@ -416,6 +430,16 @@ button.finding:hover { filter: brightness(1.12); }
   .library-stats > div:nth-child(2) { border-right: 0; }
   .library-stats > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .library-stats strong { font-size: 26px; }
+  .suite-stats strong { font-size: 23px; }
+  .suite-agreement span { width: 100%; margin-left: 0; }
+  .suite-workspace .suite-table { min-width: 0; width: 100%; }
+  .suite-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .suite-table tbody { display: block; }
+  .suite-table tbody tr { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; padding: 20px 0; border-top: 1px solid var(--line); }
+  .suite-table tbody th { grid-column: 1 / -1; width: auto; padding: 0 42px 14px 0; border: 0; font-size: 14px; }
+  .suite-table td { padding: 8px 0; border: 0; white-space: normal; overflow-wrap: anywhere; }
+  .suite-table td[data-label]::before { display: block; margin-bottom: 7px; color: var(--ink-2); font-family: "DM Sans", sans-serif; font-size: 13px; content: attr(data-label); }
+  .suite-table td.suite-row-action { position: absolute; top: 16px; right: 0; padding: 0; }
   .section-toolbar { gap: 10px; }
   .section-toolbar h2 { width: 100%; }
   .run-search { flex: 1; min-width: 140px; }
