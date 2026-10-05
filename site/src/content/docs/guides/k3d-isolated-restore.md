@@ -215,6 +215,45 @@ Verified on 2026-10-05 with three real two-cluster restores: drill exits 0/1/0,
 lost writes 0/2/2, every measured RPO field matching the independent Go evaluator,
 private artifact permissions and all six temporary namespaces removed.
 
+### Review a suite in Studio
+
+Open [Policy suite](/demo/index.html#/suite) to review the recorded three-case
+PostgreSQL bundle. The original capture is stored unchanged under
+`examples/suites/postgresql-policy/`.
+
+To review your own completed run, choose **Import suite** and select these four
+JSON files together from the suite output directory:
+
+- `suite.json`
+- `zero-loss.drillrun.json`
+- `tail-loss.drillrun.json`
+- `budget-loss.drillrun.json`
+
+Failed or interrupted suites may have fewer cases and evidence files. Select
+the summary and available JSON evidence; missing files remain visible as review
+findings. SQLite ledgers are not imported. Imports are limited to four files,
+a 64 KiB summary and 16 MiB per DrillRun.
+
+Studio evaluates each DrillRun with the Go report engine and compares its exit
+code and eight RPO fields with the summary. The view separates the runner's
+suite result, each expected verdict and its independently evaluated verdict.
+A strict tail-loss case can therefore show **Failed** while agreeing with the
+suite's expected outcome. Each case opens in the existing report view for
+inspection, original-evidence export and saving to the local run library. The
+summary download preserves its original bytes.
+
+**Evidence matches the summary** means the submitted claims agree with the
+evaluated JSON evidence. It does not authenticate the capture, inspect the
+SQLite ledger, reproduce every runner acceptance check, verify signatures or
+prove that a restore actually happened. Imported bundles remain labelled
+**Imported evidence**; the built-in bundle is **Recorded local lab**. Both
+remain signature-unverified. Follow the existing attestation workflow for
+trusted-key verification outside the static demo.
+
+Verified on 2026-10-05 in the browser demo at 390px and 1440px: all three
+recorded outcomes, changed-summary detection, missing/invalid imports and
+original-byte downloads.
+
 ### Ledger And Measurement Limits
 
 `--writes` defaults to one and must be positive; `--after-backup-writes`

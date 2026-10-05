@@ -236,6 +236,13 @@ problem jumps to its field. `Ctrl+Enter` validates. The **Evidence report**
 view imports a DrillRun, plots recovery phases and ledger outcomes, and exports
 JSON or Markdown. Run Studio tests with `npm test`.
 
+The **Suite** view reviews all three PostgreSQL policy cases together. It
+evaluates original DrillRuns against the runner summary, separates expected
+failure from unexpected mismatch, and opens individual reports. Try the
+recorded bundle in `examples/suites/postgresql-policy/`, or import a suite
+summary and its available DrillRun JSON files. Agreement is not authenticated
+provenance; see the [suite review guide](site/src/content/docs/guides/k3d-isolated-restore.md#review-a-suite-in-studio).
+
 To run the disposable isolated PostgreSQL source-loss drill, install Docker,
 k3d, kubectl, Python 3.12+ and Go, then use only the dedicated lab contexts:
 
