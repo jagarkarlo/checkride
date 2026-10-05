@@ -9,8 +9,8 @@ strict: true
 theme:
   name: material
   font: false
-  icon:
-    logo: material/check-decagram-outline
+  logo: assets/checkride-mark.svg
+  favicon: assets/checkride-mark.svg
   features:
     - navigation.sections
     - navigation.indexes

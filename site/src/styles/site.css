@@ -66,8 +66,7 @@ code, kbd, pre { font-family: var(--mono); }
 .masthead { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line); background: var(--bg); }
 .masthead .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; text-decoration: none; }
-.wordmark-mark { position: relative; width: 22px; height: 22px; border-radius: 5px; background: var(--accent); }
-.wordmark-mark::after { position: absolute; top: 4px; left: 8px; width: 5px; height: 10px; border: solid var(--on-accent); border-width: 0 2px 2px 0; content: ""; transform: rotate(40deg); }
+.wordmark-mark { display: block; width: 28px; height: 28px; flex: none; }
 .nav { display: flex; align-items: center; gap: 4px; margin-right: auto; }
 .nav a { padding: 6px 12px; border-radius: 6px; color: var(--ink-2); font-size: 14px; font-weight: 500; text-decoration: none; }
 .nav a:hover { color: var(--ink); background: var(--bg-2); }

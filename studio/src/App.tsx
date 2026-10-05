@@ -1,4 +1,5 @@
-import { Activity, FileCheck2, LayoutList, Moon, PencilRuler, RefreshCw, Sun } from "lucide-react";
+import { Activity, FileCheck2, LayoutList, PencilRuler, RefreshCw } from "lucide-react";
+import checkrideMark from "../../site/src/content/docs/assets/checkride-mark.svg";
 import { useCallback, useEffect, useState } from "react";
 import { request } from "./api";
 import { ReportView } from "./ReportView";
@@ -58,7 +59,7 @@ export function App() {
     <div className="studio">
       <header className="topbar">
         <a className="brand" href="#/runs">
-          <span className="brand-mark" aria-hidden="true" />
+          <img className="brand-mark" src={checkrideMark} width="28" height="28" alt="" />
           <span className="brand-name">Checkride</span>
           <span className="brand-product">Studio</span>
         </a>
@@ -74,8 +75,8 @@ export function App() {
         <a className="workbench-link" href={browserDemo ? "/" : "http://127.0.0.1:4321/"} title="Open the product site">
           <Activity size={14} /> <span>Product site</span>
         </a>
-        <button className="studio-theme" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title="Toggle color theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-          {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+        <button className="studio-theme" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+          <span aria-hidden="true">{theme === "dark" ? "☀️" : "🌙"}</span>
         </button>
         <button className={`api-status ${apiState}`} type="button" onClick={() => void checkAPI()} title="Recheck the local API">
           <span className="status-dot" />

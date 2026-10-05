@@ -9,7 +9,7 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
-    fs: { allow: [".", "../examples/runs"] },
+    fs: { allow: [".", "../examples/runs", "../site/src/content/docs/assets"] },
     proxy: {
       "/api": apiTarget,
       "/healthz": apiTarget,
