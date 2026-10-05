@@ -31,7 +31,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	attestationPath := flags.String("attestation", "", "detached Ed25519 attestation JSON file")
 	trustedKeyPath := flags.String("trusted-key", "", "trusted Ed25519 PKIX public key PEM")
 	pushgatewayURL := flags.String("pushgateway-url", "", "push recovery metrics to this Prometheus Pushgateway URL")
-	pushgatewayJob := flags.String("pushgateway-job", "checkride", "Pushgateway job label")
+	pushgatewayJob := flags.String("pushgateway-job", "nostekon", "Pushgateway job label")
 	pushgatewayInstance := flags.String("pushgateway-instance", "", "Pushgateway instance label (defaults to the evidence name)")
 	if err := flags.Parse(args); err != nil {
 		fmt.Fprintln(stderr, usage)

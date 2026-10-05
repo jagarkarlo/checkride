@@ -1,10 +1,10 @@
 {
   "title": "Nostekon recovery drills",
-  "description": "Recovery depth, time and data loss from checkride-report, pushed to a Prometheus Pushgateway with --pushgateway-url.",
+  "description": "Recovery depth, time and data loss from nostekon-report, pushed to a Prometheus Pushgateway with --pushgateway-url.",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
-  "tags": ["checkride", "disaster-recovery"],
+  "tags": ["nostekon", "disaster-recovery"],
   "timezone": "",
   "time": { "from": "now-30d", "to": "now" },
   "refresh": "",
@@ -20,7 +20,7 @@
         "name": "job",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
-        "query": "label_values(checkride_drill_verified, job)",
+        "query": "label_values(nostekon_drill_verified, job)",
         "refresh": 2,
         "includeAll": true,
         "multi": true,
@@ -30,7 +30,7 @@
         "name": "instance",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
-        "query": "label_values(checkride_drill_verified{job=~\"$job\"}, instance)",
+        "query": "label_values(nostekon_drill_verified{job=~\"$job\"}, instance)",
         "refresh": 2,
         "includeAll": true,
         "multi": true,
@@ -46,7 +46,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
-        { "expr": "max by (instance) (checkride_drill_verified{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
+        { "expr": "max by (instance) (nostekon_drill_verified{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -66,7 +66,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
-        { "expr": "max by (instance) (checkride_drill_deepest_level{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
+        { "expr": "max by (instance) (nostekon_drill_deepest_level{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -85,7 +85,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
-        { "expr": "max by (instance) (checkride_evidence_verified{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
+        { "expr": "max by (instance) (nostekon_evidence_verified{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -104,7 +104,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
-        { "expr": "max by (instance) (checkride_acknowledged_writes_lost{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
+        { "expr": "max by (instance) (nostekon_acknowledged_writes_lost{job=~\"$job\", instance=~\"$instance\"})", "legendFormat": "{{instance}}" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -122,7 +122,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "s" } },
       "targets": [
-        { "expr": "checkride_recovery_time_seconds{job=~\"$job\", instance=~\"$instance\"} >= 0", "legendFormat": "{{instance}}" }
+        { "expr": "nostekon_recovery_time_seconds{job=~\"$job\", instance=~\"$instance\"} >= 0", "legendFormat": "{{instance}}" }
       ]
     },
     {
@@ -133,7 +133,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "s" } },
       "targets": [
-        { "expr": "checkride_data_loss_seconds{job=~\"$job\", instance=~\"$instance\"} >= 0", "legendFormat": "{{instance}}" }
+        { "expr": "nostekon_data_loss_seconds{job=~\"$job\", instance=~\"$instance\"} >= 0", "legendFormat": "{{instance}}" }
       ]
     },
     {
@@ -143,10 +143,10 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
-        { "expr": "checkride_drill_verified{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "verified" },
-        { "expr": "checkride_drill_deepest_level{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "deepest_level" },
-        { "expr": "checkride_recovery_time_seconds{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "rto_seconds" },
-        { "expr": "checkride_data_loss_seconds{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "rpo_seconds" }
+        { "expr": "nostekon_drill_verified{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "verified" },
+        { "expr": "nostekon_drill_deepest_level{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "deepest_level" },
+        { "expr": "nostekon_recovery_time_seconds{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "rto_seconds" },
+        { "expr": "nostekon_data_loss_seconds{job=~\"$job\", instance=~\"$instance\"}", "format": "table", "instant": true, "legendFormat": "rpo_seconds" }
       ],
       "transformations": [
         { "id": "merge", "options": {} }

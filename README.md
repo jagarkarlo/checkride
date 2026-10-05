@@ -206,7 +206,7 @@ The instance label defaults to the evidence's `metadata.name`; set
 `--pushgateway-instance` explicitly in a scheduled job so every run keeps its
 own series instead of overwriting the last one. A push failure is printed as
 a warning and does not change the exit code. Import
-[`grafana/checkride-recovery-dashboard.json`](grafana/checkride-recovery-dashboard.json)
+[`grafana/nostekon-recovery-dashboard.json`](grafana/nostekon-recovery-dashboard.json)
 for a ready dashboard, or read the
 [full guide](site/src/content/docs/guides/metrics-and-dashboard.md).
 

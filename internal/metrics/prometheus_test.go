@@ -36,15 +36,15 @@ func TestFromReportOfVerifiedRun(t *testing.T) {
 	samples := sampleMap(FromReport(report))
 
 	want := map[string]float64{
-		"checkride_drill_verified":           1,
-		"checkride_drill_requested_level":    4,
-		"checkride_drill_deepest_level":      4,
-		"checkride_recovery_time_seconds":    703,
-		"checkride_recovery_time_met":        1,
-		"checkride_data_loss_seconds":        38,
-		"checkride_data_loss_met":            1,
-		"checkride_acknowledged_writes_lost": 75,
-		"checkride_evidence_verified":        0,
+		"nostekon_drill_verified":           1,
+		"nostekon_drill_requested_level":    4,
+		"nostekon_drill_deepest_level":      4,
+		"nostekon_recovery_time_seconds":    703,
+		"nostekon_recovery_time_met":        1,
+		"nostekon_data_loss_seconds":        38,
+		"nostekon_data_loss_met":            1,
+		"nostekon_acknowledged_writes_lost": 75,
+		"nostekon_evidence_verified":        0,
 	}
 	for name, value := range want {
 		got, ok := samples[name]
@@ -63,32 +63,32 @@ func TestFromReportWithoutLedgerReportsUnmeasuredNotZero(t *testing.T) {
 	report := verify.Build(evidence)
 	samples := sampleMap(FromReport(report))
 
-	if samples["checkride_data_loss_seconds"] != -1 {
-		t.Errorf("data loss seconds = %v, want -1 (unmeasured)", samples["checkride_data_loss_seconds"])
+	if samples["nostekon_data_loss_seconds"] != -1 {
+		t.Errorf("data loss seconds = %v, want -1 (unmeasured)", samples["nostekon_data_loss_seconds"])
 	}
-	if samples["checkride_acknowledged_writes_lost"] != -1 {
-		t.Errorf("writes lost = %v, want -1 (unmeasured)", samples["checkride_acknowledged_writes_lost"])
+	if samples["nostekon_acknowledged_writes_lost"] != -1 {
+		t.Errorf("writes lost = %v, want -1 (unmeasured)", samples["nostekon_acknowledged_writes_lost"])
 	}
 }
 
 func TestFromReportDeepestLevelReflectsAFailedDrill(t *testing.T) {
 	report := verify.Build(loadRun(t, "crud-cluster-loss.run.json"))
 	samples := sampleMap(FromReport(report))
-	if samples["checkride_drill_deepest_level"] != 2 {
-		t.Errorf("deepest level = %v, want 2 (V2)", samples["checkride_drill_deepest_level"])
+	if samples["nostekon_drill_deepest_level"] != 2 {
+		t.Errorf("deepest level = %v, want 2 (V2)", samples["nostekon_drill_deepest_level"])
 	}
-	if samples["checkride_drill_verified"] != 0 {
-		t.Errorf("verified = %v, want 0", samples["checkride_drill_verified"])
+	if samples["nostekon_drill_verified"] != 0 {
+		t.Errorf("verified = %v, want 0", samples["nostekon_drill_verified"])
 	}
 }
 
 func TestFormatIsValidExpositionText(t *testing.T) {
-	text := Format([]Sample{{"checkride_drill_verified", "help text", 1}, {"checkride_recovery_time_seconds", "help", 16.5}})
+	text := Format([]Sample{{"nostekon_drill_verified", "help text", 1}, {"nostekon_recovery_time_seconds", "help", 16.5}})
 	for _, want := range []string{
-		"# HELP checkride_drill_verified help text\n",
-		"# TYPE checkride_drill_verified gauge\n",
-		"checkride_drill_verified 1\n",
-		"checkride_recovery_time_seconds 16.5\n",
+		"# HELP nostekon_drill_verified help text\n",
+		"# TYPE nostekon_drill_verified gauge\n",
+		"nostekon_drill_verified 1\n",
+		"nostekon_recovery_time_seconds 16.5\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output missing %q; got:\n%s", want, text)
@@ -117,20 +117,20 @@ func TestPushSendsExpositionTextToTheGroupingKeyPath(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := Push(server.URL, "checkride", map[string]string{"instance": "mlflow-namespace-loss"}, []Sample{{"checkride_drill_verified", "h", 1}})
+	err := Push(server.URL, "nostekon", map[string]string{"instance": "mlflow-namespace-loss"}, []Sample{{"nostekon_drill_verified", "h", 1}})
 	if err != nil {
 		t.Fatalf("Push: %v", err)
 	}
 	if gotMethod != http.MethodPut {
 		t.Errorf("method = %s, want PUT", gotMethod)
 	}
-	if gotPath != "/metrics/job/checkride/instance/mlflow-namespace-loss" {
+	if gotPath != "/metrics/job/nostekon/instance/mlflow-namespace-loss" {
 		t.Errorf("path = %s", gotPath)
 	}
 	if !strings.HasPrefix(gotContentType, "text/plain") {
 		t.Errorf("content-type = %s", gotContentType)
 	}
-	if !strings.Contains(gotBody, "checkride_drill_verified 1") {
+	if !strings.Contains(gotBody, "nostekon_drill_verified 1") {
 		t.Errorf("body = %q", gotBody)
 	}
 }
@@ -143,10 +143,10 @@ func TestPushSortsMultipleLabelsIntoTheGroupingKey(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if err := Push(server.URL, "checkride", map[string]string{"scenario": "namespace-loss", "instance": "run-1"}, nil); err != nil {
+	if err := Push(server.URL, "nostekon", map[string]string{"scenario": "namespace-loss", "instance": "run-1"}, nil); err != nil {
 		t.Fatalf("Push: %v", err)
 	}
-	if gotPath != "/metrics/job/checkride/instance/run-1/scenario/namespace-loss" {
+	if gotPath != "/metrics/job/nostekon/instance/run-1/scenario/namespace-loss" {
 		t.Errorf("path = %s, want labels sorted by key", gotPath)
 	}
 }
@@ -158,7 +158,7 @@ func TestPushReturnsErrorOnNonSuccessStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := Push(server.URL, "checkride", map[string]string{"instance": "x"}, nil)
+	err := Push(server.URL, "nostekon", map[string]string{"instance": "x"}, nil)
 	if err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("err = %v, want it to mention the gateway's response", err)
 	}
@@ -168,10 +168,10 @@ func TestPushRejectsEmptyJobAndSlashInLabels(t *testing.T) {
 	if err := Push("http://example.invalid", "", map[string]string{"instance": "x"}, nil); err == nil {
 		t.Fatal("expected an error for an empty job name")
 	}
-	if err := Push("http://example.invalid", "checkride", map[string]string{"instance": "a/b"}, nil); err == nil {
+	if err := Push("http://example.invalid", "nostekon", map[string]string{"instance": "a/b"}, nil); err == nil {
 		t.Fatal("expected an error for a label value containing '/'")
 	}
-	if err := Push("http://example.invalid", "checkride", map[string]string{"instance": ""}, nil); err == nil {
+	if err := Push("http://example.invalid", "nostekon", map[string]string{"instance": ""}, nil); err == nil {
 		t.Fatal("expected an error for an empty label value")
 	}
 }

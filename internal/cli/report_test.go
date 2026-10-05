@@ -171,10 +171,10 @@ func TestRunPushesMetricsToThePushgatewayUnderTheEvidenceName(t *testing.T) {
 	if code != 0 || stderr.Len() > 0 {
 		t.Fatalf("exit=%d stderr=%s", code, stderr.String())
 	}
-	if gotPath != "/metrics/job/checkride/instance/mlflow-namespace-loss-20261001" {
+	if gotPath != "/metrics/job/nostekon/instance/mlflow-namespace-loss-20261001" {
 		t.Errorf("pushgateway path = %s", gotPath)
 	}
-	if !strings.Contains(gotBody, "checkride_drill_verified 1") {
+	if !strings.Contains(gotBody, "nostekon_drill_verified 1") {
 		t.Errorf("pushgateway body missing verified sample: %s", gotBody)
 	}
 }

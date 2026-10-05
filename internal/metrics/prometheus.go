@@ -30,13 +30,13 @@ func FromReport(report verify.Report) []Sample {
 		verified = 1
 	}
 	samples := []Sample{
-		{"checkride_drill_verified", "1 if the drill verdict is verified, 0 otherwise.", verified},
-		{"checkride_drill_requested_level", "Ordinal (V0=0..V4=4) of the requested verification depth.", level(report.RequestedLevel)},
-		{"checkride_drill_deepest_level", "Ordinal (V0=0..V4=4) of the deepest contiguous level passed, or -1 if none passed.", levelOrNegative(report.DeepestPassed)},
+		{"nostekon_drill_verified", "1 if the drill verdict is verified, 0 otherwise.", verified},
+		{"nostekon_drill_requested_level", "Ordinal (V0=0..V4=4) of the requested verification depth.", level(report.RequestedLevel)},
+		{"nostekon_drill_deepest_level", "Ordinal (V0=0..V4=4) of the deepest contiguous level passed, or -1 if none passed.", levelOrNegative(report.DeepestPassed)},
 	}
 	samples = append(samples, rtoSamples(report.RTO)...)
 	samples = append(samples, rpoSamples(report.RPO)...)
-	samples = append(samples, Sample{"checkride_evidence_verified", "1 if the evidence has a verified detached signature, 0 otherwise.", provenanceVerified(report.Provenance)})
+	samples = append(samples, Sample{"nostekon_evidence_verified", "1 if the evidence has a verified detached signature, 0 otherwise.", provenanceVerified(report.Provenance)})
 	return samples
 }
 
@@ -64,8 +64,8 @@ func provenanceVerified(provenance verify.Provenance) float64 {
 func rtoSamples(rto *verify.RTOResult) []Sample {
 	if rto == nil {
 		return []Sample{
-			{"checkride_recovery_time_seconds", "Measured recovery time from failure to completion, or -1 if unmeasured.", -1},
-			{"checkride_recovery_time_met", "1 if recovery time met its objective, 0 if missed, -1 if unmeasured or no objective was set.", -1},
+			{"nostekon_recovery_time_seconds", "Measured recovery time from failure to completion, or -1 if unmeasured.", -1},
+			{"nostekon_recovery_time_met", "1 if recovery time met its objective, 0 if missed, -1 if unmeasured or no objective was set.", -1},
 		}
 	}
 	met := -1.0
@@ -77,18 +77,18 @@ func rtoSamples(rto *verify.RTOResult) []Sample {
 		}
 	}
 	return []Sample{
-		{"checkride_recovery_time_seconds", "Measured recovery time from failure to completion, or -1 if unmeasured.", rto.Seconds},
-		{"checkride_recovery_time_met", "1 if recovery time met its objective, 0 if missed, -1 if unmeasured or no objective was set.", met},
+		{"nostekon_recovery_time_seconds", "Measured recovery time from failure to completion, or -1 if unmeasured.", rto.Seconds},
+		{"nostekon_recovery_time_met", "1 if recovery time met its objective, 0 if missed, -1 if unmeasured or no objective was set.", met},
 	}
 }
 
 func rpoSamples(rpo *verify.RPOResult) []Sample {
 	if rpo == nil {
 		return []Sample{
-			{"checkride_data_loss_seconds", "Measured acknowledged-write data loss window, or -1 if unmeasured.", -1},
-			{"checkride_data_loss_met", "1 if data loss met its objective, 0 if missed, -1 if unmeasured or no objective was set.", -1},
-			{"checkride_acknowledged_writes_total", "Acknowledged writes recorded before the failure, or -1 if unmeasured.", -1},
-			{"checkride_acknowledged_writes_lost", "Acknowledged writes not found after recovery, or -1 if unmeasured.", -1},
+			{"nostekon_data_loss_seconds", "Measured acknowledged-write data loss window, or -1 if unmeasured.", -1},
+			{"nostekon_data_loss_met", "1 if data loss met its objective, 0 if missed, -1 if unmeasured or no objective was set.", -1},
+			{"nostekon_acknowledged_writes_total", "Acknowledged writes recorded before the failure, or -1 if unmeasured.", -1},
+			{"nostekon_acknowledged_writes_lost", "Acknowledged writes not found after recovery, or -1 if unmeasured.", -1},
 		}
 	}
 	met := -1.0
@@ -100,10 +100,10 @@ func rpoSamples(rpo *verify.RPOResult) []Sample {
 		}
 	}
 	return []Sample{
-		{"checkride_data_loss_seconds", "Measured acknowledged-write data loss window, or -1 if unmeasured.", rpo.Seconds},
-		{"checkride_data_loss_met", "1 if data loss met its objective, 0 if missed, -1 if unmeasured or no objective was set.", met},
-		{"checkride_acknowledged_writes_total", "Acknowledged writes recorded before the failure, or -1 if unmeasured.", float64(rpo.Acknowledged)},
-		{"checkride_acknowledged_writes_lost", "Acknowledged writes not found after recovery, or -1 if unmeasured.", float64(rpo.Lost)},
+		{"nostekon_data_loss_seconds", "Measured acknowledged-write data loss window, or -1 if unmeasured.", rpo.Seconds},
+		{"nostekon_data_loss_met", "1 if data loss met its objective, 0 if missed, -1 if unmeasured or no objective was set.", met},
+		{"nostekon_acknowledged_writes_total", "Acknowledged writes recorded before the failure, or -1 if unmeasured.", float64(rpo.Acknowledged)},
+		{"nostekon_acknowledged_writes_lost", "Acknowledged writes not found after recovery, or -1 if unmeasured.", float64(rpo.Lost)},
 	}
 }
 
