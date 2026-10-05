@@ -482,7 +482,7 @@ def execute_isolated_drill(
                         "detail": str(exc)[:500],
                     }
                 )
-                error = error or exc
+                error = exc if isinstance(exc, KeyboardInterrupt) else error or exc
         result = {
             "apiVersion": "nostekon/v1alpha1",
             "kind": "DrillRun",

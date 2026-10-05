@@ -144,8 +144,6 @@ def execute_lab_suite(
                     case["observedExitCode"] = 0
                 except KeyboardInterrupt:
                     case["observedExitCode"] = 130
-                    case["error"] = "lab interrupted"
-                    summary["status"] = "interrupted"
                     raise
                 except Exception as error:
                     case["observedExitCode"] = 1
@@ -161,6 +159,12 @@ def execute_lab_suite(
                 case["passed"] for case in summary["cases"]
             )
             summary["status"] = "passed" if summary["passed"] else "failed"
+        except KeyboardInterrupt:
+            summary["passed"] = False
+            summary["status"] = "interrupted"
+            if summary["cases"] and not summary["cases"][-1]["passed"]:
+                summary["cases"][-1]["error"] = "lab interrupted"
+            raise
         finally:
             summary["completedAt"] = utc_timestamp()
             persist()

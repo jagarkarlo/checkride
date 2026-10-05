@@ -133,6 +133,83 @@ def test_lab_suite_records_interruption_and_stops(tmp_path):
     assert result["cases"][0]["observedExitCode"] == 130
 
 
+@pytest.mark.parametrize("interrupted_case", [0, 1, 2])
+def test_lab_suite_records_interruption_during_evidence_evaluation(tmp_path, interrupted_case):
+    from nostekon import lab_suite
+
+    commands = []
+    output = tmp_path / "suite"
+    evaluate = lab_suite._evaluate_case
+    case_names = ["zero-loss", "tail-loss", "budget-loss"]
+
+    def cancelled_evaluation(evidence_path, writes, tail, budget, case):
+        if case["name"] == case_names[interrupted_case]:
+            raise KeyboardInterrupt
+        return evaluate(evidence_path, writes, tail, budget, case)
+
+    with (
+        patch.object(restore, "run_kubectl", side_effect=fake_kubectl(commands)),
+        patch.object(lab_suite, "_evaluate_case", side_effect=cancelled_evaluation),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        lab_suite.execute_lab_suite(output)
+    result = json.loads((output / "suite.json").read_text())
+    assert result["status"] == "interrupted"
+    assert result["passed"] is False
+    assert result["completedAt"] is not None
+    assert len(result["cases"]) == interrupted_case + 1
+    assert all(case["passed"] for case in result["cases"][:-1])
+    case = result["cases"][-1]
+    assert case["observedExitCode"] == [0, 1, 0][interrupted_case]
+    assert case["passed"] is False
+    assert case["error"] == "lab interrupted"
+    assert (output / case["drillRun"]).is_file()
+    assert (output / case["ledger"]).is_file()
+    assert len([item for item in commands if item[2][:2] == ("create", "namespace")]) == (
+        2 * (interrupted_case + 1)
+    )
+
+
+def test_lab_suite_cleanup_interrupt_preserves_completed_cases(tmp_path):
+    from nostekon import lab_suite
+
+    commands = []
+    execute = fake_kubectl(commands)
+    backups = 0
+
+    def cancelled_cleanup(context, namespace, *args, input_data=None):
+        nonlocal backups
+        result = execute(context, namespace, *args, input_data=input_data)
+        if "pg_dump" in args:
+            backups += 1
+            if backups == 2:
+                raise RuntimeError("second backup failed")
+        if backups == 2 and context == RESTORE and args[:2] == ("delete", "namespace"):
+            raise KeyboardInterrupt("cancelled after failed backup")
+        return result
+
+    output = tmp_path / "suite"
+    with (
+        patch.object(restore, "run_kubectl", side_effect=cancelled_cleanup),
+        pytest.raises(KeyboardInterrupt, match="cancelled after failed backup"),
+    ):
+        lab_suite.execute_lab_suite(output)
+    result = json.loads((output / "suite.json").read_text())
+    assert result["status"] == "interrupted"
+    assert result["passed"] is False
+    assert result["completedAt"] is not None
+    assert [case["name"] for case in result["cases"]] == ["zero-loss", "tail-loss"]
+    assert [case["passed"] for case in result["cases"]] == [True, False]
+    assert [case["observedExitCode"] for case in result["cases"]] == [0, 130]
+    assert result["cases"][1]["error"] == "lab interrupted"
+    checks = json.loads((output / result["cases"][1]["drillRun"]).read_text())["status"]["checks"]
+    assert any(check.get("detail") == "second backup failed" for check in checks)
+    assert any(check.get("detail") == "cancelled after failed backup" for check in checks)
+    deleted = [item[0] for item in commands if item[2][:2] == ("delete", "namespace")]
+    assert deleted.count(SOURCE) == deleted.count(RESTORE) == 2
+    assert not (output / "budget-loss.drillrun.json").exists()
+
+
 def test_lab_suite_refuses_existing_directory_before_execution(tmp_path):
     from nostekon import lab_suite
 
@@ -514,6 +591,31 @@ def test_cleanup_failure_cannot_leave_verified_report(tmp_path):
         restore.execute_isolated_drill(output)
     checks = json.loads(output.read_text())["status"]["checks"]
     assert any(not check["passed"] for check in checks)
+
+
+def test_cleanup_interrupt_overrides_prior_execution_error(tmp_path):
+    commands = []
+    execute = fake_kubectl(commands)
+
+    def interrupted(context, namespace, *args, input_data=None):
+        result = execute(context, namespace, *args, input_data=input_data)
+        if "pg_dump" in args:
+            raise RuntimeError("backup failed before cancellation")
+        if context == RESTORE and args[:2] == ("delete", "namespace"):
+            raise KeyboardInterrupt("operator cancelled cleanup")
+        return result
+
+    output = tmp_path / "run.json"
+    with (
+        patch.object(restore, "run_kubectl", side_effect=interrupted),
+        pytest.raises(KeyboardInterrupt, match="operator cancelled cleanup"),
+    ):
+        restore.execute_isolated_drill(output)
+    checks = json.loads(output.read_text())["status"]["checks"]
+    assert any(check.get("detail") == "backup failed before cancellation" for check in checks)
+    assert any(check.get("detail") == "operator cancelled cleanup" for check in checks)
+    deleted = {item[0] for item in commands if item[2][:2] == ("delete", "namespace")}
+    assert deleted == {SOURCE, RESTORE}
 
 
 def test_check_cluster_health_evaluates_node_readiness():
