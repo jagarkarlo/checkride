@@ -158,6 +158,63 @@ capture without creating clusters:
 go run ./cmd/checkride-report examples/runs/k3d-ledger-budget-loss.run.json
 ```
 
+### Run the three-case policy suite
+
+Run all three outcomes as one regression gate against the same two disposable
+clusters. Choose an output directory that does not already exist:
+
+```bash
+checkride lab suite --output-dir /tmp/checkride-suite-001
+```
+
+The suite defaults to ten writes before each backup and runs these cases in order:
+
+| Case | Writes after backup | RPO objective | Expected drill exit |
+| --- | --- | --- | --- |
+| `zero-loss` | 0 | 0s | 0 |
+| `tail-loss` | 2 | 0s | 1 |
+| `budget-loss` | 2 | 60s | 0 |
+
+The **suite exits 0 when all three measured outcomes match their expectations**.
+The strict `tail-loss` DrillRun remains failed; it is not rewritten as verified.
+The suite checks the lost-write counts, holes, unexpected IDs, objectives and
+V0-V4 evidence, including the original probe. An unrelated restore, query or
+cleanup error does not count as the expected strict-policy failure. An unexpected
+outcome stops the suite and returns 1 without executing later cases.
+
+Each case produces `<case>.drillrun.json` and its SQLite ledger. The directory
+uses mode `0700`; the summary, evidence and ledger files use `0600`. The suite
+rejects an existing output directory before accessing clusters. It persists
+`suite.json` before each case and after evaluation, including expected and
+observed exits, measured RPO and the final suite status. Keep individual evidence
+files for independent evaluation; the summary is a regression result, not a
+replacement for a DrillRun report or authenticated provenance.
+
+To evaluate the intentionally failed case independently, build the Go binary
+so its exit status is preserved:
+
+```bash
+go build -o /tmp/checkride-report ./cmd/checkride-report
+/tmp/checkride-report /tmp/checkride-suite-001/tail-loss.drillrun.json
+```
+
+This evaluator should return 1 and still report the measured two lost writes.
+Studio comparisons display both recovery objectives and warn when policies
+differ, so a budget change is not mistaken for an improved recovery.
+
+Suite `--writes` accepts 1-98; the two tail writes keep the total at most 100.
+Suite `--rpo-seconds` accepts 1-86400 and changes only the `budget-loss` objective
+(default 60). The other two cases retain `0s`. Optional `--source-context`,
+`--restore-context` and `--image` use the same isolation checks as `lab run`.
+SIGINT or SIGTERM returns 130 and attempts normal cleanup. Inspect the summary
+and cleanup messages before rerunning with a fresh directory. A forcibly killed
+process can leave a running or partial summary and namespaces requiring cleanup;
+the summary is not an atomic crash-recovery mechanism.
+
+Verified on 2026-10-05 with three real two-cluster restores: drill exits 0/1/0,
+lost writes 0/2/2, every measured RPO field matching the independent Go evaluator,
+private artifact permissions and all six temporary namespaces removed.
+
 ### Ledger And Measurement Limits
 
 `--writes` defaults to one and must be positive; `--after-backup-writes`
