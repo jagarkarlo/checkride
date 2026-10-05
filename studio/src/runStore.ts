@@ -14,16 +14,58 @@ export interface SavedRun {
 
 interface RunDatabase extends DBSchema {
   runs: { key: string; value: SavedRun };
+  migration: { key: string; value: boolean };
 }
 
 export const RUN_LIMIT = 50;
 const SOURCE_LIMIT = 16 * 1024 * 1024;
 
 async function database() {
-  // Pre-rename name kept so runs already saved in the browser stay available.
-  return openDB<RunDatabase>("checkride-runs", 1, {
-    upgrade(db) { db.createObjectStore("runs", { keyPath: "id" }); },
+  const db = await openDB<RunDatabase>("nostekon-runs", 1, {
+    upgrade(db) {
+      db.createObjectStore("runs", { keyPath: "id" });
+      db.createObjectStore("migration");
+    },
   });
+  try {
+    if (await db.get("migration", "legacy-imported")) return db;
+    let missing = false;
+    const legacy = await openDB<RunDatabase>("checkride-runs", 1, {
+      upgrade(_db, _oldVersion, _newVersion, transaction) {
+        missing = true;
+        void transaction.done.catch(() => undefined);
+        transaction.abort();
+      },
+    }).catch((error: unknown) => {
+      if (missing) return null;
+      throw error;
+    });
+    let runs: SavedRun[] = [];
+    if (legacy) {
+      try { runs = await legacy.getAll("runs"); }
+      finally { legacy.close(); }
+    }
+    const transaction = db.transaction(["runs", "migration"], "readwrite");
+    try {
+      if (!await transaction.objectStore("migration").get("legacy-imported")) {
+        for (const run of runs) {
+          if (!await transaction.objectStore("runs").get(run.id)) {
+            await transaction.objectStore("runs").put(run);
+          }
+        }
+        await transaction.objectStore("migration").put(true, "legacy-imported");
+      }
+      await transaction.done;
+    } catch (error) {
+      try { transaction.abort(); } catch {}
+      await transaction.done.catch(() => undefined);
+      throw error;
+    }
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }
 
 export async function listRuns(): Promise<SavedRun[]> {
