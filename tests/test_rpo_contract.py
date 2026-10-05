@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from checkride.ledger import Ack, measure_rpo
+from nostekon.ledger import Ack, measure_rpo
 
 CASES = json.loads((Path(__file__).parent / "contracts" / "rpo_cases.json").read_text())["cases"]
 

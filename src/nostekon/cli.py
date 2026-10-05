@@ -13,10 +13,10 @@ from typing import Any, TextIO
 import yaml
 from pydantic import ValidationError
 
-from checkride import __version__
-from checkride.ledger import Ledger, RpoReport, measure_rpo
-from checkride.levels import LEVELS
-from checkride.spec import describe_errors, drill_schema, lint, load_drill
+from nostekon import __version__
+from nostekon.ledger import Ledger, RpoReport, measure_rpo
+from nostekon.levels import LEVELS
+from nostekon.spec import describe_errors, drill_schema, lint, load_drill
 
 
 def _timestamp(text: str) -> datetime:
@@ -149,7 +149,7 @@ def _cmd_rpo(args: argparse.Namespace) -> int:
 
 
 def _cmd_lab_run(args: argparse.Namespace) -> int:
-    from checkride.lab import (
+    from nostekon.lab import (
         DEFAULT_POSTGRES_IMAGE,
         DEFAULT_RESTORE_CONTEXT,
         DEFAULT_SOURCE_CONTEXT,
@@ -182,7 +182,7 @@ def _cmd_lab_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_lab_suite(args: argparse.Namespace) -> int:
-    from checkride.lab_suite import (
+    from nostekon.lab_suite import (
         DEFAULT_POSTGRES_IMAGE,
         DEFAULT_RESTORE_CONTEXT,
         DEFAULT_SOURCE_CONTEXT,
@@ -224,7 +224,7 @@ def _cmd_lab_suite(args: argparse.Namespace) -> int:
 
 
 def _cmd_lab_status(args: argparse.Namespace) -> int:
-    from checkride.lab import DEFAULT_RESTORE_CONTEXT, DEFAULT_SOURCE_CONTEXT, check_cluster_health
+    from nostekon.lab import DEFAULT_RESTORE_CONTEXT, DEFAULT_SOURCE_CONTEXT, check_cluster_health
 
     contexts = [
         ("source", args.source_context or DEFAULT_SOURCE_CONTEXT),
@@ -249,7 +249,7 @@ def _cmd_lab_status(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="checkride",
+        prog="nostekon",
         description="Prove, don't assume, that you can recover.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")

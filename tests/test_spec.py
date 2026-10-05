@@ -6,8 +6,8 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from checkride.levels import Level
-from checkride.spec import (
+from nostekon.levels import Level
+from nostekon.spec import (
     RestoreInto,
     Scenario,
     describe_errors,

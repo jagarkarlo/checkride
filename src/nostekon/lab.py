@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from checkride.ledger import Ledger, measure_rpo
+from nostekon.ledger import Ledger, measure_rpo
 
 DEFAULT_SOURCE_CONTEXT = "k3d-checkride-source"
 DEFAULT_RESTORE_CONTEXT = "k3d-checkride-restore"

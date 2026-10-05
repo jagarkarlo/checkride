@@ -49,7 +49,7 @@ jobs:
       - name: Test
         run: pytest
       - name: Validate example drills
-        run: checkride validate examples/drills/*.yaml
+        run: nostekon validate examples/drills/*.yaml
 
   package:
     name: Build distributions

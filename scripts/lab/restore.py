@@ -3,7 +3,7 @@
 
 import sys
 
-from checkride.cli import main
+from nostekon.cli import main
 
 if __name__ == "__main__":
     raise SystemExit(main(["lab", "run", *sys.argv[1:]]))

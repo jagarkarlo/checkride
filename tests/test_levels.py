@@ -1,6 +1,6 @@
 import pytest
 
-from checkride.levels import LEVELS, Level, deepest_passed, first_failed, parse_level
+from nostekon.levels import LEVELS, Level, deepest_passed, first_failed, parse_level
 
 
 @pytest.mark.parametrize("value", ["V3", "v3", " V3 ", "3", 3, Level.V3])

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from checkride.ledger import Ack, Ledger, measure_rpo
+from nostekon.ledger import Ack, Ledger, measure_rpo
 
 START = datetime(2026, 10, 1, 10, 0, tzinfo=UTC)
 

@@ -14,7 +14,7 @@ labels: bug
 
 ## Environment
 
-- Nostekon version or commit (`checkride version`):
+- Nostekon version or commit (`nostekon version`):
 - Kubernetes distribution and version:
 - CloudNativePG / Velero versions:
 

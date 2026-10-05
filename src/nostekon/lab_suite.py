@@ -5,14 +5,14 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from checkride.lab import (
+from nostekon.lab import (
     DEFAULT_POSTGRES_IMAGE,
     DEFAULT_RESTORE_CONTEXT,
     DEFAULT_SOURCE_CONTEXT,
     execute_isolated_drill,
     utc_timestamp,
 )
-from checkride.ledger import Ack, measure_rpo
+from nostekon.ledger import Ack, measure_rpo
 
 
 def _evaluate_case(output: Path, writes: int, tail: int, budget: int, case: dict) -> None:

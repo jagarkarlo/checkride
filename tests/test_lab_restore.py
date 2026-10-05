@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from checkride import lab as restore
-from checkride.ledger import Ledger
+from nostekon import lab as restore
+from nostekon.ledger import Ledger
 
 SOURCE = restore.DEFAULT_SOURCE_CONTEXT
 RESTORE = restore.DEFAULT_RESTORE_CONTEXT
@@ -50,7 +50,7 @@ def commands_write_id(commands):
 
 
 def test_lab_suite_measures_all_three_policy_outcomes(tmp_path):
-    from checkride.lab_suite import execute_lab_suite
+    from nostekon.lab_suite import execute_lab_suite
 
     commands = []
     output = tmp_path / "suite"
@@ -79,7 +79,7 @@ def test_lab_suite_measures_all_three_policy_outcomes(tmp_path):
 
 @pytest.mark.parametrize("fault", ["restore-error", "cleanup-error", "unexpected-pass"])
 def test_lab_suite_never_accepts_unrelated_failure_as_expected_tail_loss(tmp_path, fault):
-    from checkride import lab_suite
+    from nostekon import lab_suite
 
     original = restore.execute_isolated_drill
     calls = []
@@ -117,7 +117,7 @@ def test_lab_suite_never_accepts_unrelated_failure_as_expected_tail_loss(tmp_pat
 
 
 def test_lab_suite_records_interruption_and_stops(tmp_path):
-    from checkride import lab_suite
+    from nostekon import lab_suite
 
     output = tmp_path / "suite"
     with (
@@ -134,7 +134,7 @@ def test_lab_suite_records_interruption_and_stops(tmp_path):
 
 
 def test_lab_suite_refuses_existing_directory_before_execution(tmp_path):
-    from checkride import lab_suite
+    from nostekon import lab_suite
 
     existing = tmp_path / "suite.json"
     existing.write_text("preserve this evidence")
@@ -153,7 +153,7 @@ def test_lab_suite_refuses_existing_directory_before_execution(tmp_path):
     + [{"rpo_seconds": value} for value in [0, 86401, True, 1.5]],
 )
 def test_lab_suite_rejects_invalid_workload_before_creating_output(tmp_path, parameters):
-    from checkride import lab_suite
+    from nostekon import lab_suite
 
     output = tmp_path / "suite"
     with (
@@ -317,7 +317,7 @@ def test_existing_host_ledger_is_never_overwritten(tmp_path):
 
 @pytest.mark.parametrize("after_backup_writes", [0, 2])
 def test_lab_workload_measures_acknowledged_tail_loss(tmp_path, after_backup_writes):
-    from checkride.ledger import Ack, measure_rpo
+    from nostekon.ledger import Ack, measure_rpo
 
     commands = []
     output = tmp_path / "run.json"
@@ -380,7 +380,7 @@ def test_invalid_rpo_budget_is_rejected_before_cluster_access(tmp_path, budget):
 
 @pytest.mark.parametrize("replace_index,holes", [(1, 1), (2, 0)])
 def test_same_row_count_cannot_hide_missing_or_unexpected_ids(tmp_path, replace_index, holes):
-    from checkride.ledger import Ack, measure_rpo
+    from nostekon.ledger import Ack, measure_rpo
 
     commands = []
     execute = fake_kubectl(commands)
@@ -502,7 +502,7 @@ def test_cleanup_failure_cannot_leave_verified_report(tmp_path):
 
 
 def test_check_cluster_health_evaluates_node_readiness():
-    from checkride.lab import check_cluster_health
+    from nostekon.lab import check_cluster_health
 
     def mock_kubectl(context, namespace, *args, input_data=None):
         if "kube-system" in args:
@@ -511,7 +511,7 @@ def test_check_cluster_health_evaluates_node_readiness():
             return b"True True False"
         return b""
 
-    with patch("checkride.lab.run_kubectl", side_effect=mock_kubectl):
+    with patch("nostekon.lab.run_kubectl", side_effect=mock_kubectl):
         res = check_cluster_health("test-ctx")
     assert res["reachable"] is True
     assert res["uid"] == "system-uid"

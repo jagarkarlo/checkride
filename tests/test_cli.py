@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from checkride import __version__
-from checkride.cli import main
+from nostekon import __version__
+from nostekon.cli import main
 
 EXAMPLES = Path(__file__).parent.parent / "examples" / "drills"
 
@@ -131,7 +131,7 @@ def test_lab_command_requires_subcommand() -> None:
 def test_lab_run_invokes_execute_isolated_drill(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workload_args, expected
 ) -> None:
-    from checkride import lab
+    from nostekon import lab
 
     called_kwargs: dict = {}
 
@@ -155,7 +155,7 @@ def test_lab_run_invokes_execute_isolated_drill(
 def test_lab_run_returns_error_on_exception(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from checkride import lab
+    from nostekon import lab
 
     def failing_execute(**kwargs):
         raise RuntimeError("cluster unreachable")
@@ -168,7 +168,7 @@ def test_lab_run_returns_error_on_exception(
 
 @pytest.mark.parametrize("passed", [True, False])
 def test_lab_suite_command_forwards_configuration_and_gates_result(tmp_path, monkeypatch, passed):
-    from checkride import lab_suite
+    from nostekon import lab_suite
 
     arguments = {}
 
@@ -208,7 +208,7 @@ def test_lab_suite_command_forwards_configuration_and_gates_result(tmp_path, mon
 
 
 def test_lab_suite_command_defaults(tmp_path, monkeypatch):
-    from checkride import lab_suite
+    from nostekon import lab_suite
 
     arguments = {}
 
@@ -230,7 +230,7 @@ def test_lab_suite_command_restores_signal_handler_on_failure(
 ):
     import signal
 
-    from checkride import lab_suite
+    from nostekon import lab_suite
 
     previous = signal.getsignal(signal.SIGTERM)
 
@@ -245,7 +245,7 @@ def test_lab_suite_command_restores_signal_handler_on_failure(
 def test_lab_status_reports_ready_and_not_ready(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from checkride import lab
+    from nostekon import lab
 
     def fake_health(context: str):
         if "source" in context:
@@ -265,7 +265,7 @@ def test_lab_status_reports_ready_and_not_ready(
 
 
 def test_lab_status_rejects_same_cluster(monkeypatch, capsys):
-    from checkride import lab
+    from nostekon import lab
 
     monkeypatch.setattr(
         lab,
@@ -282,7 +282,7 @@ def test_lab_status_rejects_same_cluster(monkeypatch, capsys):
 
 
 def test_lab_status_requires_all_nodes_ready(monkeypatch):
-    from checkride import lab
+    from nostekon import lab
 
     monkeypatch.setattr(
         lab,
@@ -300,7 +300,7 @@ def test_lab_status_requires_all_nodes_ready(monkeypatch):
 def test_lab_sigterm_returns_interrupted_and_restores_handler(monkeypatch, tmp_path):
     import signal
 
-    from checkride import lab
+    from nostekon import lab
 
     previous = signal.getsignal(signal.SIGTERM)
 

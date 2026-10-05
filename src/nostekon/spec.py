@@ -20,7 +20,7 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
-from checkride.levels import Level, parse_level
+from nostekon.levels import Level, parse_level
 
 API_VERSION = "nostekon/v1alpha1"
 LEGACY_API_VERSION = "checkride/v1alpha1"

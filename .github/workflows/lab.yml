@@ -35,7 +35,7 @@ jobs:
       - name: Run restore drill
         run: |
           mkdir -p lab-results
-          checkride lab run --writes 10 --output lab-results/drillrun.json
+          nostekon lab run --writes 10 --output lab-results/drillrun.json
       - name: Evaluate V4 evidence
         run: |
           go run ./cmd/checkride-report lab-results/drillrun.json >lab-results/report.json
@@ -56,7 +56,7 @@ jobs:
           ' lab-results/report.json >/dev/null
       - name: Verify deliberate acknowledged-write loss
         run: |
-          if checkride lab run --writes 10 --after-backup-writes 2 \
+          if nostekon lab run --writes 10 --after-backup-writes 2 \
             --output lab-results/tail-loss.drillrun.json; then
             echo "Tail-loss drill unexpectedly passed" >&2
             exit 1
@@ -87,7 +87,7 @@ jobs:
           ' lab-results/tail-loss.report.json >/dev/null
       - name: Verify acknowledged-write loss within an explicit RPO budget
         run: |
-          checkride lab run --writes 10 --after-backup-writes 2 --rpo-seconds 60 \
+          nostekon lab run --writes 10 --after-backup-writes 2 --rpo-seconds 60 \
             --output lab-results/budget-loss.drillrun.json
           "$RUNNER_TEMP/checkride-report" lab-results/budget-loss.drillrun.json \
             >lab-results/budget-loss.report.json

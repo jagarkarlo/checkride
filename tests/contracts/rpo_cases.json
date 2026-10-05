@@ -1,5 +1,5 @@
 {
-  "description": "Shared RPO cases: checkride.ledger.measure_rpo (Python) and internal/verify.MeasureRPO (Go) must both satisfy every case.",
+  "description": "Shared RPO cases: nostekon.ledger.measure_rpo (Python) and internal/verify.MeasureRPO (Go) must both satisfy every case.",
   "cases": [
     {
       "name": "nothing lost",

@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "checkride"
+name = "nostekon"
 dynamic = ["version"]
 description = "Automated restore drills that prove Kubernetes and PostgreSQL applications can recover."
 readme = "README.md"
@@ -40,17 +40,17 @@ dev = ["pytest>=8", "ruff>=0.6"]
 docs = ["mkdocs==1.6.1", "mkdocs-material==9.7.6"]
 
 [project.scripts]
-checkride = "checkride.cli:main"
+nostekon = "nostekon.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/jagarkarlo/checkride"
 Issues = "https://github.com/jagarkarlo/checkride/issues"
 
 [tool.hatch.version]
-path = "src/checkride/__init__.py"
+path = "src/nostekon/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/checkride"]
+packages = ["src/nostekon"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
