@@ -77,9 +77,7 @@ code, kbd, pre { font-family: var(--mono); }
 .tool-link:hover { color: var(--ink); }
 .theme-toggle { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink-2); cursor: pointer; }
 .theme-toggle:hover { border-color: var(--accent); color: var(--ink); }
-.theme-toggle svg { display: block; }
-.icon-moon, html[data-theme=light] .icon-sun { display: none; }
-html[data-theme=light] .icon-moon { display: block; }
+.theme-toggle [data-theme-icon] { display: block; width: 20px; height: 20px; font-size: 18px; line-height: 20px; }
 
 /* Buttons */
 .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 18px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer; }

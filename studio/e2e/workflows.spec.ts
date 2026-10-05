@@ -5,12 +5,17 @@ test("theme preference persists across product, docs and demo pages", async ({ p
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("[data-theme-toggle]")).toHaveText("☀️");
+  await expect(page.locator("[data-theme-toggle]")).toHaveAttribute("title", "Switch to light mode");
   await page.locator("[data-theme-toggle]").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("[data-theme-toggle]")).toHaveText("🌙");
+  await expect(page.locator("[data-theme-toggle]")).toHaveAttribute("title", "Switch to dark mode");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("checkride-theme"))).toBe("light");
 
   await page.getByRole("link", { name: "Product", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("[data-theme-toggle]")).toHaveText("🌙");
   await page.getByRole("link", { name: "Docs", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-md-color-scheme", "default");
 
@@ -23,6 +28,7 @@ test("theme preference persists across product, docs and demo pages", async ({ p
   await expect(page.getByRole("heading", { name: "Recovery runs" })).toBeVisible();
   await page.goto("/product/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("[data-theme-toggle]")).toHaveText("☀️");
 });
 
 test("browser demo refuses to claim it verified a detached attestation", async ({ page }) => {
