@@ -4,7 +4,7 @@
 
 ## Context
 
-Checkride needs a long-running control plane for interactive drill management,
+Nostekon needs a long-running control plane for interactive drill management,
 while its first implementation is a Python CLI, declarative spec and write
 ledger. The planned Studio is an operational interface with live drill state,
 timelines, dependency graphs and evidence review, not a content-first site.

@@ -4,7 +4,7 @@
 
 ## Context
 
-Checkride orchestrates clusters, runs statistics on drill results and needs an
+Nostekon orchestrates clusters, runs statistics on drill results and needs an
 interactive web UI. Drill timings are only comparable when component versions
 stay fixed.
 

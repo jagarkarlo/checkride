@@ -22,6 +22,12 @@ volumes, Secrets and object storage is planned, not implemented.
 > `checkride/v1alpha1` versions still verify, but `checkride_*` metrics and the
 > `checkride` command were renamed.
 
+Current packages, commands, clusters, metrics and branding use Nostekon. Legacy
+wire identifiers and captured evidence retain their original names so their
+bytes and signatures remain valid. Studio imports saved browser runs once into
+`nostekon-runs`, without changing evidence bytes; its old database is retained
+as a backup. Storage migration is limited to the same browser origin.
+
 ## Why
 
 Backup tools report `Completed`. That proves a backup was written, not that
@@ -97,6 +103,9 @@ nostekon levels
 nostekon validate examples/drills/*.yaml
 pytest
 ```
+
+For release preparation and PyPI trusted-publisher settings, see
+[Contributing](CONTRIBUTING.md#releases).
 
 The Go API is in early development. From the repository root:
 
