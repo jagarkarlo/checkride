@@ -17,7 +17,7 @@ const maxRunRequestBytes = 16 << 20
 const maxAttestationHeaderBytes = 32 << 10
 const maxConcurrentReports = 4
 
-const attestationHeader = "X-Checkride-Attestation"
+const attestationHeader = "X-Nostekon-Attestation"
 
 var reportSlots = make(chan struct{}, maxConcurrentReports)
 

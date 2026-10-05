@@ -112,8 +112,8 @@ The report CLI marks reports `unverified` unless both `--attestation` and
 evidence digest to the report. An invalid signature stops report generation.
 
 The local report API optionally verifies the base64-encoded
-`X-Checkride-Attestation` header against the public keys in
-`CHECKRIDE_TRUSTED_KEYS_DIR`. Put only `*.pem` PKIX Ed25519 public keys there;
+`X-Nostekon-Attestation` header against the public keys in
+`NOSTEKON_TRUSTED_KEYS_DIR`. Put only `*.pem` PKIX Ed25519 public keys there;
 the API loads at most 128 keys during startup and fails startup on an empty
 configured directory or an invalid key. The local Studio's **Attach
 attestation** control sends the sidecar to this API. A valid response includes
@@ -129,6 +129,6 @@ For scripts that call the endpoint directly:
 sidecar=$(base64 < run.attestation.json | tr -d '\n')
 curl -sS http://localhost:8080/api/v1/runs/report \
   -H 'Content-Type: application/json' \
-  -H "X-Checkride-Attestation: $sidecar" \
+  -H "X-Nostekon-Attestation: $sidecar" \
   --data-binary @run.json
 ```

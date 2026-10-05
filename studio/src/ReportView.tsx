@@ -65,10 +65,10 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
       setAttestationBoundary("");
       try {
         if (browserDemo && detachedAttestation) {
-          setAttestationBoundary("The browser demo cannot verify signatures. Use the local API with CHECKRIDE_TRUSTED_KEYS_DIR configured.");
+          setAttestationBoundary("The browser demo cannot verify signatures. Use the local API with NOSTEKON_TRUSTED_KEYS_DIR configured.");
           return;
         }
-        const headers: Record<string, string> = detachedAttestation ? { "X-Checkride-Attestation": btoa(detachedAttestation) } : {};
+        const headers: Record<string, string> = detachedAttestation ? { "X-Nostekon-Attestation": btoa(detachedAttestation) } : {};
         const response = await request("/api/v1/runs/report", text, undefined, headers);
         const payload: unknown = await response.json();
         if (current !== generation.current) return;

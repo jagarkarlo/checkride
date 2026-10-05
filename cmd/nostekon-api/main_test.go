@@ -6,7 +6,7 @@ import (
 )
 
 func TestRunReturnsBindError(t *testing.T) {
-	t.Setenv("CHECKRIDE_ADDR", "invalid-address")
+	t.Setenv("NOSTEKON_ADDR", "invalid-address")
 
 	err := run()
 	if err == nil || !strings.Contains(err.Error(), "listen on \"invalid-address\"") {

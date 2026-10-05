@@ -25,7 +25,7 @@ func main() {
 }
 
 func run() error {
-	address := os.Getenv("CHECKRIDE_ADDR")
+	address := os.Getenv("NOSTEKON_ADDR")
 	if address == "" {
 		address = ":8080"
 	}
@@ -35,7 +35,7 @@ func run() error {
 
 	var trustedKeys map[string]ed25519.PublicKey
 	var err error
-	if directory := os.Getenv("CHECKRIDE_TRUSTED_KEYS_DIR"); directory != "" {
+	if directory := os.Getenv("NOSTEKON_TRUSTED_KEYS_DIR"); directory != "" {
 		trustedKeys, err = attest.LoadTrustedPublicKeys(directory)
 		if err != nil {
 			return fmt.Errorf("load trusted evidence keys: %w", err)

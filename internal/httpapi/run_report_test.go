@@ -67,7 +67,7 @@ func TestRunReportVerifiesAgainstServerTrustedKey(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/runs/report", strings.NewReader(string(data)))
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set(attestationHeader, base64.StdEncoding.EncodeToString(encoded))
+	request.Header.Set("X-Nostekon-Attestation", base64.StdEncoding.EncodeToString(encoded))
 	response := httptest.NewRecorder()
 	NewHandlerWithTrustedKeys(map[string]ed25519.PublicKey{attest.KeyID(publicKey): publicKey}).ServeHTTP(response, request)
 	if response.Code != http.StatusOK {

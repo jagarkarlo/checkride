@@ -103,7 +103,7 @@ go test -race ./...
 go run ./cmd/checkride-api
 ```
 
-It listens on `:8080` by default. Set `CHECKRIDE_ADDR` to change the address;
+It listens on `:8080` by default. Set `NOSTEKON_ADDR` to change the address;
 `GET /healthz` and `GET /readyz` return `204 No Content` while the process is
 healthy. Readiness will become dependency-aware as the API gains external
 services.
@@ -166,7 +166,7 @@ To verify signatures in the local API and local Studio, configure a **public-
 keys-only** trust directory before starting the API:
 
 ```bash
-CHECKRIDE_TRUSTED_KEYS_DIR="$HOME/.config/checkride/trusted-keys" go run ./cmd/checkride-api
+NOSTEKON_TRUSTED_KEYS_DIR="$HOME/.config/nostekon/trusted-keys" go run ./cmd/nostekon-api
 ```
 
 Every `*.pem` file in that directory must be a PKIX Ed25519 public key. The API
@@ -179,7 +179,7 @@ store; it warns instead of claiming verification. Never put private keys in
 the trusted-keys directory.
 
 For a direct API request, base64-encode the detached sidecar into the
-`X-Checkride-Attestation` header. The server verifies the signature against its
+`X-Nostekon-Attestation` header. The server verifies the signature against its
 configured keys and returns the verified key ID and evidence digest in the
 report. An unknown key or changed evidence is rejected; sending a signature to
 an API with no configured trust store returns `503`.
@@ -188,7 +188,7 @@ an API with no configured trust store returns `503`.
 sidecar=$(base64 < /tmp/checkride-drill.attestation.json | tr -d '\n')
 curl -sS http://localhost:8080/api/v1/runs/report \
   -H 'Content-Type: application/json' \
-  -H "X-Checkride-Attestation: $sidecar" \
+  -H "X-Nostekon-Attestation: $sidecar" \
   --data-binary @/tmp/checkride-drill.json
 ```
 
