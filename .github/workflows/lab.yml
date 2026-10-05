@@ -1,0 +1,63 @@
+name: Isolated restore lab
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checkride-lab-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: PostgreSQL V4 restore gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install lab tools
+        run: |
+          python -m pip install -e .
+          go install github.com/k3d-io/k3d/v5@v5.8.3
+          command -v kubectl
+          command -v jq
+          docker info >/dev/null
+      - name: Create isolated clusters
+        run: make lab-up
+      - name: Run restore drill
+        run: |
+          mkdir -p lab-results
+          checkride lab run --output lab-results/drillrun.json
+      - name: Evaluate V4 evidence
+        run: |
+          go run ./cmd/checkride-report lab-results/drillrun.json >lab-results/report.json
+          jq -e '
+            .verdict == "verified" and
+            .requestedLevel == "V4" and
+            .deepestPassed == "V4" and
+            .firstFailed == null and
+            (.levels[] | select(.id == "V4") | .checks |
+              any(.name == "probe-write-preserved" and .passed == true))
+          ' lab-results/report.json >/dev/null
+      - name: Remove disposable clusters
+        if: always()
+        run: |
+          if command -v k3d >/dev/null; then
+            make lab-down
+          fi
+      - name: Upload lab evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: isolated-restore-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: lab-results/
+          if-no-files-found: ignore
+          retention-days: 7

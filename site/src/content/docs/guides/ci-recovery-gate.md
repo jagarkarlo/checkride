@@ -17,6 +17,36 @@ The `checkride-report` binary evaluates a captured `DrillRun` evidence document 
 
 ## GitHub Actions example
 
+### Run Checkride's isolated lab gate
+
+The repository includes `.github/workflows/lab.yml`, named **Isolated restore
+lab**. In GitHub's **Actions** tab, select that workflow and **Run workflow**
+on the branch you want to test. It is manual-only and runs on an ephemeral
+GitHub-hosted Ubuntu runner; it needs no production credentials or cluster
+access.
+
+The job installs k3d v5.8.3, creates the two dedicated Checkride clusters,
+runs a PostgreSQL source-namespace-loss drill and evaluates its evidence.
+It passes only when the report is verified at V4 and the
+`probe-write-preserved` check passes. A verified V3 report is not sufficient.
+This verifies one seeded probe write, not general application correctness
+or an acknowledged-write RPO objective.
+
+Download **isolated-restore-evidence-<run ID>-<attempt>** from the workflow
+run's artifacts for the DrillRun and, when evaluation ran, the JSON report.
+Artifacts are retained for seven days. On failure, inspect the failed step
+and any available evidence; failures before evidence creation have no
+artifact. Teardown runs with `always()` and removes the two disposable
+clusters, including after partial creation or drill failure. It cannot
+guarantee cleanup after an abrupt runner loss; the GitHub-hosted runner's
+disposal is the final isolation boundary. The job is capped at 20 minutes
+and is not supported on a persistent self-hosted runner.
+
+The gate expression was verified locally on 2026-10-05 using a real k3d
+V4 restore and the historical V3 sample (accepted and rejected,
+respectively). The GitHub-hosted workflow itself must still be dispatched
+to confirm hosted provisioning and artifact delivery.
+
 Add this step to your deployment workflow to ensure that recent recovery evidence satisfies your application's RTO and RPO objectives:
 
 ```yaml
