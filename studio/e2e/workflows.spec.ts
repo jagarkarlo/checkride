@@ -27,6 +27,8 @@ for (const width of [390, 1440]) {
       await expect(rows.nth(index).locator("td").nth(5)).toHaveText(budget);
       await expect(rows.nth(index).locator("td").nth(7)).toHaveText("Matches");
     }
+    await page.getByRole("button", { name: "Save cases", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Suite save result" })).toContainText("3 cases saved to Runs");
     for (const theme of ["dark", "light"]) {
       if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator(".studio-theme").click();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -67,17 +69,76 @@ test("suite imports expose changed claims and preserve original evidence", async
   expect(await readFile((await (await evidenceDownload).path())!)).toEqual(files[3].buffer);
 });
 
+test("suite cases save together, survive reload and deduplicate without adding provenance", async ({ page }) => {
+  await page.goto("/demo/#/suite");
+  await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches");
+  const files = await suiteBundle();
+  await page.locator('[data-testid="suite-input"]').setInputFiles(files);
+  await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Imported evidence");
+  await page.getByRole("button", { name: "Save cases", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Suite save result" })).toContainText("3 cases saved to Runs");
+  await page.getByRole("button", { name: "Save cases", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Suite save result" })).toContainText("3 cases saved to Runs");
+  await page.getByRole("link", { name: "Runs", exact: true }).click();
+  await page.reload();
+  const rows = page.locator(".saved-runs tbody tr");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.locator(".evidence-kind")).toHaveText(["Imported evidence", "Imported evidence", "Imported evidence"]);
+  for (const [index, verdict] of [[1, "verified"], [2, "failed"], [3, "verified"]] as const) {
+    const name = JSON.parse(files[index].buffer.toString()).metadata.name;
+    await expect(rows.filter({ has: page.getByRole("button", { name, exact: true }) }).locator(".verdict-tag")).toHaveText(verdict);
+  }
+  await page.getByRole("button", { name: JSON.parse(files[2].buffer.toString()).metadata.name, exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Failed at V4" })).toBeVisible();
+  const evidenceDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download original evidence" }).click();
+  expect(await readFile((await (await evidenceDownload).path())!)).toEqual(files[2].buffer);
+  await page.getByRole("link", { name: "Suite", exact: true }).click();
+  await page.getByRole("button", { name: "Recorded suite", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Recorded local lab");
+  await expect(page.getByRole("status", { name: "Suite save result" })).toHaveCount(0);
+});
+
+test("suite storage failures leave no partial cases or stale save success and can be retried", async ({ page }) => {
+  await page.goto("/demo/#/suite");
+  await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches");
+  await page.evaluate(() => {
+    const originalPut = IDBObjectStore.prototype.put;
+    let writes = 0;
+    IDBObjectStore.prototype.put = function (value, key) {
+      if (this.name === "runs" && ++writes === 2) {
+        IDBObjectStore.prototype.put = originalPut;
+        throw new DOMException("Storage full", "QuotaExceededError");
+      }
+      return originalPut.call(this, value, key);
+    };
+  });
+  await page.getByRole("button", { name: "Save cases", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Storage full");
+  await expect(page.getByRole("status", { name: "Suite save result" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Runs", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "No saved runs yet" })).toBeVisible();
+  await page.getByRole("link", { name: "Suite", exact: true }).click();
+  await page.getByRole("button", { name: "Save cases", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Suite save result" })).toContainText("3 cases saved to Runs");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.getByRole("link", { name: "Runs", exact: true }).click();
+  await expect(page.locator(".saved-runs tbody tr")).toHaveCount(3);
+});
+
 test("missing and invalid suite files cannot leave a previous matching review visible", async ({ page }) => {
   await page.goto("/demo/#/suite");
   await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches");
   await page.locator('[data-testid="suite-input"]').setInputFiles((await suiteBundle()).slice(0, 1));
   await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence needs attention");
   await expect(page.getByRole("region", { name: "Suite findings" })).toContainText("Missing evidence: zero-loss.drillrun.json");
+  await expect(page.getByRole("button", { name: "Save cases", exact: true })).toBeDisabled();
   await expect(page.locator(".api-status")).toContainText("Go engine");
   await page.locator('[data-testid="suite-input"]').setInputFiles({ name: "suite.json", mimeType: "application/json", buffer: Buffer.from('{"kind":"Wrong"}') });
   await expect(page.getByRole("alert")).toContainText("Not a supported Nostekon LabSuiteResult");
   await expect(page.locator(".suite-table")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Download original suite summary" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save cases", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Recorded suite", exact: true }).click();
   await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches");
 });

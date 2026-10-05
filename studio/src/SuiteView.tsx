@@ -1,9 +1,10 @@
-import { ArrowRight, CheckCircle2, Download, FlaskConical, LoaderCircle, RefreshCw, ShieldAlert, Upload, XCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, Download, FlaskConical, LoaderCircle, RefreshCw, Save, ShieldAlert, Upload, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import { evaluateSuite, parseSuite } from "./labSuite";
 import type { SuiteReview } from "./labSuite";
 import { formatDuration, isReport } from "./report";
+import { saveRuns } from "./runStore";
 
 const recordedFiles = import.meta.glob<string>("../../examples/suites/postgresql-policy/*.json", { query: "?raw", import: "default" });
 const labels = { "zero-loss": "Zero loss", "tail-loss": "Strict tail loss", "budget-loss": "Budgeted tail loss" };
@@ -17,6 +18,8 @@ export function SuiteView({ active, onReachability, onOpen }: {
   const [summary, setSummary] = useState("");
   const [recorded, setRecorded] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const generation = useRef(0);
@@ -30,6 +33,7 @@ export function SuiteView({ active, onReachability, onOpen }: {
     controller.current = abort;
     setBusy(true);
     setError("");
+    setSavedCount(0);
     setReview(null);
     setSummary("");
     setRecorded(isRecorded);
@@ -75,6 +79,22 @@ export function SuiteView({ active, onReachability, onOpen }: {
 
   useEffect(() => () => { generation.current++; controller.current?.abort(); }, []);
 
+  const canSave = !!review?.cases.length && review.cases.every((item) => item.report && item.source !== undefined);
+
+  async function saveCases() {
+    if (!review || !canSave || busy || saving) return;
+    const current = generation.current;
+    setSaving(true);
+    setSavedCount(0);
+    setError("");
+    try {
+      const saved = await saveRuns(review.cases.map((item) => ({ source: item.source!, report: item.report! })));
+      if (current === generation.current) setSavedCount(saved.length);
+    } catch (reason) {
+      if (current === generation.current) setError(reason instanceof Error ? reason.message : "Browser storage is unavailable.");
+    } finally { setSaving(false); }
+  }
+
   function downloadSummary() {
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([summary], { type: "application/json" }));
@@ -87,12 +107,13 @@ export function SuiteView({ active, onReachability, onOpen }: {
     <header className="library-heading">
       <div><p className="workspace-label"><FlaskConical size={14} /> PostgreSQL lab</p><h1>Policy suite</h1></div>
       <div className="library-actions">
-        <button className="tool" type="button" onClick={() => void loadRecorded()}><RefreshCw size={15} /> Recorded suite</button>
+        <button className="tool" type="button" disabled={saving} onClick={() => void loadRecorded()}><RefreshCw size={15} /> Recorded suite</button>
         <button className="icon-button" type="button" title="Download original suite summary" aria-label="Download original suite summary" disabled={!summary || busy} onClick={downloadSummary}><Download size={16} /></button>
-        <button className="primary" type="button" onClick={() => input.current?.click()}><Upload size={15} /> Import suite</button>
+        <button className="tool" type="button" disabled={!canSave || busy || saving} onClick={() => void saveCases()}>{saving ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />} {saving ? "Saving..." : "Save cases"}</button>
+        <button className="primary" type="button" disabled={saving} onClick={() => input.current?.click()}><Upload size={15} /> Import suite</button>
       </div>
     </header>
-    <input ref={input} type="file" accept=".json,application/json" multiple hidden data-testid="suite-input" onChange={(event) => {
+    <input ref={input} type="file" accept=".json,application/json" multiple hidden disabled={saving} data-testid="suite-input" onChange={(event) => {
       const files = Array.from(event.target.files ?? []);
       event.target.value = "";
       if (!files.length) return;
@@ -107,6 +128,7 @@ export function SuiteView({ active, onReachability, onOpen }: {
       }, false);
     }} />
     {error && <p className="banner bad" role="alert"><XCircle size={16} /> {error}</p>}
+    {savedCount > 0 && <p className="banner ok" role="status" aria-label="Suite save result"><CheckCircle2 size={16} /> {savedCount} {savedCount === 1 ? "case" : "cases"} saved to Runs.</p>}
     {busy && <p className="suite-loading" role="status"><LoaderCircle className="spin" size={18} /> Evaluating suite evidence...</p>}
     {review && <>
       <section className="library-stats suite-stats" aria-label="Suite review totals">
