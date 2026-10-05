@@ -5,7 +5,7 @@ import os
 import sqlite3
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -87,8 +87,11 @@ def execute_isolated_drill(
     *,
     write_count: int = 1,
     after_backup_writes: int = 0,
+    rpo_seconds: int = 0,
 ) -> dict:
     """Execute a PostgreSQL logical backup and restore across two distinct k3d clusters."""
+    if type(rpo_seconds) is not int or not 0 <= rpo_seconds <= 86400:
+        raise ValueError("RPO budget must be a whole number of seconds between 0 and 86400")
     if (
         type(write_count) is not int
         or type(after_backup_writes) is not int
@@ -402,9 +405,13 @@ def execute_isolated_drill(
             if write_id not in present:
                 raise RuntimeError("restored write does not match source write")
             measurement = measure_rpo(ledger.acks(), present, datetime.fromisoformat(failure_at))
-            if measurement.lost or measurement.holes or measurement.unexpected:
+            if (
+                measurement.holes
+                or measurement.unexpected
+                or measurement.rpo > timedelta(seconds=rpo_seconds)
+            ):
                 raise RuntimeError(
-                    "acknowledged-write ledger failed zero-loss objective: "
+                    f"acknowledged-write ledger failed {rpo_seconds}s RPO objective: "
                     f"{measurement.lost} lost, {measurement.holes} holes, "
                     f"{measurement.unexpected} unexpected"
                 )
@@ -482,7 +489,7 @@ def execute_isolated_drill(
         if has_v4_evidence:
             result["spec"]["v4Evidence"] = {"invariants": ["probe-write-preserved"]}
         if present is not None:
-            result["spec"]["objectives"] = {"rpo": "0s"}
+            result["spec"]["objectives"] = {"rpo": f"{rpo_seconds}s"}
             result["status"]["ledger"] = {"acks": acknowledged, "present": present}
         if ledger is not None:
             ledger.close()

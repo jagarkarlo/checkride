@@ -241,6 +241,25 @@ def test_unbounded_workload_is_rejected_before_cluster_access(tmp_path, writes, 
     assert not (tmp_path / "run.json").exists()
 
 
+def test_declared_rpo_budget_accepts_consistent_tail_loss(tmp_path):
+    commands = []
+    with patch.object(restore, "run_kubectl", side_effect=fake_kubectl(commands)):
+        evidence = restore.execute_isolated_drill(
+            tmp_path / "run.json", write_count=3, after_backup_writes=2, rpo_seconds=60
+        )
+    assert evidence["spec"]["objectives"]["rpo"] == "60s"
+    assert len(evidence["status"]["ledger"]["acks"]) == 5
+    assert len(evidence["status"]["ledger"]["present"]) == 3
+    assert all(check["passed"] for check in evidence["status"]["checks"])
+
+
+@pytest.mark.parametrize("budget", [-1, 86401, 1.5, True, "10"])
+def test_invalid_rpo_budget_is_rejected_before_cluster_access(tmp_path, budget):
+    with patch.object(restore, "run_kubectl") as kubectl, pytest.raises(ValueError, match="RPO"):
+        restore.execute_isolated_drill(tmp_path / "run.json", rpo_seconds=budget)
+    kubectl.assert_not_called()
+
+
 @pytest.mark.parametrize("replace_index,holes", [(1, 1), (2, 0)])
 def test_same_row_count_cannot_hide_missing_or_unexpected_ids(tmp_path, replace_index, holes):
     from checkride.ledger import Ack, measure_rpo
@@ -261,7 +280,7 @@ def test_same_row_count_cannot_hide_missing_or_unexpected_ids(tmp_path, replace_
         patch.object(restore, "run_kubectl", side_effect=corrupt),
         pytest.raises(RuntimeError, match="acknowledged-write ledger"),
     ):
-        restore.execute_isolated_drill(output, write_count=3)
+        restore.execute_isolated_drill(output, write_count=3, rpo_seconds=60)
     evidence = json.loads(output.read_text())
     status = evidence["status"]
     recorded = status["ledger"]
