@@ -14,7 +14,9 @@ SOURCE = restore.DEFAULT_SOURCE_CONTEXT
 RESTORE = restore.DEFAULT_RESTORE_CONTEXT
 
 
-def fake_kubectl(commands, mismatch=False, row_count=b"1"):
+def fake_kubectl(commands, mismatch=False, row_count=None):
+    backup_ids = []
+
     def execute(context, namespace, *args, input_data=None):
         commands.append((context, namespace, args, input_data))
         if args[:2] == ("config", "view"):
@@ -22,11 +24,17 @@ def fake_kubectl(commands, mismatch=False, row_count=b"1"):
         if args[:2] == ("get", "namespace"):
             return context.encode()
         if "pg_dump" in args:
+            backup_ids.extend(
+                arg.split("'")[1]
+                for _, _, recorded_args, _ in commands
+                for arg in recorded_args
+                if arg.startswith("INSERT INTO")
+            )
             return b"CREATE TABLE recovery_probe ...;"
         if "SELECT count(*) FROM recovery_probe" in args:
-            return row_count
+            return row_count if row_count is not None else str(len(backup_ids)).encode()
         if "SELECT write_id FROM recovery_probe" in args:
-            return b"wrong" if mismatch else commands_write_id(commands).encode()
+            return b"wrong" if mismatch else "\n".join(backup_ids).encode()
         return b""
 
     return execute
@@ -187,6 +195,81 @@ def test_existing_host_ledger_is_never_overwritten(tmp_path):
     assert ledger_path.read_text() == "previous ledger"
     assert not output.exists()
     assert all(item[2][0] in ("get", "config") for item in commands)
+
+
+@pytest.mark.parametrize("after_backup_writes", [0, 2])
+def test_lab_workload_measures_acknowledged_tail_loss(tmp_path, after_backup_writes):
+    from checkride.ledger import Ack, measure_rpo
+
+    commands = []
+    output = tmp_path / "run.json"
+    with patch.object(restore, "run_kubectl", side_effect=fake_kubectl(commands)):
+        if after_backup_writes:
+            with pytest.raises(RuntimeError, match="acknowledged-write ledger"):
+                restore.execute_isolated_drill(
+                    output, write_count=3, after_backup_writes=after_backup_writes
+                )
+        else:
+            restore.execute_isolated_drill(output, write_count=3)
+
+    evidence = json.loads(output.read_text())
+    recorded = evidence["status"]["ledger"]
+    acks = [Ack(datetime.fromisoformat(ack["ackedAt"]), ack["writeId"]) for ack in recorded["acks"]]
+    report = measure_rpo(
+        acks, recorded["present"], datetime.fromisoformat(evidence["status"]["failureAt"])
+    )
+    assert report.acknowledged == 3 + after_backup_writes
+    assert report.recovered == 3
+    assert report.lost == after_backup_writes
+    assert report.holes == report.unexpected == 0
+    assert evidence["spec"]["objectives"]["rpo"] == "0s"
+    assert any(check["level"] == "V3" and check["passed"] for check in evidence["status"]["checks"])
+    with Ledger(output.with_name(output.name + ".ledger.db")) as ledger:
+        assert len(ledger.acks()) == 3 + after_backup_writes
+
+
+@pytest.mark.parametrize("writes,tail", [(0, 0), (-1, 0), (101, 0), (1, -1), (99, 2)])
+def test_unbounded_workload_is_rejected_before_cluster_access(tmp_path, writes, tail):
+    with (
+        patch.object(restore, "run_kubectl") as kubectl,
+        pytest.raises(ValueError, match="write"),
+    ):
+        restore.execute_isolated_drill(
+            tmp_path / "run.json", write_count=writes, after_backup_writes=tail
+        )
+    kubectl.assert_not_called()
+    assert not (tmp_path / "run.json").exists()
+
+
+@pytest.mark.parametrize("replace_index,holes", [(1, 1), (2, 0)])
+def test_same_row_count_cannot_hide_missing_or_unexpected_ids(tmp_path, replace_index, holes):
+    from checkride.ledger import Ack, measure_rpo
+
+    commands = []
+    execute = fake_kubectl(commands)
+
+    def corrupt(context, namespace, *args, input_data=None):
+        result = execute(context, namespace, *args, input_data=input_data)
+        if "SELECT write_id FROM recovery_probe" in args:
+            identifiers = result.decode().splitlines()
+            identifiers[replace_index] = "unacknowledged-write"
+            return "\n".join(identifiers).encode()
+        return result
+
+    output = tmp_path / "run.json"
+    with (
+        patch.object(restore, "run_kubectl", side_effect=corrupt),
+        pytest.raises(RuntimeError, match="acknowledged-write ledger"),
+    ):
+        restore.execute_isolated_drill(output, write_count=3)
+    evidence = json.loads(output.read_text())
+    status = evidence["status"]
+    recorded = status["ledger"]
+    acks = [Ack(datetime.fromisoformat(ack["ackedAt"]), ack["writeId"]) for ack in recorded["acks"]]
+    report = measure_rpo(acks, recorded["present"], datetime.fromisoformat(status["failureAt"]))
+    assert (report.lost, report.holes, report.unexpected) == (1, holes, 1)
+    assert any(check["level"] == "V3" and check["passed"] for check in status["checks"])
+    assert any(check["level"] == "V4" and not check["passed"] for check in status["checks"])
 
 
 def test_same_cluster_contexts_are_rejected_before_mutation(tmp_path):

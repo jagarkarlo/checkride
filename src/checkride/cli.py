@@ -166,6 +166,8 @@ def _cmd_lab_run(args: argparse.Namespace) -> int:
             source_context=args.source_context or DEFAULT_SOURCE_CONTEXT,
             restore_context=args.restore_context or DEFAULT_RESTORE_CONTEXT,
             image=args.image or DEFAULT_POSTGRES_IMAGE,
+            write_count=args.writes,
+            after_backup_writes=args.after_backup_writes,
         )
         return 0
     except KeyboardInterrupt:
@@ -280,6 +282,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     lab_run.add_argument(
         "--image", default=None, help="PostgreSQL image to use (default: postgres:16.8)"
+    )
+    lab_run.add_argument(
+        "--writes",
+        type=int,
+        default=1,
+        help="acknowledged writes before backup (default: 1; total capped at 100)",
+    )
+    lab_run.add_argument(
+        "--after-backup-writes",
+        type=int,
+        default=0,
+        help="writes after backup to demonstrate zero-loss failure (default: 0)",
     )
     lab_run.set_defaults(handler=_cmd_lab_run)
 

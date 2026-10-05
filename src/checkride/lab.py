@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from checkride.ledger import Ledger
+from checkride.ledger import Ledger, measure_rpo
 
 DEFAULT_SOURCE_CONTEXT = "k3d-checkride-source"
 DEFAULT_RESTORE_CONTEXT = "k3d-checkride-restore"
@@ -84,8 +84,19 @@ def execute_isolated_drill(
     source_context: str = DEFAULT_SOURCE_CONTEXT,
     restore_context: str = DEFAULT_RESTORE_CONTEXT,
     image: str = DEFAULT_POSTGRES_IMAGE,
+    *,
+    write_count: int = 1,
+    after_backup_writes: int = 0,
 ) -> dict:
     """Execute a PostgreSQL logical backup and restore across two distinct k3d clusters."""
+    if (
+        type(write_count) is not int
+        or type(after_backup_writes) is not int
+        or write_count < 1
+        or after_backup_writes < 0
+        or write_count + after_backup_writes > 100
+    ):
+        raise ValueError("writes must be positive, tail writes nonnegative, and total at most 100")
     for context in (source_context, restore_context):
         if not context.startswith("k3d-checkride-"):
             raise RuntimeError("only local k3d-checkride-* lab contexts are allowed")
@@ -208,6 +219,25 @@ def execute_isolated_drill(
 
         write_id = uuid4().hex
 
+        def record_write(identifier: str):
+            run_kubectl(
+                source_context,
+                namespace,
+                "exec",
+                "postgres",
+                "--",
+                "psql",
+                "-U",
+                "postgres",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-c",
+                f"INSERT INTO recovery_probe VALUES ('{identifier}')",
+            )
+            acked_at = datetime.now(UTC)
+            ledger.record(identifier, acked_at)
+            acknowledged.append({"writeId": identifier, "ackedAt": acked_at.isoformat()})
+
         def backup():
             run_kubectl(
                 source_context,
@@ -223,23 +253,9 @@ def execute_isolated_drill(
                 "-c",
                 "CREATE TABLE recovery_probe (write_id text PRIMARY KEY)",
             )
-            run_kubectl(
-                source_context,
-                namespace,
-                "exec",
-                "postgres",
-                "--",
-                "psql",
-                "-U",
-                "postgres",
-                "-v",
-                "ON_ERROR_STOP=1",
-                "-c",
-                f"INSERT INTO recovery_probe VALUES ('{write_id}')",
-            )
-            acked_at = datetime.now(UTC)
-            ledger.record(write_id, acked_at)
-            acknowledged.append({"writeId": write_id, "ackedAt": acked_at.isoformat()})
+            record_write(write_id)
+            for _ in range(write_count - 1):
+                record_write(uuid4().hex)
             dump = run_kubectl(
                 source_context,
                 namespace,
@@ -259,6 +275,8 @@ def execute_isolated_drill(
             return dump
 
         dump = backup()
+        for _ in range(after_backup_writes):
+            record_write(uuid4().hex)
         failure_at = utc_timestamp()
         active_level = "V1"
         record_phase(
@@ -323,22 +341,27 @@ def execute_isolated_drill(
                 .decode()
                 .strip()
             )
-            if row_count != "1":
+            count_name = (
+                "recovery_probe contains exactly one row"
+                if write_count == 1
+                else f"recovery_probe contains exactly {write_count} rows"
+            )
+            if row_count != str(write_count):
                 checks.append(
                     {
                         "level": "V3",
-                        "name": "recovery_probe contains exactly one row",
+                        "name": count_name,
                         "passed": False,
-                        "detail": f"expected 1 row, got {row_count or 'no result'}",
+                        "detail": f"expected {write_count} rows, got {row_count or 'no result'}",
                     }
                 )
                 raise RuntimeError("restored recovery_probe row count does not match")
             checks.append(
                 {
                     "level": "V3",
-                    "name": "recovery_probe contains exactly one row",
+                    "name": count_name,
                     "passed": True,
-                    "detail": "recovered row count is 1",
+                    "detail": f"recovered row count is {row_count}",
                 }
             )
             requested_level = "V4"
@@ -368,16 +391,23 @@ def execute_isolated_drill(
                 {
                     "level": "V4",
                     "name": "probe-write-preserved",
-                    "passed": found == write_id,
+                    "passed": write_id in present,
                     "detail": (
                         "restored write ID matches"
-                        if found == write_id
+                        if write_id in present
                         else "restored write ID does not match the source write"
                     ),
                 }
             )
-            if found != write_id:
+            if write_id not in present:
                 raise RuntimeError("restored write does not match source write")
+            measurement = measure_rpo(ledger.acks(), present, datetime.fromisoformat(failure_at))
+            if measurement.lost or measurement.holes or measurement.unexpected:
+                raise RuntimeError(
+                    "acknowledged-write ledger failed zero-loss objective: "
+                    f"{measurement.lost} lost, {measurement.holes} holes, "
+                    f"{measurement.unexpected} unexpected"
+                )
             return found
 
         record_phase("verify", verify)
@@ -452,6 +482,7 @@ def execute_isolated_drill(
         if has_v4_evidence:
             result["spec"]["v4Evidence"] = {"invariants": ["probe-write-preserved"]}
         if present is not None:
+            result["spec"]["objectives"] = {"rpo": "0s"}
             result["status"]["ledger"] = {"acks": acknowledged, "present": present}
         if ledger is not None:
             ledger.close()

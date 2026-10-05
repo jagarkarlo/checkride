@@ -120,8 +120,12 @@ def test_lab_command_requires_subcommand() -> None:
     assert exit_info.value.code == 2
 
 
+@pytest.mark.parametrize(
+    "workload_args,expected",
+    [([], (1, 0)), (["--writes", "3", "--after-backup-writes", "2"], (3, 2))],
+)
 def test_lab_run_invokes_execute_isolated_drill(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workload_args, expected
 ) -> None:
     from checkride import lab
 
@@ -133,10 +137,11 @@ def test_lab_run_invokes_execute_isolated_drill(
 
     monkeypatch.setattr(lab, "execute_isolated_drill", fake_execute)
     output = tmp_path / "out.json"
-    assert main(["lab", "run", "--output", str(output)]) == 0
+    assert main(["lab", "run", "--output", str(output), *workload_args]) == 0
     assert called_kwargs["output"] == output
     assert called_kwargs["source_context"] == lab.DEFAULT_SOURCE_CONTEXT
     assert called_kwargs["restore_context"] == lab.DEFAULT_RESTORE_CONTEXT
+    assert (called_kwargs["write_count"], called_kwargs["after_backup_writes"]) == expected
 
 
 def test_lab_run_returns_error_on_exception(
