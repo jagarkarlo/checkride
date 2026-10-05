@@ -80,22 +80,39 @@ export async function listRuns(): Promise<SavedRun[]> {
 }
 
 export async function saveRun(source: string, report: Report, sampleId = ""): Promise<SavedRun> {
-  const bytes = new TextEncoder().encode(source);
-  if (bytes.length > SOURCE_LIMIT) throw new Error("Evidence exceeds the 16 MiB limit.");
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  const id = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  const run: SavedRun = { id, source, report, sampleId, savedAt: Date.now() };
+  return (await saveRuns([{ source, report, sampleId }]))[0];
+}
+
+export async function saveRuns(inputs: readonly { source: string; report: Report; sampleId?: string }[]): Promise<SavedRun[]> {
+  if (!inputs.length) return [];
+  const runs: SavedRun[] = [];
+  const savedAt = Date.now();
+  for (const { source, report, sampleId = "" } of inputs) {
+    const bytes = new TextEncoder().encode(source);
+    if (bytes.length > SOURCE_LIMIT) throw new Error("Evidence exceeds the 16 MiB limit.");
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    const id = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    runs.push({ id, source, report, sampleId, savedAt });
+  }
   const db = await database();
   try {
     const transaction = db.transaction("runs", "readwrite");
-    const existing = await transaction.store.get(id);
-    if (!existing && await transaction.store.count() >= RUN_LIMIT) {
+    try {
+      let count = await transaction.store.count();
+      for (const run of runs) {
+        if (!await transaction.store.get(run.id)) {
+          if (count >= RUN_LIMIT) throw new Error(`The library holds ${RUN_LIMIT} runs. Delete a run before saving another.`);
+          count++;
+        }
+        await transaction.store.put(run);
+      }
       await transaction.done;
-      throw new Error(`The library holds ${RUN_LIMIT} runs. Delete a run before saving another.`);
+    } catch (error) {
+      try { transaction.abort(); } catch {}
+      await transaction.done.catch(() => undefined);
+      throw error;
     }
-    await transaction.store.put(run);
-    await transaction.done;
-    return run;
+    return runs;
   } finally { db.close(); }
 }
 

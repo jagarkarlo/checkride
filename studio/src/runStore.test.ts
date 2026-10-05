@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deleteDB, openDB } from "idb";
-import { deleteRun, evidenceLabel, listRuns, RUN_LIMIT, saveRun } from "./runStore";
+import { deleteRun, evidenceLabel, listRuns, RUN_LIMIT, saveRun, saveRuns } from "./runStore";
 import type { Report } from "./report";
 
 const report: Report = {
@@ -95,6 +95,77 @@ describe("saved run library", () => {
     for (let index = 0; index < RUN_LIMIT; index++) await saveRun(String(index), report);
     await expect(saveRun("overflow", report)).rejects.toThrow("Delete a run");
     await saveRun("0", report);
+    expect(await listRuns()).toHaveLength(RUN_LIMIT);
+  });
+
+  it("saves a suite atomically with exact sources and content deduplication", async () => {
+    const sources = ['{ "case": "zero" }\n', '{ "case": "tail" }\n', '{ "case": "budget" }\n'];
+    const saved = await saveRuns(sources.map((source) => ({ source, report })));
+    expect(saved).toHaveLength(3);
+    expect(new Set(saved.map((run) => run.id)).size).toBe(3);
+    expect(saved.map((run) => run.source)).toEqual(sources);
+    expect(saved.every((run) => run.sampleId === "")).toBe(true);
+    await saveRuns(sources.map((source) => ({ source, report })));
+    expect(await listRuns()).toHaveLength(3);
+  });
+
+  it("rolls back every case and an existing update when a suite cannot fit", async () => {
+    for (let index = 0; index < RUN_LIMIT - 1; index++) await saveRun(String(index), report);
+    const before = await listRuns();
+    await expect(saveRuns([
+      { source: "0", report: { ...report, headline: "Updated" } },
+      { source: "first new case", report },
+      { source: "second new case", report },
+    ])).rejects.toThrow("Delete a run");
+    expect(await listRuns()).toEqual(before);
+  });
+
+  it("rolls back a mid-suite storage failure and permits a retry", async () => {
+    await saveRun("existing", report);
+    const before = await listRuns();
+    const inputs = ["first", "second", "third"].map((source) => ({ source, report }));
+    const originalPut = IDBObjectStore.prototype.put;
+    const failure = vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(function (this: IDBObjectStore, value, key) {
+      if (this.name === "runs" && value.source === "second") throw new DOMException("Storage full", "QuotaExceededError");
+      return originalPut.call(this, value, key);
+    });
+    try { await expect(saveRuns(inputs)).rejects.toThrow("Storage full"); }
+    finally { failure.mockRestore(); }
+    expect(await listRuns()).toEqual(before);
+    await saveRuns(inputs);
+    expect(await listRuns()).toHaveLength(4);
+  });
+
+  it("counts distinct new content rather than duplicate batch entries", async () => {
+    for (let index = 0; index < RUN_LIMIT - 1; index++) await saveRun(String(index), report);
+    const saved = await saveRuns([
+      { source: "0", report },
+      { source: "last", report },
+      { source: "last", report },
+    ]);
+    expect(saved[1].id).toBe(saved[2].id);
+    expect(await listRuns()).toHaveLength(RUN_LIMIT);
+    await saveRuns([{ source: "0", report }, { source: "last", report }]);
+    expect(await listRuns()).toHaveLength(RUN_LIMIT);
+  });
+
+  it("rejects oversized evidence before persisting any case", async () => {
+    await expect(saveRuns([
+      { source: "small", report },
+      { source: "\u00e9".repeat(9 * 1024 * 1024), report },
+    ])).rejects.toThrow("16 MiB");
+    expect(await listRuns()).toEqual([]);
+  });
+
+  it("serializes concurrent batches at the library limit", async () => {
+    for (let index = 0; index < RUN_LIMIT - 1; index++) await saveRun(String(index), report);
+    const results = await Promise.allSettled([
+      saveRuns([{ source: "first contender", report }]),
+      saveRuns([{ source: "second contender", report }]),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const failure = results.find((result) => result.status === "rejected");
+    expect(failure?.reason.message).toContain("Delete a run");
     expect(await listRuns()).toHaveLength(RUN_LIMIT);
   });
 
