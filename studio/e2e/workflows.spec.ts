@@ -164,6 +164,37 @@ test("docs, deep links, search and demo navigation work", async ({ page }) => {
 });
 
 for (const width of [390, 1440]) {
+  for (const sample of [
+    { label: "PostgreSQL zero loss", heading: "Verified to V4", lost: "0", acknowledged: 10, objective: "objective 0s · met", verdict: "verified" },
+    { label: "PostgreSQL RPO exceeded", heading: /^Failed at V4/, lost: "2", acknowledged: 12, objective: "objective 0s · missed", verdict: "failed" },
+    { label: "PostgreSQL loss within budget", heading: "Verified to V4", lost: "2", acknowledged: 12, objective: "objective 1m · met", verdict: "verified" },
+  ]) {
+    test(`recorded ledger ${sample.label} at ${width}px`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/demo/");
+      await expect(page.locator(".sample-section")).toContainText("4 recorded lab · 2 synthetic");
+      await page.getByRole("button", { name: new RegExp(sample.label) }).click();
+      await expect(page.getByRole("heading", { name: sample.heading })).toBeVisible();
+      await expect(page.locator(".sample-caveat")).toContainText("Recorded local lab run");
+      await expect(page.locator(".sample-caveat")).not.toContainText("synthetic");
+      await expect(page.locator(".metric").filter({ hasText: "Writes lost" }).locator(".metric-value")).toHaveText(sample.lost);
+      await expect(page.locator(".metric").filter({ hasText: "Writes lost" })).toContainText(`of ${sample.acknowledged} acknowledged`);
+      await expect(page.locator(".metric").filter({ hasText: "Data loss window" })).toContainText(sample.objective);
+      await expect(page.getByRole("img", { name: `10 writes recovered and ${sample.lost} lost before the failure` })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: testInfo.outputPath("recorded-ledger.png"), fullPage: true });
+      await page.getByRole("button", { name: "Save run", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeVisible();
+      await page.getByRole("link", { name: "Runs", exact: true }).click();
+      await page.reload();
+      const saved = page.locator(".runs-table tbody tr");
+      await expect(saved).toHaveCount(1);
+      await expect(saved).toContainText("Recorded lab");
+      await expect(saved.locator(".verdict-tag")).toHaveText(sample.verdict);
+    });
+  }
+
   test(`theme and layout remain usable at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
