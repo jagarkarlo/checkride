@@ -459,6 +459,21 @@ def test_same_cluster_contexts_are_rejected_before_mutation(tmp_path):
     assert all(args[0] in ("get", "config") for args in commands)
 
 
+def test_lab_uses_nostekon_contexts_and_namespaces(tmp_path):
+    assert (SOURCE, RESTORE) == ("k3d-nostekon-source", "k3d-nostekon-restore")
+    for stale in ("k3d-checkride-source", "kind-production"):
+        with (
+            patch.object(restore, "run_kubectl") as kubectl,
+            pytest.raises(RuntimeError, match=r"k3d-nostekon-\*"),
+        ):
+            restore.execute_isolated_drill(tmp_path / f"{stale}.json", source_context=stale)
+        kubectl.assert_not_called()
+    commands = []
+    with patch.object(restore, "run_kubectl", side_effect=fake_kubectl(commands)):
+        evidence = restore.execute_isolated_drill(tmp_path / "run.json")
+    assert evidence["metadata"]["name"].startswith("nostekon-")
+
+
 def test_command_failure_writes_failed_evidence_and_cleans_up(tmp_path):
     commands = []
     execute = fake_kubectl(commands)

@@ -12,8 +12,8 @@ from uuid import uuid4
 
 from nostekon.ledger import Ledger, measure_rpo
 
-DEFAULT_SOURCE_CONTEXT = "k3d-checkride-source"
-DEFAULT_RESTORE_CONTEXT = "k3d-checkride-restore"
+DEFAULT_SOURCE_CONTEXT = "k3d-nostekon-source"
+DEFAULT_RESTORE_CONTEXT = "k3d-nostekon-restore"
 DEFAULT_POSTGRES_IMAGE = "postgres:16.8"
 
 
@@ -101,8 +101,8 @@ def execute_isolated_drill(
     ):
         raise ValueError("writes must be positive, tail writes nonnegative, and total at most 100")
     for context in (source_context, restore_context):
-        if not context.startswith("k3d-checkride-"):
-            raise RuntimeError("only local k3d-checkride-* lab contexts are allowed")
+        if not context.startswith("k3d-nostekon-"):
+            raise RuntimeError("only local k3d-nostekon-* lab contexts are allowed")
         server = (
             run_kubectl(
                 context,
@@ -143,7 +143,7 @@ def execute_isolated_drill(
     except OSError:
         output.unlink()
         raise
-    namespace = f"checkride-{uuid4().hex[:12]}"
+    namespace = f"nostekon-{uuid4().hex[:12]}"
     checks: list[dict] = []
     phases: list[dict] = []
     failure_at: str | None = None

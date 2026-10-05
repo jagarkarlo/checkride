@@ -298,12 +298,12 @@ def build_parser() -> argparse.ArgumentParser:
     lab_status.add_argument(
         "--source-context",
         default=None,
-        help="kubectl context for source cluster (default: k3d-checkride-source)",
+        help="kubectl context for source cluster (default: k3d-nostekon-source)",
     )
     lab_status.add_argument(
         "--restore-context",
         default=None,
-        help="kubectl context for restore cluster (default: k3d-checkride-restore)",
+        help="kubectl context for restore cluster (default: k3d-nostekon-restore)",
     )
     lab_status.set_defaults(handler=_cmd_lab_status)
 
@@ -316,12 +316,12 @@ def build_parser() -> argparse.ArgumentParser:
     lab_run.add_argument(
         "--source-context",
         default=None,
-        help="kubectl context for source cluster (default: k3d-checkride-source)",
+        help="kubectl context for source cluster (default: k3d-nostekon-source)",
     )
     lab_run.add_argument(
         "--restore-context",
         default=None,
-        help="kubectl context for restore cluster (default: k3d-checkride-restore)",
+        help="kubectl context for restore cluster (default: k3d-nostekon-restore)",
     )
     lab_run.add_argument(
         "--image", default=None, help="PostgreSQL image to use (default: postgres:16.8)"

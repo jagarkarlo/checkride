@@ -35,4 +35,4 @@ lab-up:
 	$(K3D) cluster create --config lab/k3d/restore.yaml
 
 lab-down:
-	$(K3D) cluster delete checkride-source checkride-restore
+	$(K3D) cluster delete nostekon-source nostekon-restore

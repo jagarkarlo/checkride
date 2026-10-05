@@ -189,9 +189,9 @@ def test_lab_suite_command_forwards_configuration_and_gates_result(tmp_path, mon
             "--rpo-seconds",
             "120",
             "--source-context",
-            "k3d-checkride-a",
+            "k3d-nostekon-a",
             "--restore-context",
-            "k3d-checkride-b",
+            "k3d-nostekon-b",
             "--image",
             "postgres:16.8",
         ]
@@ -199,8 +199,8 @@ def test_lab_suite_command_forwards_configuration_and_gates_result(tmp_path, mon
     assert code == (0 if passed else 1)
     assert arguments == {
         "output": output,
-        "source_context": "k3d-checkride-a",
-        "restore_context": "k3d-checkride-b",
+        "source_context": "k3d-nostekon-a",
+        "restore_context": "k3d-nostekon-b",
         "image": "postgres:16.8",
         "write_count": 5,
         "rpo_seconds": 120,
