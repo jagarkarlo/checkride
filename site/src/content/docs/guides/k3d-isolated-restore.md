@@ -12,7 +12,7 @@ Ensure the following tools are installed:
 - **k3d:** v5.4+ (`k3d version`)
 - **kubectl:** v1.28+
 - **Python:** 3.12+ with Checkride installed (`pip install -e .`)
-- **Go:** 1.22+ (for `checkride-report`)
+- **Go:** 1.25+ (for `checkride-report`)
 
 ## 1. Create the segregated clusters
 
@@ -122,10 +122,49 @@ ten recovered and two lost, with no holes or unexpected IDs. The measured
 RPO duration depends on this run's acknowledgement and failure timestamps.
 Do not treat this intentional failure as a broken backup command.
 
+### Permit a bounded loss window explicitly
+
+If the drill's policy allows up to 60 seconds of tail loss, declare it before
+execution. Use a new output path; existing evidence and ledger files are never
+overwritten:
+
+```bash
+checkride lab run --writes 10 --after-backup-writes 2 --rpo-seconds 60 \
+  --output /tmp/k3d-budget-loss.json
+go run ./cmd/checkride-report /tmp/k3d-budget-loss.json
+```
+
+Both commands exit `0` only if the measured RPO is within the declared budget
+and all checks pass. The report still shows two lost writes; **verified does
+not mean zero loss**. A budget never permits holes in the recovered prefix or
+unexpected restored IDs. The runner also rejects blank, duplicate or truncated
+restored-ID results that contradict its verified V3 row count; such failures
+emit failed V4 evidence without a measured ledger.
+
+Three unchanged real captures from 2026-10-05 are checked into `examples/runs/`
+and available in Studio alongside the historical V3 example:
+
+| File | Acknowledged / recovered / lost | RPO | Budget | Verdict |
+| --- | --- | --- | --- | --- |
+| `k3d-ledger-zero-loss.run.json` | 10 / 10 / 0 | 0s | 0s | Verified V4 |
+| `k3d-ledger-tail-loss.run.json` | 12 / 10 / 2 | 0.978107s | 0s | Failed V4 |
+| `k3d-ledger-budget-loss.run.json` | 12 / 10 / 2 | 0.949153s | 60s | Verified V4 |
+
+These durations describe the captured runs, not a performance guarantee.
+All three have zero holes and zero unexpected IDs. To inspect the permitted-loss
+capture without creating clusters:
+
+```bash
+go run ./cmd/checkride-report examples/runs/k3d-ledger-budget-loss.run.json
+```
+
 ### Ledger And Measurement Limits
 
 `--writes` defaults to one and must be positive; `--after-backup-writes`
 defaults to zero and must be nonnegative. Together they are capped at 100.
+`--rpo-seconds` defaults to `0` and accepts whole seconds from `0` to `86400`.
+The declared budget is included in `spec.objectives.rpo`; it is not inferred
+from the observed loss after the restore.
 The runner records an acknowledgement only after `psql` returns success, then
 commits it to the host-side SQLite ledger. The timestamp is when the host
 observed success, not the database's internal commit time.
@@ -133,7 +172,7 @@ observed success, not the database's internal commit time.
 The `<output>.ledger.db` sidecar has private file permissions and must not
 already exist, just like the evidence output. Keep it outside both clusters
 and retain it with the evidence. If execution stops before restored IDs are
-queried, the sidecar retains completed acknowledgements, but the DrillRun
+queried and validated, the sidecar retains completed acknowledgements, but the DrillRun
 omits ledger measurements rather than claiming all writes were lost. A V3
 row-count failure still emits V3-only evidence.
 

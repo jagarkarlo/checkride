@@ -5,11 +5,11 @@
 [![CI](https://github.com/jagarkarlo/checkride/actions/workflows/ci.yml/badge.svg)](https://github.com/jagarkarlo/checkride/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Checkride runs automated restore drills for Kubernetes applications backed by
-PostgreSQL. It restores the whole application (GitOps state, CloudNativePG
-point-in-time recovery, volumes, Secrets and object storage) into a separate
-cluster, then verifies that the *right data* came back. It measures how long
-every recovery phase took and exactly how much acknowledged data was lost.
+Checkride verifies recovery evidence and runs a narrow, disposable PostgreSQL
+logical-restore drill across two separate k3d clusters. It measures recovery
+phases and acknowledged-write loss, then checks them against explicit policy.
+Whole-application recovery of GitOps state, CloudNativePG point-in-time backups,
+volumes, Secrets and object storage is planned, not implemented.
 
 > A checkride is the practical exam where a pilot has to fly the manoeuvres.
 > Saying you could is not enough.
@@ -74,12 +74,12 @@ flowchart LR
 | Report CLI | Evaluates DrillRun files and returns gate-friendly exit codes | Available as `go run ./cmd/checkride-report` |
 | Attestation CLI | Signs exact DrillRun bytes and verifies detached signatures against trusted keys | Available as `go run ./cmd/checkride-attest` |
 | Metrics | Pushes per-drill gauges to a Prometheus Pushgateway, with a bundled Grafana dashboard | Available via `checkride-report --pushgateway-url` |
-| Lab | Disposable k3d source and restore clusters | Started |
+| Lab | Disposable k3d source and restore clusters | Available; bounded PostgreSQL workload and V4 ledger checks |
 | Orchestrator | Runs drills, times every phase, cleans up | Planned |
 | Analyzer | Predicts restore failures before a drill from manifests and configuration | Planned |
 | Studio | Drill specification workbench and evidence report UI with JSON/Markdown export | Available locally |
 | Copilot | LLM that diagnoses failed drills and proposes fixes that must pass a re-run | Planned |
-| Gate | CI check that fails when the last verified restore is too old or failed | Planned |
+| Gate | CI recovery checks | Manual lab regression gate available; general freshness and deployment policy planned |
 
 ## Quick start (development)
 
@@ -129,7 +129,7 @@ go run ./cmd/checkride-report examples/runs/mlflow-namespace-loss.run.json
 The API accepts up to 16 MiB and evaluates at most four reports concurrently.
 `GET /api/v1/schemas/drillrun` returns the versioned JSON Schema. The command
 prints a JSON report and exits `0` for verified, `1` for failed, and `2` for
-incomplete or invalid evidence. The original MLflow and CRUD example runs are synthetic; the k3d PostgreSQL example is a locally captured lab run. The evaluator
+incomplete or invalid evidence. The original MLflow and CRUD example runs are synthetic; the four k3d PostgreSQL examples are locally captured lab runs. The evaluator
 checks submitted claims; it does not execute restores or authenticate who
 recorded the evidence. `V4` requires a write ledger or a declared invariant
 with a matching check; ledger loss must also meet any declared RPO objective.
@@ -236,12 +236,21 @@ make lab-down
 The runner checks that the two clusters differ, records successful PostgreSQL
 writes in a private host-side SQLite ledger, dumps the data, deletes the source
 namespace and restores in the other cluster. V3 checks the backed-up row count;
-V4 compares recovered IDs with every acknowledgement and requires zero loss.
+V4 compares recovered IDs with every acknowledgement and requires zero loss by default.
 The Go report now measures RPO from this bounded workload. Add
 `--after-backup-writes 2` to demonstrate two acknowledged writes lost from the
 older dump; the drill and report should both exit `1`. Total writes are capped
 at 100, and the default remains one backed-up write with no tail. Each evidence
 file has a non-overwriting `<output>.ledger.db` sidecar.
+
+To permit a bounded tail-loss window, set `--rpo-seconds 60` before running the
+drill (whole seconds, `0` to `86400`). The budget is recorded in the evidence.
+A verified run may still lose writes within that objective; holes and unexpected
+IDs always fail. Studio includes three real V4 captures for zero loss, exceeded
+RPO and loss within a 60-second budget. Their original bytes are retained in
+`examples/runs/k3d-ledger-*.run.json`; the historical V3 sample remains unchanged.
+See the [lab runbook](site/src/content/docs/guides/k3d-isolated-restore.md)
+for the tested commands and exact captured measurements.
 
 These are host-observed PostgreSQL acknowledgements, not application-specific
 business validation or authenticated provenance. The runner attempts cleanup

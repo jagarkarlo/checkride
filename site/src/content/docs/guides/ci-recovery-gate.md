@@ -32,11 +32,15 @@ no holes or unexpected IDs, and RPO `0s`. A verified V3 report is not sufficient
 It then runs a deliberate post-backup tail-loss drill and requires a V4 failure
 with exactly twelve acknowledged writes, ten recovered and two lost. The job
 fails if this negative test unexpectedly passes or reports a different failure.
+Finally it runs the same ten-plus-two workload with `--rpo-seconds 60` and
+requires a verified V4 report that still reports two lost writes, a nonzero RPO
+within 60 seconds, and no holes or unexpected IDs. This verifies the explicit
+budget policy without treating permitted loss as zero loss.
 This checks a bounded PostgreSQL workload, not general application correctness.
 
 Download **isolated-restore-evidence-<run ID>-<attempt>** from the workflow
 run's artifacts for the DrillRuns, private SQLite sidecars and JSON reports
-from both scenarios (when produced).
+from all three scenarios (when produced).
 Artifacts are retained for seven days. On failure, inspect the failed step
 and any available evidence; failures before evidence creation have no
 artifact. Teardown runs with `always()` and removes the two disposable
@@ -45,8 +49,8 @@ guarantee cleanup after an abrupt runner loss; the GitHub-hosted runner's
 disposal is the final isolation boundary. The job is capped at 20 minutes
 and is not supported on a persistent self-hosted runner.
 
-Both ledger gate expressions were verified locally on 2026-10-05 using real
-k3d zero-loss and deliberate two-write-tail-loss runs. The
+All three ledger gate expressions were verified locally on 2026-10-05 using real
+k3d zero-loss, deliberate two-write-tail-loss and explicit-budget runs. The
 GitHub-hosted workflow itself must still be dispatched
 to confirm hosted provisioning and artifact delivery.
 
