@@ -242,6 +242,24 @@ suite's expected outcome. Each case opens in the existing report view for
 inspection, original-evidence export and saving to the local run library. The
 summary download preserves its original bytes.
 
+Choose **Save cases** to save every captured case to **Runs** in one action.
+Every case must have available evidence and an evaluated report; a **Failed**
+verdict is still a valid report and can be saved. Summary mismatches remain
+review findings and do not prevent saving otherwise valid case evidence.
+Saving does not change the summary's runner result or agreement status.
+
+The save is all-or-nothing. If the 50-run library has insufficient space or
+browser storage fails, no cases are added and existing runs are unchanged.
+Delete unneeded runs or resolve storage availability, then retry. Identical
+original evidence is deduplicated, so repeated saves do not add extra copies.
+Saved cases survive reload on the same browser origin. All cases saved this
+way are labelled **Imported evidence**, including the built-in bundle; saving
+does not add trusted provenance or verify signatures.
+
+This saves individual DrillRuns, not the suite summary or case grouping.
+Download the original summary and retain the input files to review the suite
+again after reload. Clearing browser site data also removes the saved runs.
+
 **Evidence matches the summary** means the submitted claims agree with the
 evaluated JSON evidence. It does not authenticate the capture, inspect the
 SQLite ledger, reproduce every runner acceptance check, verify signatures or
@@ -252,7 +270,9 @@ trusted-key verification outside the static demo.
 
 Verified on 2026-10-05 in the browser demo at 390px and 1440px: all three
 recorded outcomes, changed-summary detection, missing/invalid imports and
-original-byte downloads.
+original-byte downloads. Suite-case saving, reload persistence, deduplication
+and simulated storage-failure rollback/retry were checked in the browser.
+Library-limit rollback and concurrent saves were checked with IndexedDB tests.
 
 ### Ledger And Measurement Limits
 
