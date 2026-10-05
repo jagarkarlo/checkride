@@ -1,5 +1,5 @@
 {
-  "title": "Checkride recovery drills",
+  "title": "Nostekon recovery drills",
   "description": "Recovery depth, time and data loss from checkride-report, pushed to a Prometheus Pushgateway with --pushgateway-url.",
   "schemaVersion": 39,
   "version": 1,

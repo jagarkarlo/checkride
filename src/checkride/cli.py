@@ -255,7 +255,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
-    version = commands.add_parser("version", help="print the Checkride version")
+    version = commands.add_parser("version", help="print the Nostekon version")
     version.set_defaults(handler=_cmd_version)
 
     levels = commands.add_parser("levels", help="list the verification levels V0-V4")

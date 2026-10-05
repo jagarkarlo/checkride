@@ -72,7 +72,7 @@ export function Studio({ onReachability }: { onReachability: (online: boolean) =
       setRuns((previous) => [run, ...previous].slice(0, 6));
     } catch (error) {
       onReachability(false);
-      setRequestError(error instanceof Error ? error.message : "Could not reach the Checkride API.");
+      setRequestError(error instanceof Error ? error.message : "Could not reach the Nostekon API.");
     } finally {
       setIsValidating(false);
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a disposable PostgreSQL dump/restore across the two Checkride k3d clusters."""
+"""Run a disposable PostgreSQL dump/restore across the two k3d lab clusters."""
 
 import sys
 

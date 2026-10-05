@@ -86,7 +86,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
       } catch (error) {
         if (current !== generation.current) return;
         onReachability(false);
-        setRequestError(error instanceof Error ? error.message : "Could not reach the Checkride API.");
+        setRequestError(error instanceof Error ? error.message : "Could not reach the Nostekon API.");
       } finally {
         if (current === generation.current) setIsBuilding(false);
       }

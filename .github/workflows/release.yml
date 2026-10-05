@@ -83,8 +83,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          title="Checkride $TAG — verified evidence reporting"
-          body='Checkride pre-alpha release: DrillRun evidence evaluation, V0–V4 verdicts, phased RTO, acknowledged-write RPO, local report and Ed25519 attestation CLIs, Studio evidence review, and the multi-page product site. Restore execution is the next roadmap step.'
+          title="Nostekon $TAG — verified evidence reporting"
+          body='Nostekon pre-alpha release: DrillRun evidence evaluation, V0–V4 verdicts, phased RTO, acknowledged-write RPO, local report and Ed25519 attestation CLIs, Studio evidence review, and the multi-page product site. Restore execution is the next roadmap step.'
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$body" --prerelease
             gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber

@@ -19,7 +19,7 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		slog.Error("Checkride API stopped with an error", "error", err)
+		slog.Error("Nostekon API stopped with an error", "error", err)
 		os.Exit(1)
 	}
 }
@@ -55,7 +55,7 @@ func run() error {
 		serveErrors <- server.Serve(listener)
 	}()
 
-	slog.Info("Checkride API listening", "address", listener.Addr().String())
+	slog.Info("Nostekon API listening", "address", listener.Addr().String())
 
 	select {
 	case err := <-serveErrors:
@@ -74,7 +74,7 @@ func run() error {
 		if err := <-serveErrors; err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("serve after shutdown: %w", err)
 		}
-		slog.Info("Checkride API stopped")
+		slog.Info("Nostekon API stopped")
 		return nil
 	}
 }

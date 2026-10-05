@@ -69,4 +69,4 @@ set -e
 test "$failed_exit" -eq 1
 test "$verified_exit" -eq 0
 
-printf '%s\n' 'Checkride report API smoke checks passed.'
+printf '%s\n' 'Nostekon report API smoke checks passed.'
