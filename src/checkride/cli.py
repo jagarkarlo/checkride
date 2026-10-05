@@ -168,6 +168,7 @@ def _cmd_lab_run(args: argparse.Namespace) -> int:
             image=args.image or DEFAULT_POSTGRES_IMAGE,
             write_count=args.writes,
             after_backup_writes=args.after_backup_writes,
+            rpo_seconds=args.rpo_seconds,
         )
         return 0
     except KeyboardInterrupt:
@@ -294,6 +295,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help="writes after backup to demonstrate zero-loss failure (default: 0)",
+    )
+    lab_run.add_argument(
+        "--rpo-seconds",
+        type=int,
+        default=0,
+        help="permitted tail-loss window, 0 to 86400 seconds (default: 0)",
     )
     lab_run.set_defaults(handler=_cmd_lab_run)
 

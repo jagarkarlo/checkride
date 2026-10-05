@@ -122,7 +122,11 @@ def test_lab_command_requires_subcommand() -> None:
 
 @pytest.mark.parametrize(
     "workload_args,expected",
-    [([], (1, 0)), (["--writes", "3", "--after-backup-writes", "2"], (3, 2))],
+    [
+        ([], (1, 0, 0)),
+        (["--writes", "3", "--after-backup-writes", "2"], (3, 2, 0)),
+        (["--writes", "3", "--after-backup-writes", "2", "--rpo-seconds", "60"], (3, 2, 60)),
+    ],
 )
 def test_lab_run_invokes_execute_isolated_drill(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workload_args, expected
@@ -141,7 +145,11 @@ def test_lab_run_invokes_execute_isolated_drill(
     assert called_kwargs["output"] == output
     assert called_kwargs["source_context"] == lab.DEFAULT_SOURCE_CONTEXT
     assert called_kwargs["restore_context"] == lab.DEFAULT_RESTORE_CONTEXT
-    assert (called_kwargs["write_count"], called_kwargs["after_backup_writes"]) == expected
+    assert (
+        called_kwargs["write_count"],
+        called_kwargs["after_backup_writes"],
+        called_kwargs["rpo_seconds"],
+    ) == expected
 
 
 def test_lab_run_returns_error_on_exception(
