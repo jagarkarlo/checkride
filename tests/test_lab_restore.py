@@ -291,6 +291,39 @@ def test_same_row_count_cannot_hide_missing_or_unexpected_ids(tmp_path, replace_
     assert any(check["level"] == "V4" and not check["passed"] for check in status["checks"])
 
 
+@pytest.mark.parametrize("malformed", ["duplicate", "blank", "truncated"])
+def test_malformed_restored_ids_are_not_published_as_measured_ledger(tmp_path, malformed):
+    commands = []
+    execute = fake_kubectl(commands)
+
+    def invalid(context, namespace, *args, input_data=None):
+        result = execute(context, namespace, *args, input_data=input_data)
+        if "SELECT write_id FROM recovery_probe" in args:
+            identifiers = result.decode().splitlines()
+            if malformed == "duplicate":
+                identifiers[1] = identifiers[0]
+            elif malformed == "blank":
+                identifiers[1] = ""
+            else:
+                identifiers.pop()
+            return "\n".join(identifiers).encode()
+        return result
+
+    output = tmp_path / "run.json"
+    with (
+        patch.object(restore, "run_kubectl", side_effect=invalid),
+        pytest.raises(RuntimeError, match="restored write IDs"),
+    ):
+        restore.execute_isolated_drill(output, write_count=3, rpo_seconds=60)
+    status = json.loads(output.read_text())["status"]
+    assert "ledger" not in status
+    assert any(check["level"] == "V4" and not check["passed"] for check in status["checks"])
+    assert {item[0] for item in commands if item[2][:2] == ("delete", "namespace")} == {
+        SOURCE,
+        RESTORE,
+    }
+
+
 def test_same_cluster_contexts_are_rejected_before_mutation(tmp_path):
     commands = []
 

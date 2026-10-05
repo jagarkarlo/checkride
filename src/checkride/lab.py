@@ -389,7 +389,16 @@ def execute_isolated_drill(
                 .decode()
                 .strip()
             )
-            present = found.splitlines() if found else []
+            identifiers = found.splitlines() if found else []
+            if (
+                len(identifiers) != write_count
+                or len(set(identifiers)) != len(identifiers)
+                or any(not identifier.strip() for identifier in identifiers)
+            ):
+                raise RuntimeError(
+                    "restored write IDs are inconsistent with the verified row count"
+                )
+            present = identifiers
             checks.append(
                 {
                     "level": "V4",
