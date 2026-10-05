@@ -37,7 +37,7 @@ Nostekon structures every recovery test as an isolated, verifiable loop:
 ```
 
 ### 1. Declarative drill specification
-You author a declarative `Drill` document (`checkride/v1alpha1`) specifying:
+You author a declarative `Drill` document (`nostekon/v1alpha1`) specifying:
 - **Scenario:** The failure model (`namespace-loss`, `cluster-loss`, `bad-migration`, `ransomware`, `lost-secret`, etc.).
 - **Target:** The workload namespace, GitOps Argo CD application name, and database cluster.
 - **Restore target:** Destination environment, defaulting to an isolated separate cluster.

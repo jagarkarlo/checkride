@@ -7,7 +7,7 @@ Nostekon is pre-alpha. Only the latest commit on `main` receives fixes.
 ## Reporting a vulnerability
 
 Please do not open a public issue. Report vulnerabilities privately through
-[GitHub private vulnerability reporting](https://github.com/jagarkarlo/checkride/security/advisories/new).
+[GitHub private vulnerability reporting](https://github.com/jagarkarlo/nostekon/security/advisories/new).
 
 Include the affected version or commit, the steps to reproduce, and the impact
 you observed. You can expect an acknowledgement within seven days.

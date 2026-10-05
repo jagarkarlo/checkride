@@ -251,7 +251,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
           <div className="report-actions">
             {stale && <span className="stale-inline">Evidence edited</span>}
             <button className="tool" type="button" disabled={!report || stale || isBuilding || saving || saved} onClick={() => void save()} title="Save original evidence and report in this browser"><Save size={15} /> {saved ? "Saved" : saving ? "Saving..." : "Save run"}</button>
-            <button className="icon-button" type="button" disabled={!source} aria-label="Download original evidence" title="Download original DrillRun evidence" onClick={() => download("checkride.run.json", source, "application/json")}><Download size={15} /></button>
+            <button className="icon-button" type="button" disabled={!source} aria-label="Download original evidence" title="Download original DrillRun evidence" onClick={() => download("nostekon.run.json", source, "application/json")}><Download size={15} /></button>
             <button className="primary" type="button" disabled={isBuilding || !inspection.ok || source.length === 0} onClick={() => void build(source, undefined, attestation)}>
               {isBuilding ? <LoaderCircle className="spin" size={15} /> : <Play size={14} fill="currentColor" />}
               {isBuilding ? "Building…" : "Build report"}

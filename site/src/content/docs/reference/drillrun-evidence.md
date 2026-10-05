@@ -5,15 +5,15 @@ description: Reference documentation for recorded DrillRun evidence documents an
 
 Nostekon strictly distinguishes between what you intend to test (`Drill`) and what was observed during an actual test run (`DrillRun`).
 
-## `DrillRun` schema (`checkride/v1alpha1`)
+## `DrillRun` schema (`nostekon/v1alpha1`)
 
-A `DrillRun` is an audit-ready JSON document capturing timing, execution phases, check outcomes, and write ledger state. The versioned JSON Schema is served by the API at `GET /api/v1/schemas/drillrun`.
+A `DrillRun` is an audit-ready JSON document capturing timing, execution phases, check outcomes, and write ledger state. The versioned JSON Schema is served by the API at `GET /api/v1/schemas/drillrun`. Evidence recorded before the Nostekon rename uses `checkride/v1alpha1` and is still accepted, so earlier captures and their detached signatures keep verifying.
 
 ### Document structure
 
 ```json
 {
-  "apiVersion": "checkride/v1alpha1",
+  "apiVersion": "nostekon/v1alpha1",
   "kind": "DrillRun",
   "metadata": {
     "name": "mlflow-namespace-loss-20261001",
@@ -63,7 +63,7 @@ A `DrillRun` is an audit-ready JSON document capturing timing, execution phases,
 
 ## Computed report structure
 
-Passing a `DrillRun` document to `POST /api/v1/runs/report` or `checkride-report` outputs an evaluated report object:
+Passing a `DrillRun` document to `POST /api/v1/runs/report` or `nostekon-report` outputs an evaluated report object:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -86,17 +86,17 @@ Passing a `DrillRun` document to `POST /api/v1/runs/report` or `checkride-report
 
 ## Detached Ed25519 attestation
 
-`checkride-attest` signs the SHA-256 digest of the exact DrillRun file bytes and
+`nostekon-attest` signs the SHA-256 digest of the exact DrillRun file bytes and
 writes a separate JSON sidecar. It does not add a claimed identity to the
 DrillRun document, so existing schema consumers remain compatible.
 
 ```bash
-install -d -m 700 "$HOME/.config/checkride"
-install -d -m 700 "$HOME/.config/checkride/signing" "$HOME/.config/checkride/trusted-keys"
-go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing/signing-key.pem" --public "$HOME/.config/checkride/trusted-keys/operator.pem"
-go run ./cmd/checkride-attest sign --evidence run.json --key "$HOME/.config/checkride/signing/signing-key.pem" --output run.attestation.json
-go run ./cmd/checkride-attest verify --evidence run.json --attestation run.attestation.json --trusted-key "$HOME/.config/checkride/trusted-keys/operator.pem"
-go run ./cmd/checkride-report --attestation run.attestation.json --trusted-key "$HOME/.config/checkride/trusted-keys/operator.pem" run.json
+install -d -m 700 "$HOME/.config/nostekon"
+install -d -m 700 "$HOME/.config/nostekon/signing" "$HOME/.config/nostekon/trusted-keys"
+go run ./cmd/nostekon-attest keygen --private "$HOME/.config/nostekon/signing/signing-key.pem" --public "$HOME/.config/nostekon/trusted-keys/operator.pem"
+go run ./cmd/nostekon-attest sign --evidence run.json --key "$HOME/.config/nostekon/signing/signing-key.pem" --output run.attestation.json
+go run ./cmd/nostekon-attest verify --evidence run.json --attestation run.attestation.json --trusted-key "$HOME/.config/nostekon/trusted-keys/operator.pem"
+go run ./cmd/nostekon-report --attestation run.attestation.json --trusted-key "$HOME/.config/nostekon/trusted-keys/operator.pem" run.json
 ```
 
 Verification must use a public key that the verifier already trusts through an

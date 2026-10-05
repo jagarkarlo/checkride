@@ -53,14 +53,14 @@ If Nostekon detects a write $w_j$ present while an earlier write $w_i$ ($i < j$)
 
 ## Recording acknowledgements via CLI
 
-You can populate a ledger using the `checkride` CLI:
+You can populate a ledger using the `nostekon` CLI:
 
 ```bash
-checkride import-acks --ledger run.ledger.db acks.csv
+nostekon import-acks --ledger run.ledger.db acks.csv
 ```
 
 To evaluate the exact RPO against restored IDs:
 
 ```bash
-checkride rpo --ledger run.ledger.db --present restored_ids.txt --failure-at 2026-10-01T10:00:00Z --json
+nostekon rpo --ledger run.ledger.db --present restored_ids.txt --failure-at 2026-10-01T10:00:00Z --json
 ```

@@ -12,7 +12,7 @@ Ensure the following tools are installed:
 - **k3d:** v5.4+ (`k3d version`)
 - **kubectl:** v1.28+
 - **Python:** 3.12+ with Nostekon installed (`pip install -e .`)
-- **Go:** 1.25+ (for `checkride-report`)
+- **Go:** 1.25+ (for `nostekon-report`)
 
 ## 1. Create the segregated clusters
 
@@ -30,8 +30,8 @@ k3d cluster create --config lab/k3d/restore.yaml
 ```
 
 This creates:
-- `k3d-checkride-source`: Source cluster on dedicated Docker bridge network.
-- `k3d-checkride-restore`: Target cluster with isolated API server, network, and storage.
+- `k3d-nostekon-source`: Source cluster on dedicated Docker bridge network.
+- `k3d-nostekon-restore`: Target cluster with isolated API server, network, and storage.
 
 ## 2. Proxy and offline image caching (if needed)
 
@@ -41,7 +41,7 @@ If running in corporate or restricted network environments where nodes cannot pu
 docker pull rancher/mirrored-pause:3.10.2
 docker pull postgres:16.8
 
-k3d image import -c checkride-source -c checkride-restore \
+k3d image import -c nostekon-source -c nostekon-restore \
   rancher/mirrored-pause:3.10.2 \
   postgres:16.8
 ```
@@ -51,13 +51,13 @@ k3d image import -c checkride-source -c checkride-restore \
 Check that both clusters are reachable and have ready nodes:
 
 ```bash
-checkride lab status
+nostekon lab status
 ```
 
 Expected output:
 ```
-source   [READY    ] context=k3d-checkride-source nodes=2
-restore  [READY    ] context=k3d-checkride-restore nodes=2
+source   [READY    ] context=k3d-nostekon-source nodes=2
+restore  [READY    ] context=k3d-nostekon-restore nodes=2
 ```
 
 ## 4. Execute the recovery drill
@@ -65,12 +65,12 @@ restore  [READY    ] context=k3d-checkride-restore nodes=2
 Run the automated PostgreSQL disaster recovery drill:
 
 ```bash
-checkride lab run --writes 10 --output /tmp/k3d-evidence.json
+nostekon lab run --writes 10 --output /tmp/k3d-evidence.json
 ```
 
 What this does:
-1. Validates that `k3d-checkride-source` and `k3d-checkride-restore` address distinct Kubernetes control planes.
-2. Creates an ephemeral `checkride-<id>` namespace in both clusters.
+1. Validates that `k3d-nostekon-source` and `k3d-nostekon-restore` address distinct Kubernetes control planes.
+2. Creates an ephemeral `nostekon-<id>` namespace in both clusters.
 3. Launches PostgreSQL in the source cluster and records ten successfully
   acknowledged writes in a private host-side SQLite ledger.
 4. Performs a `pg_dump` logical backup.
@@ -83,10 +83,10 @@ What this does:
 
 ## 5. Evaluate the evidence report
 
-Pass the generated evidence to `checkride-report`:
+Pass the generated evidence to `nostekon-report`:
 
 ```bash
-go run ./cmd/checkride-report /tmp/k3d-evidence.json
+go run ./cmd/nostekon-report /tmp/k3d-evidence.json
 ```
 
 The evaluator will output the JSON report and exit with `0` (Verified), `1` (Failed), or `2` (Incomplete/Invalid). This previously captured V3 run is a historical example; a current successful lab run requests V4:
@@ -112,8 +112,8 @@ a real local k3d restore on 2026-10-05.
 Run a separate drill that inserts two more writes after taking the dump:
 
 ```bash
-checkride lab run --writes 10 --after-backup-writes 2 --output /tmp/k3d-tail-loss.json
-go run ./cmd/checkride-report /tmp/k3d-tail-loss.json
+nostekon lab run --writes 10 --after-backup-writes 2 --output /tmp/k3d-tail-loss.json
+go run ./cmd/nostekon-report /tmp/k3d-tail-loss.json
 ```
 
 Both commands should exit `1`: the backup and V3 row count pass, but V4 fails
@@ -129,9 +129,9 @@ execution. Use a new output path; existing evidence and ledger files are never
 overwritten:
 
 ```bash
-checkride lab run --writes 10 --after-backup-writes 2 --rpo-seconds 60 \
+nostekon lab run --writes 10 --after-backup-writes 2 --rpo-seconds 60 \
   --output /tmp/k3d-budget-loss.json
-go run ./cmd/checkride-report /tmp/k3d-budget-loss.json
+go run ./cmd/nostekon-report /tmp/k3d-budget-loss.json
 ```
 
 Both commands exit `0` only if the measured RPO is within the declared budget
@@ -155,7 +155,7 @@ All three have zero holes and zero unexpected IDs. To inspect the permitted-loss
 capture without creating clusters:
 
 ```bash
-go run ./cmd/checkride-report examples/runs/k3d-ledger-budget-loss.run.json
+go run ./cmd/nostekon-report examples/runs/k3d-ledger-budget-loss.run.json
 ```
 
 ### Run the three-case policy suite
@@ -164,7 +164,7 @@ Run all three outcomes as one regression gate against the same two disposable
 clusters. Choose an output directory that does not already exist:
 
 ```bash
-checkride lab suite --output-dir /tmp/checkride-suite-001
+nostekon lab suite --output-dir /tmp/nostekon-suite-001
 ```
 
 The suite defaults to ten writes before each backup and runs these cases in order:
@@ -194,8 +194,8 @@ To evaluate the intentionally failed case independently, build the Go binary
 so its exit status is preserved:
 
 ```bash
-go build -o /tmp/checkride-report ./cmd/checkride-report
-/tmp/checkride-report /tmp/checkride-suite-001/tail-loss.drillrun.json
+go build -o /tmp/nostekon-report ./cmd/nostekon-report
+/tmp/nostekon-report /tmp/nostekon-suite-001/tail-loss.drillrun.json
 ```
 
 This evaluator should return 1 and still report the measured two lost writes.

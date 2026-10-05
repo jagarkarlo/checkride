@@ -8,7 +8,7 @@ A `Drill` document describes the failure scenario, the target workload, the rest
 ## Full YAML example
 
 ```yaml
-apiVersion: checkride/v1alpha1
+apiVersion: nostekon/v1alpha1
 kind: Drill
 metadata:
   name: shop-namespace-loss
@@ -37,7 +37,7 @@ spec:
 ## Field reference
 
 ### `apiVersion` and `kind`
-- `apiVersion`: Must be `checkride/v1alpha1`.
+- `apiVersion`: Must be `nostekon/v1alpha1`. Drills written before the rename with `checkride/v1alpha1` are still accepted.
 - `kind`: Must be `Drill`.
 
 ### `metadata`

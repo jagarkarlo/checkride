@@ -19,7 +19,7 @@ Python 3.12 or newer is required.
 Drills run against disposable [k3d](https://k3d.io/) clusters:
 
 ```bash
-make lab-up     # creates checkride-source and checkride-restore
+make lab-up     # creates nostekon-source and nostekon-restore
 make lab-down   # deletes both clusters
 ```
 

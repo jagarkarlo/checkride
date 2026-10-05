@@ -2,7 +2,7 @@ site_name: Nostekon
 site_description: Run an isolated recovery drill. Inspect what survived.
 docs_dir: site/src/content/docs
 site_dir: site/public/docs
-repo_url: https://github.com/jagarkarlo/checkride
+repo_url: https://github.com/jagarkarlo/nostekon
 repo_name: GitHub
 edit_uri: ''
 strict: true

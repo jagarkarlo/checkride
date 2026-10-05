@@ -5,9 +5,9 @@ description: How to gate deployments and pull requests on verified disaster reco
 
 A core tenet of Nostekon is that recovery is not an annual checklist; it is a **continuous pipeline gate**. If a new database schema migration breaks Point-in-Time Recovery or an ingress change prevents pods from starting after restore, CI should fail before the code ever reaches production.
 
-## Using `checkride-report` as a gate
+## Using `nostekon-report` as a gate
 
-The `checkride-report` binary evaluates a captured `DrillRun` evidence document and exits with machine-readable process codes:
+The `nostekon-report` binary evaluates a captured `DrillRun` evidence document and exits with machine-readable process codes:
 
 | Exit code | Meaning | Pipeline outcome |
 | --- | --- | --- |
@@ -76,11 +76,13 @@ jobs:
 
       - name: Evaluate latest drill evidence
         run: |
-          go run github.com/jagarkarlo/checkride/cmd/checkride-report@v0.1.0 \
+          go run github.com/jagarkarlo/nostekon/cmd/nostekon-report@main \
             ./evidence/latest-restore.run.json
 ```
 
-If the latest restore failed or exceeded the target RTO, `checkride-report` exits with code `1`, halting the deployment pipeline.
+Pin `@main` to a commit SHA for reproducible gates. Release `v0.1.0` predates the rename and is only installable as `github.com/jagarkarlo/checkride/cmd/checkride-report@v0.1.0`.
+
+If the latest restore failed or exceeded the target RTO, `nostekon-report` exits with code `1`, halting the deployment pipeline.
 
 ## GitLab CI example
 
@@ -95,7 +97,7 @@ verify-recovery:
   stage: test
   image: golang:1.25
   script:
-    - go run github.com/jagarkarlo/checkride/cmd/checkride-report@v0.1.0 ./artifacts/nightly-drill.json
+    - go run github.com/jagarkarlo/nostekon/cmd/nostekon-report@main ./artifacts/nightly-drill.json
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_MERGE_REQUEST_IID'
@@ -116,7 +118,7 @@ if [ $(( now_epoch - completed_epoch )) -gt $max_age_seconds ]; then
   exit 1
 fi
 
-checkride-report evidence.json
+nostekon-report evidence.json
 ```
 
 ## Watching results over time

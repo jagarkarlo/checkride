@@ -2,7 +2,7 @@
 
 **Don't assume you can recover. Prove it, every day.**
 
-[![CI](https://github.com/jagarkarlo/checkride/actions/workflows/ci.yml/badge.svg)](https://github.com/jagarkarlo/checkride/actions/workflows/ci.yml)
+[![CI](https://github.com/jagarkarlo/nostekon/actions/workflows/ci.yml/badge.svg)](https://github.com/jagarkarlo/nostekon/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 Nostekon verifies recovery evidence and runs a narrow, disposable PostgreSQL
@@ -17,8 +17,10 @@ volumes, Secrets and object storage is planned, not implemented.
 
 > [!NOTE]
 > **Status: pre-alpha.** Nostekon is being built as a master's thesis project
-> (2026-2027). Interfaces will change without notice. The CLI, Python package,
-> Go module and evidence `apiVersion` still use the name `checkride`.
+> (2026-2027). Interfaces will change without notice. The project was called
+> Checkride until October 2026: evidence, drills and signatures recorded with
+> `checkride/v1alpha1` versions still verify, but `checkride_*` metrics and the
+> `checkride` command were renamed.
 
 ## Why
 
@@ -73,9 +75,9 @@ flowchart LR
 | DrillRun | Bounded JSON evidence document with a published JSON Schema | Available; local API can verify detached signatures when a trusted-key directory is configured |
 | Verifier | Evaluates recorded V0-V4 checks, RTO phases and RPO ledger | Available for submitted evidence; no restore execution |
 | API | Go HTTP control plane, validation, schema and report endpoints | Available locally; optional server-configured Ed25519 verification |
-| Report CLI | Evaluates DrillRun files and returns gate-friendly exit codes | Available as `go run ./cmd/checkride-report` |
-| Attestation CLI | Signs exact DrillRun bytes and verifies detached signatures against trusted keys | Available as `go run ./cmd/checkride-attest` |
-| Metrics | Pushes per-drill gauges to a Prometheus Pushgateway, with a bundled Grafana dashboard | Available via `checkride-report --pushgateway-url` |
+| Report CLI | Evaluates DrillRun files and returns gate-friendly exit codes | Available as `go run ./cmd/nostekon-report` |
+| Attestation CLI | Signs exact DrillRun bytes and verifies detached signatures against trusted keys | Available as `go run ./cmd/nostekon-attest` |
+| Metrics | Pushes per-drill gauges to a Prometheus Pushgateway, with a bundled Grafana dashboard | Available via `nostekon-report --pushgateway-url` |
 | Lab | Disposable k3d source and restore clusters | Available; bounded PostgreSQL workload and V4 ledger checks |
 | Orchestrator | Runs drills, times every phase, cleans up | Planned |
 | Analyzer | Predicts restore failures before a drill from manifests and configuration | Planned |
@@ -86,13 +88,13 @@ flowchart LR
 ## Quick start (development)
 
 ```bash
-git clone https://github.com/jagarkarlo/checkride.git
-cd checkride
+git clone https://github.com/jagarkarlo/nostekon.git
+cd nostekon
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 
-checkride levels
-checkride validate examples/drills/*.yaml
+nostekon levels
+nostekon validate examples/drills/*.yaml
 pytest
 ```
 
@@ -100,7 +102,7 @@ The Go API is in early development. From the repository root:
 
 ```bash
 go test -race ./...
-go run ./cmd/checkride-api
+go run ./cmd/nostekon-api
 ```
 
 It listens on `:8080` by default. Set `NOSTEKON_ADDR` to change the address;
@@ -125,7 +127,7 @@ Recorded evidence can be evaluated through `POST /api/v1/runs/report` or the
 standalone Go command:
 
 ```bash
-go run ./cmd/checkride-report examples/runs/mlflow-namespace-loss.run.json
+go run ./cmd/nostekon-report examples/runs/mlflow-namespace-loss.run.json
 ```
 
 The API accepts up to 16 MiB and evaluates at most four reports concurrently.
@@ -142,11 +144,11 @@ An operator can create a detached Ed25519 signature over the exact DrillRun
 file bytes. The public key must be distributed and trusted independently:
 
 ```bash
-install -d -m 700 "$HOME/.config/checkride/signing" "$HOME/.config/checkride/trusted-keys"
-go run ./cmd/checkride-attest keygen --private "$HOME/.config/checkride/signing/signing-key.pem" --public "$HOME/.config/checkride/trusted-keys/operator.pem"
-go run ./cmd/checkride-attest sign --evidence /tmp/checkride-drill.json --key "$HOME/.config/checkride/signing/signing-key.pem" --output /tmp/checkride-drill.attestation.json
-go run ./cmd/checkride-attest verify --evidence /tmp/checkride-drill.json --attestation /tmp/checkride-drill.attestation.json --trusted-key "$HOME/.config/checkride/trusted-keys/operator.pem"
-go run ./cmd/checkride-report --attestation /tmp/checkride-drill.attestation.json --trusted-key "$HOME/.config/checkride/trusted-keys/operator.pem" /tmp/checkride-drill.json
+install -d -m 700 "$HOME/.config/nostekon/signing" "$HOME/.config/nostekon/trusted-keys"
+go run ./cmd/nostekon-attest keygen --private "$HOME/.config/nostekon/signing/signing-key.pem" --public "$HOME/.config/nostekon/trusted-keys/operator.pem"
+go run ./cmd/nostekon-attest sign --evidence /tmp/nostekon-drill.json --key "$HOME/.config/nostekon/signing/signing-key.pem" --output /tmp/nostekon-drill.attestation.json
+go run ./cmd/nostekon-attest verify --evidence /tmp/nostekon-drill.json --attestation /tmp/nostekon-drill.attestation.json --trusted-key "$HOME/.config/nostekon/trusted-keys/operator.pem"
+go run ./cmd/nostekon-report --attestation /tmp/nostekon-drill.attestation.json --trusted-key "$HOME/.config/nostekon/trusted-keys/operator.pem" /tmp/nostekon-drill.json
 ```
 
 Keep the private key outside the repository and distribute the public key
@@ -157,7 +159,7 @@ checks the evidence-byte digest, key fingerprint and signature. This proves
 that the exact file was signed by the holder of the trusted key; it does not
 prove that the runner was truthful, identify a person without an independently
 maintained key-to-identity mapping, or establish when the signature was made.
-By default, `checkride-report` marks evidence as `unverified`; with both
+By default, `nostekon-report` marks evidence as `unverified`; with both
 `--attestation` and `--trusted-key`, it verifies the signature and includes the
 provenance status, key ID and evidence digest in its JSON report. Invalid
 attestations fail report generation.
@@ -185,21 +187,21 @@ report. An unknown key or changed evidence is rejected; sending a signature to
 an API with no configured trust store returns `503`.
 
 ```bash
-sidecar=$(base64 < /tmp/checkride-drill.attestation.json | tr -d '\n')
+sidecar=$(base64 < /tmp/nostekon-drill.attestation.json | tr -d '\n')
 curl -sS http://localhost:8080/api/v1/runs/report \
   -H 'Content-Type: application/json' \
   -H "X-Nostekon-Attestation: $sidecar" \
-  --data-binary @/tmp/checkride-drill.json
+  --data-binary @/tmp/nostekon-drill.json
 ```
 
 ### Push recovery metrics to Grafana
 
-`checkride-report` can push one gauge per drill to a Prometheus Pushgateway,
+`nostekon-report` can push one gauge per drill to a Prometheus Pushgateway,
 so results land in the same dashboards as the rest of your stack instead of
 only a CI log:
 
 ```bash
-go run ./cmd/checkride-report --pushgateway-url http://pushgateway:9091 /tmp/checkride-drill.json
+go run ./cmd/nostekon-report --pushgateway-url http://pushgateway:9091 /tmp/nostekon-drill.json
 ```
 
 The instance label defaults to the evidence's `metadata.name`; set
@@ -213,7 +215,7 @@ for a ready dashboard, or read the
 To use the Studio locally, start the API and Studio in separate terminals:
 
 ```bash
-go run ./cmd/checkride-api
+go run ./cmd/nostekon-api
 cd studio && npm ci && npm run dev
 ```
 
@@ -230,8 +232,8 @@ k3d, kubectl, Python 3.12+ and Go, then use only the dedicated lab contexts:
 
 ```bash
 make lab-up
-python3 scripts/lab/restore.py --writes 10 --output /tmp/checkride-drill.json
-go run ./cmd/checkride-report /tmp/checkride-drill.json
+python3 scripts/lab/restore.py --writes 10 --output /tmp/nostekon-drill.json
+go run ./cmd/nostekon-report /tmp/nostekon-drill.json
 make lab-down
 ```
 
@@ -256,7 +258,7 @@ for the tested commands and exact captured measurements.
 
 These are host-observed PostgreSQL acknowledgements, not application-specific
 business validation or authenticated provenance. The runner attempts cleanup
-even on failure; check for leftover `checkride-*` namespaces if cleanup reports
+even on failure; check for leftover `nostekon-*` namespaces if cleanup reports
 an error. The [lab walkthrough](site/src/content/docs/start.md) covers
 prerequisites and proxy-restricted image pulls. This is not production-safe
 orchestration.

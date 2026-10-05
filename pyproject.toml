@@ -43,8 +43,8 @@ docs = ["mkdocs==1.6.1", "mkdocs-material==9.7.6"]
 nostekon = "nostekon.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/jagarkarlo/checkride"
-Issues = "https://github.com/jagarkarlo/checkride/issues"
+Homepage = "https://github.com/jagarkarlo/nostekon"
+Issues = "https://github.com/jagarkarlo/nostekon/issues"
 
 [tool.hatch.version]
 path = "src/nostekon/__init__.py"

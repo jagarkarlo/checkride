@@ -30,12 +30,12 @@ Nostekon makes segregated restoration the **default contract** for every drill. 
 ## Architecture of the k3d test lab
 
 In the Nostekon local development lab, segregation is modeled using two isolated k3d clusters:
-- `k3d-checkride-source`: Hosts the live workload, database, and scheduled backup agents.
-- `k3d-checkride-restore`: An empty, independent cluster with its own control plane, etcd, network namespace, and storage volumes.
+- `k3d-nostekon-source`: Hosts the live workload, database, and scheduled backup agents.
+- `k3d-nostekon-restore`: An empty, independent cluster with its own control plane, etcd, network namespace, and storage volumes.
 
 ```
 ┌──────────────────────────────────────┐     ┌──────────────────────────────────────┐
-│  Source Cluster (checkride-source)   │     │  Restore Cluster (checkride-restore) │
+│  Source Cluster (nostekon-source)    │     │  Restore Cluster (nostekon-restore)  │
 │                                      │     │                                      │
 │  ┌────────────────┐ ┌─────────────┐  │     │  ┌────────────────┐ ┌─────────────┐  │
 │  │ Source Workload│ │ CNPG / Post │  │     │  │Restored App    │ │Restored DB  │  │

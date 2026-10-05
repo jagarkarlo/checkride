@@ -4,32 +4,32 @@ import Shot from '../components/Shot.astro';
 
 const description = 'Nostekon runs restore drills and reports whether the application and its data actually came back: how deep recovery went, how long it took and how many acknowledged writes were lost.';
 
-const install = `git clone https://github.com/jagarkarlo/checkride.git
-cd checkride
+const install = `git clone https://github.com/jagarkarlo/nostekon.git
+cd nostekon
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e ".[dev]"
-checkride validate examples/drills/mlflow-namespace-loss.yaml`;
+nostekon validate examples/drills/mlflow-namespace-loss.yaml`;
 
 const lab = `make lab-up
 python3 scripts/lab/restore.py --output /tmp/drill.json
 make lab-down`;
 
-const key = `install -d -m 700 "$HOME/.config/checkride"
+const key = `install -d -m 700 "$HOME/.config/nostekon"
 go run ./cmd/nostekon-attest keygen \\
-  --private "$HOME/.config/checkride/signing-key.pem" \\
-  --public "$HOME/.config/checkride/trusted-key.pem"`;
+  --private "$HOME/.config/nostekon/signing-key.pem" \\
+  --public "$HOME/.config/nostekon/trusted-key.pem"`;
 
 const report = `go run ./cmd/nostekon-report /tmp/drill.json
 attestation_dir=$(mktemp -d)
 attestation="$attestation_dir/run.attestation.json"
 go run ./cmd/nostekon-attest sign \\
   --evidence /tmp/drill.json \\
-  --key "$HOME/.config/checkride/signing-key.pem" \\
+  --key "$HOME/.config/nostekon/signing-key.pem" \\
   --output "$attestation"
 go run ./cmd/nostekon-report \\
   --attestation "$attestation" \\
-  --trusted-key "$HOME/.config/checkride/trusted-key.pem" \\
+  --trusted-key "$HOME/.config/nostekon/trusted-key.pem" \\
   /tmp/drill.json
 rm -r "$attestation_dir"`;
 
@@ -112,7 +112,7 @@ const steps = [
       <div class="code-grid">
         <div class="code-card quickstart-step">
           <h3>1. Clone and validate a drill</h3>
-          <p>This checks the drill file against the contract. It does not run a restore. Nostekon is not on PyPI yet, so install it from the clone. The command is still named <code>checkride</code>.</p>
+          <p>This checks the drill file against the contract. It does not run a restore. Nostekon is not on PyPI yet, so install it from the clone.</p>
           <div class="code-block">
             <div class="code-head"><span>Shell</span><button class="copy" type="button" data-copy-target="quickstart-install" data-copy-label="Copy CLI setup commands" aria-label="Copy CLI setup commands">Copy</button></div>
             <pre><code id="quickstart-install">{install}</code></pre>

@@ -85,7 +85,7 @@ test("homepage explains the product and its commands", async ({ page }) => {
   await expect(page.locator(".step-state", { hasText: "Lab only" })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Not built yet" })).toBeVisible();
 
-  await expect(page.locator("#quickstart-install")).toContainText("git clone https://github.com/jagarkarlo/checkride.git");
+  await expect(page.locator("#quickstart-install")).toContainText("git clone https://github.com/jagarkarlo/nostekon.git");
   await expect(page.locator("#quickstart-install")).toContainText("examples/drills/mlflow-namespace-loss.yaml");
   await expect(page.locator("#quickstart")).toContainText("not on PyPI yet");
   for (const label of ["Copy CLI setup commands", "Copy lab commands", "Copy key setup commands", "Copy report commands"]) {
@@ -95,7 +95,7 @@ test("homepage explains the product and its commands", async ({ page }) => {
   const copyButton = page.locator('button[data-copy-target="quickstart-install"]');
   await copyButton.click();
   await expect(copyButton).toHaveText("Copied");
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("git clone https://github.com/jagarkarlo/checkride.git");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("git clone https://github.com/jagarkarlo/nostekon.git");
 
   await expect(page.getByRole("link", { name: "GitHub repository" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
