@@ -1,5 +1,5 @@
 import { Activity, FileCheck2, LayoutList, PencilRuler, RefreshCw } from "lucide-react";
-import checkrideMark from "../../site/src/content/docs/assets/checkride-mark.svg";
+import nostekonMark from "../../site/src/content/docs/assets/nostekon-mark.svg";
 import { useCallback, useEffect, useState } from "react";
 import { request } from "./api";
 import { ReportView } from "./ReportView";
@@ -59,7 +59,7 @@ export function App() {
     <div className="studio">
       <header className="topbar">
         <a className="brand" href="#/runs">
-          <img className="brand-mark" src={checkrideMark} width="28" height="28" alt="" />
+          <img className="brand-mark" src={nostekonMark} width="28" height="28" alt="" />
           <span className="brand-name">Checkride</span>
           <span className="brand-product">Studio</span>
         </a>

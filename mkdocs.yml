@@ -9,8 +9,8 @@ strict: true
 theme:
   name: material
   font: false
-  logo: assets/checkride-mark.svg
-  favicon: assets/checkride-mark.svg
+  logo: assets/nostekon-mark.svg
+  favicon: assets/nostekon-mark.svg
   features:
     - navigation.sections
     - navigation.indexes

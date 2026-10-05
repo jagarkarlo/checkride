@@ -52,16 +52,16 @@ for (const width of [390, 1440]) {
       for (const path of ["/roadmap/", "/demo/", "/docs/"]) {
         await page.goto(path);
         const mark = page.locator(path === "/demo/" ? ".brand-mark" : path === "/docs/" ? ".md-header .md-logo img" : ".wordmark-mark");
-        await expect(mark).toHaveAttribute("src", /checkride-mark|^data:image\/svg\+xml,/);
+        await expect(mark).toHaveAttribute("src", /nostekon-mark|^data:image\/svg\+xml,/);
         await expect.poll(() => mark.evaluate((element) => element instanceof HTMLImageElement && element.complete && element.naturalWidth > 0)).toBe(true);
         const favicon = page.locator('link[rel="icon"]');
-        await expect(favicon).toHaveAttribute("href", /checkride-mark|^data:image\/svg\+xml,/);
+        await expect(favicon).toHaveAttribute("href", /nostekon-mark|^data:image\/svg\+xml,/);
         const asset = await page.evaluate(async (source) => {
           const response = await fetch(source);
           return { status: response.status, text: await response.text() };
         }, new URL((await mark.getAttribute("src"))!, page.url()).href);
         expect(asset.status).toBe(200);
-        expect(asset.text).toContain("Checkride recovery loop");
+        expect(asset.text).toContain("Nostekon stepping-stones mark");
         if (path !== "/docs/") {
           await expect(mark).toBeVisible();
           const toggle = page.locator(path === "/demo/" ? ".studio-theme" : "[data-theme-toggle]");
