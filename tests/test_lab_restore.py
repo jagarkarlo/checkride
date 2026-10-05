@@ -24,9 +24,11 @@ def fake_kubectl(commands, mismatch=False, row_count=None):
         if args[:2] == ("get", "namespace"):
             return context.encode()
         if "pg_dump" in args:
+            backup_ids.clear()
             backup_ids.extend(
                 arg.split("'")[1]
-                for _, _, recorded_args, _ in commands
+                for _, recorded_namespace, recorded_args, _ in commands
+                if recorded_namespace == namespace
                 for arg in recorded_args
                 if arg.startswith("INSERT INTO")
             )
@@ -45,6 +47,118 @@ def commands_write_id(commands):
         arg for _, _, args, _ in commands for arg in args if arg.startswith("INSERT INTO")
     )
     return insert.split("'")[1]
+
+
+def test_lab_suite_measures_all_three_policy_outcomes(tmp_path):
+    from checkride.lab_suite import execute_lab_suite
+
+    commands = []
+    output = tmp_path / "suite"
+    with patch.object(restore, "run_kubectl", side_effect=fake_kubectl(commands)):
+        result = execute_lab_suite(output, write_count=3)
+    assert result["passed"] is True
+    assert json.loads((output / "suite.json").read_text()) == result
+    assert output.stat().st_mode & 0o777 == 0o700
+    assert (output / "suite.json").stat().st_mode & 0o777 == 0o600
+    cases = result["cases"]
+    assert [case["name"] for case in cases] == ["zero-loss", "tail-loss", "budget-loss"]
+    assert [case["observedExitCode"] for case in cases] == [0, 1, 0]
+    assert [case["rpo"]["lost"] for case in cases] == [0, 2, 2]
+    assert [case["rpo"]["objectiveSeconds"] for case in cases] == [0, 0, 60]
+    assert [case["rpo"]["met"] for case in cases] == [True, False, True]
+    for case in cases:
+        assert case["passed"] is True
+        assert case["rpo"]["recovered"] == 3
+        assert (output / case["drillRun"]).is_file()
+        assert (output / case["ledger"]).is_file()
+
+
+@pytest.mark.parametrize("fault", ["restore-error", "cleanup-error", "unexpected-pass"])
+def test_lab_suite_never_accepts_unrelated_failure_as_expected_tail_loss(tmp_path, fault):
+    from checkride import lab_suite
+
+    original = restore.execute_isolated_drill
+    calls = []
+
+    def execute(output, *args, **kwargs):
+        calls.append(output.name)
+        commands = []
+        kubectl = fake_kubectl(commands)
+
+        def faulty(context, namespace, *command, input_data=None):
+            if output.name.startswith("tail-loss"):
+                if fault == "restore-error" and input_data is not None:
+                    raise RuntimeError("restore transport broke")
+                if (
+                    fault == "cleanup-error"
+                    and context == RESTORE
+                    and command[:2] == ("delete", "namespace")
+                ):
+                    raise RuntimeError("cleanup transport broke")
+            return kubectl(context, namespace, *command, input_data=input_data)
+
+        if output.name.startswith("tail-loss") and fault == "unexpected-pass":
+            kwargs["after_backup_writes"] = 0
+        with patch.object(restore, "run_kubectl", side_effect=faulty):
+            return original(output, *args, **kwargs)
+
+    output = tmp_path / "suite"
+    with patch.object(lab_suite, "execute_isolated_drill", side_effect=execute):
+        result = lab_suite.execute_lab_suite(output, write_count=3)
+    assert result["passed"] is False
+    assert result["status"] == "failed"
+    assert [case["passed"] for case in result["cases"]] == [True, False]
+    assert calls == ["zero-loss.drillrun.json", "tail-loss.drillrun.json"]
+    assert json.loads((output / "suite.json").read_text()) == result
+
+
+def test_lab_suite_records_interruption_and_stops(tmp_path):
+    from checkride import lab_suite
+
+    output = tmp_path / "suite"
+    with (
+        patch.object(lab_suite, "execute_isolated_drill", side_effect=KeyboardInterrupt),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        lab_suite.execute_lab_suite(output)
+    result = json.loads((output / "suite.json").read_text())
+    assert result["status"] == "interrupted"
+    assert result["passed"] is False
+    assert result["completedAt"] is not None
+    assert len(result["cases"]) == 1
+    assert result["cases"][0]["observedExitCode"] == 130
+
+
+def test_lab_suite_refuses_existing_directory_before_execution(tmp_path):
+    from checkride import lab_suite
+
+    existing = tmp_path / "suite.json"
+    existing.write_text("preserve this evidence")
+    with (
+        patch.object(lab_suite, "execute_isolated_drill") as execute,
+        pytest.raises(FileExistsError),
+    ):
+        lab_suite.execute_lab_suite(tmp_path)
+    execute.assert_not_called()
+    assert existing.read_text() == "preserve this evidence"
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [{"write_count": value} for value in [0, 99, True, 1.5]]
+    + [{"rpo_seconds": value} for value in [0, 86401, True, 1.5]],
+)
+def test_lab_suite_rejects_invalid_workload_before_creating_output(tmp_path, parameters):
+    from checkride import lab_suite
+
+    output = tmp_path / "suite"
+    with (
+        patch.object(lab_suite, "execute_isolated_drill") as execute,
+        pytest.raises(ValueError),
+    ):
+        lab_suite.execute_lab_suite(output, **parameters)
+    execute.assert_not_called()
+    assert not output.exists()
 
 
 def test_restore_only_moves_dump_to_distinct_lab_cluster(tmp_path):
