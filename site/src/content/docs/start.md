@@ -31,12 +31,12 @@ From the repository root:
 
 ```bash
 make lab-up
-python3 scripts/lab/restore.py --output /tmp/checkride-drill.json
+python3 scripts/lab/restore.py --writes 10 --output /tmp/checkride-drill.json
 go run ./cmd/checkride-report /tmp/checkride-drill.json
 make lab-down
 ```
 
-The runner checks that both contexts resolve to different clusters before creating anything. It starts a PostgreSQL pod in each, inserts a random write in the source, captures `pg_dump` locally, deletes the source namespace, replays the dump into the restore cluster, checks connectivity, confirms the V3 row count and matches the exact write ID as the V4 `probe-write-preserved` invariant. A successful report requests V4, but proves only that this one probe write survived: it is not general application validation, an acknowledged-write RPO measurement or authenticated provenance. The [browser demo](/demo/index.html#/report) runs the full Studio and Go evaluator in WebAssembly without accessing Kubernetes; it includes a previously captured V3 lab run alongside synthetic examples.
+The runner checks that both contexts resolve to different clusters before creating anything. It starts PostgreSQL in each, records successful source writes in a private host-side `<output>.ledger.db`, captures `pg_dump` locally, deletes the source namespace and restores the dump in the other cluster. V3 checks the backed-up row count; V4 compares all restored IDs with the host-observed acknowledgements under a zero-loss objective. A ten-write run should report ten recovered writes, no loss and RPO `0s`. Add `--after-backup-writes 2` to demonstrate an older dump losing two acknowledged writes: both the drill and report should exit `1`, even though V3 passes. These are bounded sequential PostgreSQL writes, not live-application/business validation or authenticated provenance. See the [lab runbook](guides/k3d-isolated-restore.md) for measurement limits and commands. The [browser demo](/demo/index.html#/report) runs Studio and the Go evaluator in WebAssembly without accessing Kubernetes; its historical V3 lab sample is unchanged.
 
 The runner attempts namespace cleanup on failure and raises a nonzero exit status. If it reports a cleanup error, inspect the named `checkride-*` namespace in the named k3d context; do not assume it was deleted. `make lab-down` removes only the two named disposable clusters. On proxy-restricted hosts, Kubernetes nodes may not reach Docker Hub; pull the required images through the host Docker daemon and use `k3d image import -c checkride-source -c checkride-restore IMAGE...` before retrying. At minimum PostgreSQL 16.8 and `rancher/mirrored-pause:3.10.2` must be available; missing CoreDNS or metrics-server images can also block cluster health and namespace finalization.
 

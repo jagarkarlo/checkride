@@ -26,14 +26,17 @@ GitHub-hosted Ubuntu runner; it needs no production credentials or cluster
 access.
 
 The job installs k3d v5.8.3, creates the two dedicated Checkride clusters,
-runs a PostgreSQL source-namespace-loss drill and evaluates its evidence.
-It passes only when the report is verified at V4 and the
-`probe-write-preserved` check passes. A verified V3 report is not sufficient.
-This verifies one seeded probe write, not general application correctness
-or an acknowledged-write RPO objective.
+runs a ten-write PostgreSQL source-namespace-loss drill and evaluates its
+evidence. It requires a verified V4 report with all ten writes recovered,
+no holes or unexpected IDs, and RPO `0s`. A verified V3 report is not sufficient.
+It then runs a deliberate post-backup tail-loss drill and requires a V4 failure
+with exactly twelve acknowledged writes, ten recovered and two lost. The job
+fails if this negative test unexpectedly passes or reports a different failure.
+This checks a bounded PostgreSQL workload, not general application correctness.
 
 Download **isolated-restore-evidence-<run ID>-<attempt>** from the workflow
-run's artifacts for the DrillRun and, when evaluation ran, the JSON report.
+run's artifacts for the DrillRuns, private SQLite sidecars and JSON reports
+from both scenarios (when produced).
 Artifacts are retained for seven days. On failure, inspect the failed step
 and any available evidence; failures before evidence creation have no
 artifact. Teardown runs with `always()` and removes the two disposable
@@ -42,9 +45,9 @@ guarantee cleanup after an abrupt runner loss; the GitHub-hosted runner's
 disposal is the final isolation boundary. The job is capped at 20 minutes
 and is not supported on a persistent self-hosted runner.
 
-The gate expression was verified locally on 2026-10-05 using a real k3d
-V4 restore and the historical V3 sample (accepted and rejected,
-respectively). The GitHub-hosted workflow itself must still be dispatched
+Both ledger gate expressions were verified locally on 2026-10-05 using real
+k3d zero-loss and deliberate two-write-tail-loss runs. The
+GitHub-hosted workflow itself must still be dispatched
 to confirm hosted provisioning and artifact delivery.
 
 Add this step to your deployment workflow to ensure that recent recovery evidence satisfies your application's RTO and RPO objectives:

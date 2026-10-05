@@ -65,19 +65,20 @@ restore  [READY    ] context=k3d-checkride-restore nodes=2
 Run the automated PostgreSQL disaster recovery drill:
 
 ```bash
-checkride lab run --output /tmp/k3d-evidence.json
+checkride lab run --writes 10 --output /tmp/k3d-evidence.json
 ```
 
 What this does:
 1. Validates that `k3d-checkride-source` and `k3d-checkride-restore` address distinct Kubernetes control planes.
 2. Creates an ephemeral `checkride-<id>` namespace in both clusters.
-3. Launches a PostgreSQL pod in the source cluster and seeds a unique write probe.
+3. Launches PostgreSQL in the source cluster and records ten successfully
+  acknowledged writes in a private host-side SQLite ledger.
 4. Performs a `pg_dump` logical backup.
 5. Injects catastrophic failure by **deleting the source namespace** and awaiting termination.
 6. Streams the backup into the PostgreSQL instance in the separate restore cluster.
-7. Executes V2 connectivity checks, confirms the V3 row count, then matches the
-  exact random probe write ID as the V4 `probe-write-preserved` invariant.
-8. Writes an audit-ready `DrillRun` document to the output path.
+7. Executes V2 connectivity checks, confirms the backed-up V3 row count,
+   preserves the original V4 probe and compares all recovered IDs with the ledger.
+8. Writes a `DrillRun` with acknowledged-write evidence and a zero-loss objective.
 9. Automatically cleans up test namespaces in both clusters.
 
 ## 5. Evaluate the evidence report
@@ -101,11 +102,45 @@ The evaluator will output the JSON report and exit with `0` (Verified), `1` (Fai
 }
 ```
 
-The lab's V4 check proves only that this drill's random probe write survived
-the restore. It is not an application-specific business invariant, an
-acknowledged-write ledger, an RPO measurement or authenticated provenance. If
-the V3 row-count check fails, the runner records a V3 failure without
-declaring V4 evidence.
+Current runs also contain ledger evidence. With `--writes 10` and no tail, the
+report should show ten acknowledged and recovered writes, zero lost writes,
+RPO `0s`, and `met: true` for the `0s` objective. This was verified against
+a real local k3d restore on 2026-10-05.
+
+### Demonstrate acknowledged-write loss
+
+Run a separate drill that inserts two more writes after taking the dump:
+
+```bash
+checkride lab run --writes 10 --after-backup-writes 2 --output /tmp/k3d-tail-loss.json
+go run ./cmd/checkride-report /tmp/k3d-tail-loss.json
+```
+
+Both commands should exit `1`: the backup and V3 row count pass, but V4 fails
+the zero-loss objective. The report should show twelve acknowledged writes,
+ten recovered and two lost, with no holes or unexpected IDs. The measured
+RPO duration depends on this run's acknowledgement and failure timestamps.
+Do not treat this intentional failure as a broken backup command.
+
+### Ledger And Measurement Limits
+
+`--writes` defaults to one and must be positive; `--after-backup-writes`
+defaults to zero and must be nonnegative. Together they are capped at 100.
+The runner records an acknowledgement only after `psql` returns success, then
+commits it to the host-side SQLite ledger. The timestamp is when the host
+observed success, not the database's internal commit time.
+
+The `<output>.ledger.db` sidecar has private file permissions and must not
+already exist, just like the evidence output. Keep it outside both clusters
+and retain it with the evidence. If execution stops before restored IDs are
+queried, the sidecar retains completed acknowledgements, but the DrillRun
+omits ledger measurements rather than claiming all writes were lost. A V3
+row-count failure still emits V3-only evidence.
+
+This measures loss for a bounded, sequential PostgreSQL test workload. It is
+not application-level acknowledgement instrumentation, a business invariant,
+PITR/WAL validation or authenticated provenance. The bundled historical V3
+sample remains unchanged.
 
 ## 6. Teardown
 

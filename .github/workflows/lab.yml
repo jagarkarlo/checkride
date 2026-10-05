@@ -35,7 +35,7 @@ jobs:
       - name: Run restore drill
         run: |
           mkdir -p lab-results
-          checkride lab run --output lab-results/drillrun.json
+          checkride lab run --writes 10 --output lab-results/drillrun.json
       - name: Evaluate V4 evidence
         run: |
           go run ./cmd/checkride-report lab-results/drillrun.json >lab-results/report.json
@@ -44,9 +44,47 @@ jobs:
             .requestedLevel == "V4" and
             .deepestPassed == "V4" and
             .firstFailed == null and
+            .rpo.acknowledged == 10 and
+            .rpo.recovered == 10 and
+            .rpo.lost == 0 and
+            .rpo.holes == 0 and
+            .rpo.unexpected == 0 and
+            .rpo.seconds == 0 and
+            .rpo.met == true and
             (.levels[] | select(.id == "V4") | .checks |
               any(.name == "probe-write-preserved" and .passed == true))
           ' lab-results/report.json >/dev/null
+      - name: Verify deliberate acknowledged-write loss
+        run: |
+          if checkride lab run --writes 10 --after-backup-writes 2 \
+            --output lab-results/tail-loss.drillrun.json; then
+            echo "Tail-loss drill unexpectedly passed" >&2
+            exit 1
+          else
+            test "$?" -eq 1
+          fi
+          go build -o "$RUNNER_TEMP/checkride-report" ./cmd/checkride-report
+          if "$RUNNER_TEMP/checkride-report" lab-results/tail-loss.drillrun.json \
+            >lab-results/tail-loss.report.json; then
+            echo "Tail-loss report unexpectedly passed" >&2
+            exit 1
+          else
+            test "$?" -eq 1
+          fi
+          jq -e '
+            .verdict == "failed" and
+            .requestedLevel == "V4" and
+            .deepestPassed == "V3" and
+            .firstFailed == "V4" and
+            .rpo.acknowledged == 12 and
+            .rpo.recovered == 10 and
+            .rpo.lost == 2 and
+            .rpo.holes == 0 and
+            .rpo.unexpected == 0 and
+            .rpo.met == false and
+            (.levels[] | select(.id == "V4") | .checks |
+              any(.source == "ledger" and .passed == false))
+          ' lab-results/tail-loss.report.json >/dev/null
       - name: Remove disposable clusters
         if: always()
         run: |
