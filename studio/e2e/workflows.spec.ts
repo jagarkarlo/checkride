@@ -1,6 +1,87 @@
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
+async function suiteBundle() {
+  return Promise.all(["suite.json", "zero-loss.drillrun.json", "tail-loss.drillrun.json", "budget-loss.drillrun.json"].map(async (name) => ({
+    name, mimeType: "application/json", buffer: await readFile(new URL(`../../examples/suites/postgresql-policy/${name}`, import.meta.url)),
+  })));
+}
+
+for (const width of [390, 1440]) {
+  test(`recorded suite reviews all policy outcomes at ${width}px`, async ({ page }, testInfo) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/demo/#/suite");
+    await expect(page.getByRole("heading", { name: "Policy suite" })).toBeVisible();
+    const agreement = page.getByRole("status", { name: "Suite evidence agreement" });
+    await expect(agreement).toContainText("Evidence matches the summary");
+    await expect(agreement).toContainText("Recorded local lab");
+    await expect(agreement).toContainText("signatures unverified");
+    const rows = page.locator(".suite-table tbody tr");
+    await expect(rows).toHaveCount(3);
+    for (const [index, verdict, lost, budget] of [[0, "verified", "0", "0s"], [1, "failed", "2", "0s"], [2, "verified", "2", "1m"]] as const) {
+      await expect(rows.nth(index).locator("td").nth(1)).toHaveText(verdict);
+      await expect(rows.nth(index).locator("td").nth(2)).toHaveText("10");
+      await expect(rows.nth(index).locator("td").nth(3)).toHaveText(lost);
+      await expect(rows.nth(index).locator("td").nth(5)).toHaveText(budget);
+      await expect(rows.nth(index).locator("td").nth(7)).toHaveText("Matches");
+    }
+    for (const theme of ["dark", "light"]) {
+      if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator(".studio-theme").click();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (width === 390) expect(await page.locator(".suite-workspace .table-scroll").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath(`suite-${width}-${theme}.png`), fullPage: true });
+    }
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download original suite summary" }).click();
+    expect(await readFile((await (await download).path())!)).toEqual((await suiteBundle())[0].buffer);
+    await page.getByRole("button", { name: "Open Strict tail loss report" }).click();
+    await expect(page.getByRole("heading", { name: "Failed at V4" })).toBeVisible();
+    await page.getByRole("link", { name: "Suite", exact: true }).click();
+    await expect(agreement).toContainText("Evidence matches the summary");
+    expect(errors).toEqual([]);
+  });
+}
+
+test("suite imports expose changed claims and preserve original evidence", async ({ page }) => {
+  await page.goto("/demo/#/suite");
+  await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches");
+  const files = await suiteBundle();
+  const summary = JSON.parse(files[0].buffer.toString());
+  summary.cases[2].rpo.lost = 0;
+  files[0].buffer = Buffer.from(JSON.stringify(summary));
+  await page.locator('[data-testid="suite-input"]').setInputFiles(files);
+  const agreement = page.getByRole("status", { name: "Suite evidence agreement" });
+  await expect(agreement).toContainText("Evidence needs attention");
+  await expect(agreement).toContainText("Imported evidence");
+  await expect(page.getByRole("region", { name: "Suite findings" })).toContainText("lost differs from the suite summary.");
+  await expect(page.locator(".suite-table tbody tr").nth(2)).toContainText("Mismatch");
+  const summaryDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download original suite summary" }).click();
+  expect(await readFile((await (await summaryDownload).path())!)).toEqual(files[0].buffer);
+  await page.getByRole("button", { name: "Open Budgeted tail loss report" }).click();
+  await expect(page.getByRole("heading", { name: "Verified to V4" })).toBeVisible();
+  const evidenceDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download original evidence" }).click();
+  expect(await readFile((await (await evidenceDownload).path())!)).toEqual(files[3].buffer);
+});
+
+test("missing and invalid suite files cannot leave a previous matching review visible", async ({ page }) => {
+  await page.goto("/demo/#/suite");
+  await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches");
+  await page.locator('[data-testid="suite-input"]').setInputFiles((await suiteBundle()).slice(0, 1));
+  await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence needs attention");
+  await expect(page.getByRole("region", { name: "Suite findings" })).toContainText("Missing evidence: zero-loss.drillrun.json");
+  await expect(page.locator(".api-status")).toContainText("Go engine");
+  await page.locator('[data-testid="suite-input"]').setInputFiles({ name: "suite.json", mimeType: "application/json", buffer: Buffer.from('{"kind":"Wrong"}') });
+  await expect(page.getByRole("alert")).toContainText("Not a supported Nostekon LabSuiteResult");
+  await expect(page.locator(".suite-table")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Download original suite summary" })).toBeDisabled();
+  await page.getByRole("button", { name: "Recorded suite", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches");
+});
+
 test("theme preference persists across product, docs and demo pages", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
@@ -185,7 +266,7 @@ test("run comparison exposes different recovery policies", async ({ page }, test
 test("imported evidence uses the browser engine and exports the original", async ({ page }) => {
   await page.goto("/demo/");
     const source = await readFile(new URL("../../examples/runs/k3d-postgresql.run.json", import.meta.url));
-  await page.locator(".run-library input[type=file]").setInputFiles({ name: "lab.json", mimeType: "application/json", buffer: source });
+  await page.getByRole("main").locator('input[type="file"]').setInputFiles({ name: "lab.json", mimeType: "application/json", buffer: source });
   await expect(page.getByRole("heading", { name: "Verified to V3" })).toBeVisible();
   await expect(page.getByRole("status", { name: "Evidence provenance" })).toContainText("signature unverified");
   await expect(page.locator(".api-status")).toContainText("Go engine");
