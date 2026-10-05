@@ -2,7 +2,7 @@
 import ProductLayout from "../layouts/ProductLayout.astro";
 import Shot from "../components/Shot.astro";
 
-const description = "How Checkride grades restore evidence, from V0 backup status to V4 data correctness, plus recovery time, exact data loss and the limits of what a report can prove.";
+const description = "How Nostekon grades restore evidence, from V0 backup status to V4 data correctness, plus recovery time, exact data loss and the limits of what a report can prove.";
 
 const levels = [
   ["V0", "Backup reported success", "The backup tool says it finished, and names the backup and its archived WAL."],
@@ -39,7 +39,7 @@ const levels = [
         <h2>A failed drill, read in one screen</h2>
         <p class="section-lead">The report keeps the reason next to the verdict, so nobody has to dig through logs to learn what went wrong.</p>
       </div>
-      <Shot name="report-failed" alt="Checkride Studio report for a synthetic cluster-loss drill that failed at V3: row counts did not match, and recovery took longer than the objective." caption="Synthetic sample evidence, evaluated by the Go engine in your browser. It is not a recorded restore." />
+      <Shot name="report-failed" alt="Nostekon Studio report for a synthetic cluster-loss drill that failed at V3: row counts did not match, and recovery took longer than the objective." caption="Synthetic sample evidence, evaluated by the Go engine in your browser. It is not a recorded restore." />
     </div>
   </section>
 
@@ -52,7 +52,7 @@ const levels = [
         </div>
         <div class="prose">
           <h3>Data loss</h3>
-          <p>The ledger lists every write that was acknowledged before the failure. After recovery, Checkride checks which of those IDs came back. The loss window runs from the last recovered write to the failure, and a missing write in the middle is reported as a gap.</p>
+          <p>The ledger lists every write that was acknowledged before the failure. After recovery, Nostekon checks which of those IDs came back. The loss window runs from the last recovered write to the failure, and a missing write in the middle is reported as a gap.</p>
         </div>
       </div>
       <div class="callout">

@@ -1,7 +1,7 @@
 ---
 import ProductLayout from "../layouts/ProductLayout.astro";
 
-const description = "What Checkride is made of and where its boundaries are: the drill specification, DrillRun evidence, the V0 to V4 evaluator, and one disposable PostgreSQL lab restore.";
+const description = "What Nostekon is made of and where its boundaries are: the drill specification, DrillRun evidence, the V0 to V4 evaluator, and one disposable PostgreSQL lab restore.";
 
 const layers = [
   { kicker: "Declare", title: "Drill specification", text: "A versioned file that names the failure scenario, the target, the restore location, how deep to verify, and your recovery time and data loss goals.", detail: "YAML in, strict validation, errors that name the field", state: "Available", later: false },
@@ -13,8 +13,8 @@ const layers = [
 <ProductLayout title="Product" description={description} current="product">
   <section class="page-title">
     <div class="wrap">
-      <h1>What Checkride is made of</h1>
-      <p class="lead">Checkride keeps three things apart: what you intended, what happened, and what can be proven. The line to keep in mind is that today's evaluator reads recorded evidence. It does not perform a restore.</p>
+      <h1>What Nostekon is made of</h1>
+      <p class="lead">Nostekon keeps three things apart: what you intended, what happened, and what can be proven. The line to keep in mind is that today's evaluator reads recorded evidence. It does not perform a restore.</p>
     </div>
   </section>
 
@@ -42,7 +42,7 @@ const layers = [
         <h2>Why a separate cluster</h2>
       </div>
       <div class="prose">
-        <p>Restoring into a namespace of the same cluster shares that cluster's operators, CRDs, storage classes and secrets. That can hide exactly the dependencies you would lose in a real cluster failure, so Checkride defaults to a separate cluster. The validator warns when a drill chooses the weaker namespace-only option.</p>
+        <p>Restoring into a namespace of the same cluster shares that cluster's operators, CRDs, storage classes and secrets. That can hide exactly the dependencies you would lose in a real cluster failure, so Nostekon defaults to a separate cluster. The validator warns when a drill chooses the weaker namespace-only option.</p>
         <p><a class="link" href="/docs/concepts/isolated-restores/">Read how isolated restores work</a>, or <a class="link" href="/docs/">browse the architecture notes</a>.</p>
       </div>
     </div>

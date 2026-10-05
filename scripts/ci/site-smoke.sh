@@ -23,12 +23,12 @@ done
 
 for needle in \
   'Find out whether a restore really worked' \
-  'What Checkride is made of' \
+  'What Nostekon is made of' \
   'How deep did the recovery actually go' \
   'Make one drill trustworthy' \
-  'Checkride Studio' \
+  'Nostekon Studio' \
   'Project overview'; do
   grep -Rqs "$needle" "$site_dir/dist"
 done
 
-printf '%s\n' 'Checkride site route and asset checks passed.'
+printf '%s\n' 'Nostekon site route and asset checks passed.'

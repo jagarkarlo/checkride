@@ -60,7 +60,7 @@ export function App() {
       <header className="topbar">
         <a className="brand" href="#/runs">
           <img className="brand-mark" src={nostekonMark} width="28" height="28" alt="" />
-          <span className="brand-name">Checkride</span>
+          <span className="brand-name">Nostekon</span>
           <span className="brand-product">Studio</span>
         </a>
         <nav className="views" aria-label="Studio views">

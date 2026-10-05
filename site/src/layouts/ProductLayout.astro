@@ -28,7 +28,7 @@ const navigation = [
     <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href={nostekonMark} />
     <link rel="preload" href="/fonts/dm-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
-    <title>{title} | Checkride</title>
+    <title>{title} | Nostekon</title>
     <script is:inline>
       const readThemePreference = () => {
         try {
@@ -76,7 +76,7 @@ const navigation = [
   <body>
     <header class="masthead">
       <div class="wrap">
-        <a class="wordmark" href="/" aria-label="Checkride home"><img class="wordmark-mark" src={nostekonMark} width="28" height="28" alt="" />Checkride</a>
+        <a class="wordmark" href="/" aria-label="Nostekon home"><img class="wordmark-mark" src={nostekonMark} width="28" height="28" alt="" />Nostekon</a>
         <nav class="nav" aria-label="Main navigation">
           {navigation.map((item) => (
             <a href={item.href} aria-current={current === item.id ? "page" : undefined}>{item.label}</a>
@@ -95,7 +95,7 @@ const navigation = [
     </main>
     <footer class="footer">
       <div class="wrap">
-        <p>Checkride is pre-alpha software under the Apache-2.0 license.</p>
+        <p>Nostekon is pre-alpha software under the Apache-2.0 license.</p>
         <nav aria-label="Footer">
           <a href="/docs/">Documentation</a>
           <a href="/docs/comparison/">Alternatives</a>

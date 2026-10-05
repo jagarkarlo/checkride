@@ -2,7 +2,7 @@
 import ProductLayout from '../layouts/ProductLayout.astro';
 import Shot from '../components/Shot.astro';
 
-const description = 'Checkride runs restore drills and reports whether the application and its data actually came back: how deep recovery went, how long it took and how many acknowledged writes were lost.';
+const description = 'Nostekon runs restore drills and reports whether the application and its data actually came back: how deep recovery went, how long it took and how many acknowledged writes were lost.';
 
 const install = `git clone https://github.com/jagarkarlo/checkride.git
 cd checkride
@@ -45,7 +45,7 @@ const steps = [
   <section class="hero">
     <div class="wrap">
       <h1>Find out whether a restore really worked</h1>
-      <p class="lead">A finished backup job tells you a file was written. It does not tell you the application came back with its data. Checkride runs a restore drill, records what happened, and reports how far recovery got, how long it took and how many acknowledged writes were lost.</p>
+      <p class="lead">A finished backup job tells you a file was written. It does not tell you the application came back with its data. Nostekon runs a restore drill, records what happened, and reports how far recovery got, how long it took and how many acknowledged writes were lost.</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="/demo/index.html#/report">Open the demo</a>
         <a class="btn" href="/docs/">Read the docs</a>
@@ -55,7 +55,7 @@ const steps = [
   </section>
 
   <section class="wrap" aria-label="Screenshot">
-    <Shot name="report-lab" alt="Checkride Studio report for a recorded lab run: verified to V3, recovery time 16 seconds, with a per-level breakdown and a recovery timeline." caption="A recorded run from the two-cluster lab, opened in Studio. It reached V3. It has no write ledger, and its signature is unverified." />
+    <Shot name="report-lab" alt="Nostekon Studio report for a recorded lab run: verified to V3, recovery time 16 seconds, with a per-level breakdown and a recovery timeline." caption="A recorded run from the two-cluster lab, opened in Studio. It reached V3. It has no write ledger, and its signature is unverified." />
   </section>
 
   <section class="section">
@@ -75,7 +75,7 @@ const steps = [
         </div>
         <div>
           <dt>How much data was lost</dt>
-          <dd>If you record acknowledged writes, Checkride compares them with what came back and reports the loss window and any gaps in the sequence.</dd>
+          <dd>If you record acknowledged writes, Nostekon compares them with what came back and reports the loss window and any gaps in the sequence.</dd>
         </div>
         <div>
           <dt>What it cannot tell you</dt>
@@ -112,7 +112,7 @@ const steps = [
       <div class="code-grid">
         <div class="code-card quickstart-step">
           <h3>1. Clone and validate a drill</h3>
-          <p>This checks the drill file against the contract. It does not run a restore. Checkride is not on PyPI yet, so install it from the clone.</p>
+          <p>This checks the drill file against the contract. It does not run a restore. Nostekon is not on PyPI yet, so install it from the clone. The command is still named <code>checkride</code>.</p>
           <div class="code-block">
             <div class="code-head"><span>Shell</span><button class="copy" type="button" data-copy-target="quickstart-install" data-copy-label="Copy CLI setup commands" aria-label="Copy CLI setup commands">Copy</button></div>
             <pre><code id="quickstart-install">{install}</code></pre>
@@ -172,7 +172,7 @@ const steps = [
         </div>
       </div>
       <div class="prose" style="margin-top: 36px;">
-        <p>Checkride does not orchestrate backups and does not replace a backup tool. It exercises the restore you already have and reports whether it actually worked. See the <a class="link" href="/docs/comparison/">alternatives page</a> for how that differs from a sandbox restore or a health check, and the <a class="link" href="/roadmap/">roadmap</a> for what comes next.</p>
+        <p>Nostekon does not orchestrate backups and does not replace a backup tool. It exercises the restore you already have and reports whether it actually worked. See the <a class="link" href="/docs/comparison/">alternatives page</a> for how that differs from a sandbox restore or a health check, and the <a class="link" href="/roadmap/">roadmap</a> for what comes next.</p>
       </div>
 
     </div>
