@@ -1,7 +1,12 @@
 """Command-boundary tests for the disposable k3d restore runner."""
 
 import json
+import os
+import select
+import signal
+import stat
 import subprocess
+import sys
 from datetime import datetime
 from unittest.mock import patch
 
@@ -131,6 +136,131 @@ def test_lab_suite_records_interruption_and_stops(tmp_path):
     assert result["completedAt"] is not None
     assert len(result["cases"]) == 1
     assert result["cases"][0]["observedExitCode"] == 130
+
+
+def test_lab_suite_failed_checkpoint_preserves_last_complete_summary(tmp_path):
+    from nostekon import lab_suite
+
+    output = tmp_path / "suite"
+    previous = []
+    original_dump = json.dump
+
+    def failing_dump(value, stream, **kwargs):
+        if value["cases"]:
+            if not previous:
+                previous.append((output / "suite.json").read_bytes())
+            stream.write('{"kind":')
+            raise OSError("checkpoint storage failed")
+        return original_dump(value, stream, **kwargs)
+
+    with (
+        patch.object(lab_suite.json, "dump", side_effect=failing_dump),
+        patch.object(lab_suite, "execute_isolated_drill") as execute,
+        pytest.raises(OSError, match="checkpoint storage failed"),
+    ):
+        lab_suite.execute_lab_suite(output)
+    execute.assert_not_called()
+    assert (output / "suite.json").read_bytes() == previous[0]
+    assert json.loads(previous[0])["cases"] == []
+    assert set(output.iterdir()) == {output / "suite.json"}
+
+
+@pytest.mark.parametrize("stage", ["file-sync", "replace"])
+def test_lab_suite_checkpoint_publication_failure_preserves_snapshot(tmp_path, stage):
+    from nostekon import lab_suite
+
+    output = tmp_path / "suite"
+    previous = []
+    original = lab_suite.os.fsync if stage == "file-sync" else lab_suite.os.replace
+
+    def failed_publication(*args):
+        if stage == "file-sync" and not stat.S_ISREG(os.fstat(args[0]).st_mode):
+            return original(*args)
+        checkpoint = output / "suite.json"
+        if previous or (checkpoint.is_file() and checkpoint.stat().st_size):
+            if not previous:
+                previous.append(checkpoint.read_bytes())
+            raise OSError("checkpoint publication failed")
+        return original(*args)
+
+    target = "fsync" if stage == "file-sync" else "replace"
+    with (
+        patch.object(lab_suite.os, target, side_effect=failed_publication),
+        patch.object(lab_suite, "execute_isolated_drill") as execute,
+        pytest.raises(OSError, match="checkpoint publication failed"),
+    ):
+        lab_suite.execute_lab_suite(output)
+    execute.assert_not_called()
+    assert (output / "suite.json").read_bytes() == previous[0]
+    assert json.loads(previous[0])["status"] == "running"
+    assert set(output.iterdir()) == {output / "suite.json"}
+    assert (output / "suite.json").stat().st_mode & 0o777 == 0o600
+
+
+def test_lab_suite_directory_sync_failure_stops_before_execution(tmp_path):
+    from nostekon import lab_suite
+
+    original = lab_suite.os.fsync
+
+    def failed_directory_sync(descriptor):
+        if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            raise OSError("checkpoint directory sync failed")
+        return original(descriptor)
+
+    output = tmp_path / "suite"
+    with (
+        patch.object(lab_suite.os, "fsync", side_effect=failed_directory_sync),
+        patch.object(lab_suite, "execute_isolated_drill") as execute,
+        pytest.raises(OSError, match="checkpoint directory sync failed"),
+    ):
+        lab_suite.execute_lab_suite(output)
+    execute.assert_not_called()
+    assert json.loads((output / "suite.json").read_text())["cases"] == []
+    assert set(output.iterdir()) == {output / "suite.json"}
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX process and directory-sync contract")
+def test_lab_suite_hard_stop_during_checkpoint_keeps_complete_snapshot(tmp_path):
+    output = tmp_path / "suite"
+    code = """
+import json
+import signal
+import sys
+from pathlib import Path
+from nostekon import lab_suite
+
+original = json.dump
+def paused_dump(value, stream, **kwargs):
+    if value['cases']:
+        stream.write('{"kind":')
+        stream.flush()
+        print('checkpoint-ready', flush=True)
+        signal.pause()
+    return original(value, stream, **kwargs)
+lab_suite.json.dump = paused_dump
+lab_suite.execute_lab_suite(Path(sys.argv[1]))
+"""
+    with subprocess.Popen(
+        [sys.executable, "-c", code, str(output)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ) as process:
+        try:
+            assert select.select([process.stdout], [], [], 10)[0]
+            assert process.stdout.readline() == "checkpoint-ready\n"
+            previous = (output / "suite.json").read_bytes()
+            assert json.loads(previous)["cases"] == []
+            process.kill()
+            assert process.wait(timeout=10) == -signal.SIGKILL
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.communicate(timeout=10)
+    assert (output / "suite.json").read_bytes() == previous
+    temporary = list(output.glob(".suite-*.tmp"))
+    assert len(temporary) == 1
+    assert temporary[0].stat().st_mode & 0o777 == 0o600
 
 
 @pytest.mark.parametrize("interrupted_case", [0, 1, 2])

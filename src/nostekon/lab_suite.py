@@ -2,6 +2,7 @@
 
 import json
 import os
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -94,6 +95,7 @@ def execute_lab_suite(
         raise ValueError("suite RPO budget must be whole seconds between 1 and 86400")
     output.mkdir(mode=0o700, parents=True)
     descriptor = os.open(output / "suite.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(descriptor)
     summary = {
         "apiVersion": "nostekon/lab-suite/v1alpha1",
         "kind": "LabSuiteResult",
@@ -103,69 +105,77 @@ def execute_lab_suite(
         "passed": False,
         "cases": [],
     }
-    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
 
-        def persist() -> None:
-            stream.seek(0)
-            json.dump(summary, stream, indent=2)
-            stream.write("\n")
-            stream.truncate()
-            stream.flush()
-            os.fsync(stream.fileno())
-
-        persist()
+    def persist() -> None:
+        descriptor, temporary = tempfile.mkstemp(prefix=".suite-", suffix=".tmp", dir=output)
         try:
-            for name, tail, budget in [
-                ("zero-loss", 0, 0),
-                ("tail-loss", 2, 0),
-                ("budget-loss", 2, rpo_seconds),
-            ]:
-                case = {
-                    "name": name,
-                    "drillRun": f"{name}.drillrun.json",
-                    "ledger": f"{name}.drillrun.json.ledger.db",
-                    "expectedExitCode": 1 if name == "tail-loss" else 0,
-                    "observedExitCode": None,
-                    "passed": False,
-                }
-                summary["cases"].append(case)
-                persist()
-                evidence_path = output / case["drillRun"]
-                try:
-                    execute_isolated_drill(
-                        evidence_path,
-                        source_context,
-                        restore_context,
-                        image,
-                        write_count=write_count,
-                        after_backup_writes=tail,
-                        rpo_seconds=budget,
-                    )
-                    case["observedExitCode"] = 0
-                except KeyboardInterrupt:
-                    case["observedExitCode"] = 130
-                    raise
-                except Exception as error:
-                    case["observedExitCode"] = 1
-                    case["error"] = str(error)[:500]
-                try:
-                    _evaluate_case(evidence_path, write_count, tail, budget, case)
-                except (OSError, ValueError, KeyError, TypeError) as error:
-                    case["detail"] = f"No complete measured evidence: {error}"[:500]
-                persist()
-                if not case["passed"]:
-                    break
-            summary["passed"] = len(summary["cases"]) == 3 and all(
-                case["passed"] for case in summary["cases"]
-            )
-            summary["status"] = "passed" if summary["passed"] else "failed"
-        except KeyboardInterrupt:
-            summary["passed"] = False
-            summary["status"] = "interrupted"
-            if summary["cases"] and not summary["cases"][-1]["passed"]:
-                summary["cases"][-1]["error"] = "lab interrupted"
-            raise
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                json.dump(summary, stream, indent=2)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, output / "suite.json")
+            directory = os.open(output, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
         finally:
-            summary["completedAt"] = utc_timestamp()
+            Path(temporary).unlink(missing_ok=True)
+
+    persist()
+    try:
+        for name, tail, budget in [
+            ("zero-loss", 0, 0),
+            ("tail-loss", 2, 0),
+            ("budget-loss", 2, rpo_seconds),
+        ]:
+            case = {
+                "name": name,
+                "drillRun": f"{name}.drillrun.json",
+                "ledger": f"{name}.drillrun.json.ledger.db",
+                "expectedExitCode": 1 if name == "tail-loss" else 0,
+                "observedExitCode": None,
+                "passed": False,
+            }
+            summary["cases"].append(case)
             persist()
+            evidence_path = output / case["drillRun"]
+            try:
+                execute_isolated_drill(
+                    evidence_path,
+                    source_context,
+                    restore_context,
+                    image,
+                    write_count=write_count,
+                    after_backup_writes=tail,
+                    rpo_seconds=budget,
+                )
+                case["observedExitCode"] = 0
+            except KeyboardInterrupt:
+                case["observedExitCode"] = 130
+                raise
+            except Exception as error:
+                case["observedExitCode"] = 1
+                case["error"] = str(error)[:500]
+            try:
+                _evaluate_case(evidence_path, write_count, tail, budget, case)
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                case["detail"] = f"No complete measured evidence: {error}"[:500]
+            persist()
+            if not case["passed"]:
+                break
+        summary["passed"] = len(summary["cases"]) == 3 and all(
+            case["passed"] for case in summary["cases"]
+        )
+        summary["status"] = "passed" if summary["passed"] else "failed"
+    except KeyboardInterrupt:
+        summary["passed"] = False
+        summary["status"] = "interrupted"
+        if summary["cases"] and not summary["cases"][-1]["passed"]:
+            summary["cases"][-1]["error"] = "lab interrupted"
+        raise
+    finally:
+        summary["completedAt"] = utc_timestamp()
+        persist()
     return summary
