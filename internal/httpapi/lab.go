@@ -123,6 +123,24 @@ func registerLabRoutes(mux *http.ServeMux, manager *labjobs.Manager) {
 		job, _ := manager.Get(id)
 		writeJSON(writer, http.StatusOK, job)
 	}))
+	mux.HandleFunc("GET /api/v1/lab/jobs/{id}/export", guard(func(writer http.ResponseWriter, request *http.Request) {
+		id := request.PathValue("id")
+		data, err := manager.Export(id)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, labjobs.ErrNotFound) {
+				status = http.StatusNotFound
+			} else if errors.Is(err, labjobs.ErrBusy) || errors.Is(err, labjobs.ErrRecoveryRequired) {
+				status = http.StatusConflict
+			}
+			writeJSON(writer, status, map[string]string{"error": err.Error()})
+			return
+		}
+		writer.Header().Set("Content-Type", "application/zip")
+		writer.Header().Set("Content-Disposition", `attachment; filename="nostekon-lab-`+id+`.zip"`)
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write(data)
+	}))
 	mux.HandleFunc("GET /api/v1/lab/jobs/{id}/artifacts/{name}", guard(func(writer http.ResponseWriter, request *http.Request) {
 		name := request.PathValue("name")
 		data, err := manager.Artifact(request.PathValue("id"), name)
