@@ -45,6 +45,7 @@ type Job struct {
 	LogTruncated bool            `json:"logTruncated"`
 	Summary      json.RawMessage `json:"summary,omitempty"`
 	Artifacts    []string        `json:"artifacts"`
+	StorageError string          `json:"storageError,omitempty"`
 }
 
 type execution struct {
@@ -69,6 +70,7 @@ type Manager struct {
 	command    func(string, ...string) *exec.Cmd
 	timeout    time.Duration
 	grace      time.Duration
+	storageErr error
 }
 
 func New(executable, directory string) (*Manager, error) {
@@ -101,7 +103,12 @@ func New(executable, directory string) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Manager{executable: resolved, directory: directory, root: root, jobs: make(map[string]*execution), command: exec.Command, timeout: 15 * time.Minute, grace: 30 * time.Second}, nil
+	manager := &Manager{executable: resolved, directory: directory, root: root, jobs: make(map[string]*execution), command: exec.Command, timeout: 15 * time.Minute, grace: 30 * time.Second}
+	if err := manager.loadHistory(); err != nil {
+		_ = root.Close()
+		return nil, fmt.Errorf("load lab history: %w", err)
+	}
+	return manager, nil
 }
 
 func (manager *Manager) Start(options Options) (Job, error) {
@@ -115,6 +122,9 @@ func (manager *Manager) Start(options Options) (Job, error) {
 	}
 	if manager.active != "" {
 		return Job{}, ErrBusy
+	}
+	if manager.storageErr != nil {
+		return Job{}, fmt.Errorf("lab history unavailable: %w", manager.storageErr)
 	}
 	if len(manager.jobs) >= 50 {
 		return Job{}, ErrCapacity
@@ -163,6 +173,10 @@ func (manager *Manager) wait(execution *execution) {
 	}
 	if execution.outcome != "" {
 		execution.job.Status = execution.outcome
+	}
+	if err := manager.saveJob(execution); err != nil {
+		manager.storageErr = err
+		execution.job.StorageError = err.Error()
 	}
 	manager.active = ""
 	close(execution.done)

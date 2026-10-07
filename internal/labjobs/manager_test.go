@@ -69,6 +69,25 @@ func TestFixedSuiteCommandAndResult(t *testing.T) {
 	if !reflect.DeepEqual(job.Artifacts, []string{"suite.json"}) {
 		t.Fatalf("artifacts = %v", job.Artifacts)
 	}
+	manager.Close()
+	reopened, err := New(executable, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(reopened.Close)
+	restored, err := reopened.Get(job.ID)
+	if err != nil {
+		t.Fatalf("reopen completed job: %v", err)
+	}
+	if restored.Status != "completed" || restored.ExitCode == nil || *restored.ExitCode != 0 || restored.Options != job.Options || !restored.StartedAt.Equal(job.StartedAt) || restored.CompletedAt == nil || !restored.CompletedAt.Equal(*job.CompletedAt) || restored.Log != "suite helper completed\n" {
+		t.Fatalf("restored job = %+v", restored)
+	}
+	if jobs := reopened.List(); len(jobs) != 1 || jobs[0].ID != job.ID {
+		t.Fatalf("restored history = %+v", jobs)
+	}
+	if data, err := reopened.Artifact(job.ID, "suite.json"); err != nil || string(data) != `{"status":"passed"}` {
+		t.Fatalf("restored artifact = %s, %v", data, err)
+	}
 }
 
 func TestLabProcessHelper(t *testing.T) {
@@ -107,6 +126,7 @@ func TestLabProcessHelper(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(output, "suite.json"), []byte(`{"status":"passed"}`), 0600); err != nil {
 		panic(err)
 	}
+	println("suite helper completed")
 	os.Exit(0)
 }
 
