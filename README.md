@@ -91,6 +91,78 @@ flowchart LR
 | Copilot | LLM that diagnoses failed drills and proposes fixes that must pass a re-run | Planned |
 | Gate | CI recovery checks | Manual lab regression gate available; general freshness and deployment policy planned |
 
+## Run the app
+
+The installable app serves Studio and the Go verification API from one process.
+It can review recorded or imported evidence, compare policy suites, save runs
+in your browser, and export original evidence and reports. It does not launch
+restore jobs or provide shared server-side run history.
+
+From this checkout, with Docker and Docker Compose available:
+
+```bash
+docker compose up --build -d
+```
+
+Open `http://127.0.0.1:8080`. To use another port:
+
+```bash
+NOSTEKON_PORT=8180 docker compose up --build -d
+```
+
+The container runs as a non-root user with a read-only filesystem, no added
+capabilities, and a localhost-only published port. It needs no Python, Node,
+Go, kubeconfig or cloud credentials at runtime. Use `docker compose down` to
+stop it. No public image or renamed app release is published by these commands.
+
+Saved runs live in this browser's IndexedDB, not the container. They survive
+container restarts, but a different host, port or browser has a separate
+library. Clearing browser storage deletes them; export evidence before doing
+so. The app has no authentication. Do not expose it on a public network; an
+authenticated TLS gateway is required before a shared deployment.
+
+If your network intercepts registry TLS, pass its trusted CA bundle as a
+build-only secret rather than disabling certificate verification:
+
+```bash
+DOCKER_BUILDKIT=1 docker build --network host \
+  --secret id=npm_ca,src=/etc/ssl/certs/ca-certificates.crt \
+  -t nostekon:local .
+docker compose up -d --no-build
+```
+
+Replace the CA bundle path for your workstation. The secret is not copied
+into the final image; ordinary networks do not need this option.
+
+### Without Docker
+
+Build Studio once and serve it with the API:
+
+```bash
+npm ci --prefix studio
+npm run build --prefix studio
+NOSTEKON_ADDR=127.0.0.1:8080 NOSTEKON_STUDIO_DIR=./studio/dist go run ./cmd/nostekon-api
+```
+
+Future release builds assemble `nostekon-app_<os>_<arch>.tar.gz` with the API
+binary and Studio together. After extracting a matching archive, run from its
+directory:
+
+```bash
+NOSTEKON_ADDR=127.0.0.1:8080 NOSTEKON_STUDIO_DIR=./studio ./nostekon-api
+```
+
+On Windows, set those environment variables in PowerShell and run
+`./nostekon-api.exe`. Omitting `NOSTEKON_STUDIO_DIR` retains API-only mode.
+An invalid Studio directory stops startup instead of serving a broken UI.
+Public-key signature verification still uses `NOSTEKON_TRUSTED_KEYS_DIR`;
+container installations must mount only trusted public keys read-only.
+
+Verified locally on 2026-10-07: the actual image served Studio and its HTTP API;
+desktop and mobile browser tests reviewed all three policy cases, saved them,
+reloaded Runs and opened the strict-loss report. The historical `v0.1.0` tag
+predates the rename and is not an installable Nostekon app release.
+
 ## Quick start (development)
 
 ```bash
