@@ -56,7 +56,15 @@ func (manager *Manager) saveJob(execution *execution) error {
 		return err
 	}
 	defer directory.Close()
-	return directory.Sync()
+	if err := directory.Sync(); err != nil {
+		return err
+	}
+	parent, err := manager.root.Open(".")
+	if err != nil {
+		return err
+	}
+	defer parent.Close()
+	return parent.Sync()
 }
 
 func (manager *Manager) loadHistory() error {
@@ -87,7 +95,7 @@ func (manager *Manager) loadHistory() error {
 			}
 			job, err := manager.loadJob(id)
 			if errors.Is(err, os.ErrNotExist) {
-				continue
+				return fmt.Errorf("job %s: missing metadata; inspect cleanup and archive this directory while stopped", id)
 			}
 			if err != nil {
 				return fmt.Errorf("job %s: %w", id, err)
@@ -173,5 +181,6 @@ func (manager *Manager) loadJob(id string) (Job, error) {
 	if job.RecoveryRequired && job.Status != "interrupted" {
 		return Job{}, errors.New("cleanup acknowledgement only applies to interrupted jobs")
 	}
+	job.Summary, job.Artifacts = nil, []string{}
 	return job, nil
 }

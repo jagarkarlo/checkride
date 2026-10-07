@@ -158,6 +158,7 @@ func (manager *Manager) Start(options Options) (Job, error) {
 	execution := &execution{job: Job{ID: id, Status: "running", Options: options, StartedAt: time.Now().UTC(), Artifacts: []string{}}, command: command, done: make(chan struct{})}
 	command.Stdout, command.Stderr = &execution.log, &execution.log
 	if err := manager.saveJob(execution); err != nil {
+		_ = manager.root.Remove(id)
 		return Job{}, fmt.Errorf("save initial lab job: %w", err)
 	}
 	if err := command.Start(); err != nil {

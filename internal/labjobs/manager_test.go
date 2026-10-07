@@ -307,3 +307,50 @@ func TestDataDirectoryHasExclusiveOwner(t *testing.T) {
 	}
 	other.Close()
 }
+
+func TestCorruptHistoryStopsStartup(t *testing.T) {
+	valid := `{"version":1,"job":{"id":"aaaaaaaaaaaaaaaaaaaaaaaa","status":"completed","options":{"writes":10,"rpoSeconds":60},"startedAt":"2026-01-01T00:00:00Z","completedAt":"2026-01-01T00:01:00Z","exitCode":0,"log":"","logTruncated":false,"artifacts":[]}}`
+	for _, scenario := range []string{"json", "version", "identity", "permissions", "oversize", "trailing", "symlink", "missing"} {
+		t.Run(scenario, func(t *testing.T) {
+			directory := filepath.Join(t.TempDir(), "jobs")
+			id := strings.Repeat("a", 24)
+			if err := os.MkdirAll(filepath.Join(directory, id), 0700); err != nil {
+				t.Fatal(err)
+			}
+			data, mode := valid, os.FileMode(0600)
+			switch scenario {
+			case "json":
+				data = "{"
+			case "version":
+				data = strings.Replace(valid, `"version":1`, `"version":2`, 1)
+			case "identity":
+				data = strings.Replace(valid, id, strings.Repeat("b", 24), 1)
+			case "permissions":
+				mode = 0644
+			case "oversize":
+				data = strings.Repeat(" ", (1<<20)+1)
+			case "trailing":
+				data += " {}"
+			}
+			path := filepath.Join(directory, id, "job.json")
+			if scenario == "symlink" {
+				outside := filepath.Join(t.TempDir(), "job.json")
+				if err := os.WriteFile(outside, []byte(valid), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, path); err != nil {
+					t.Fatal(err)
+				}
+			} else if scenario != "missing" {
+				if err := os.WriteFile(path, []byte(data), mode); err != nil {
+					t.Fatal(err)
+				}
+			}
+			manager, err := New("/bin/true", directory)
+			if err == nil {
+				manager.Close()
+				t.Fatalf("accepted %s history", scenario)
+			}
+		})
+	}
+}
