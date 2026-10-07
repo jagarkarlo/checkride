@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 type savedJob struct {
@@ -94,6 +95,17 @@ func (manager *Manager) loadHistory() error {
 			execution := &execution{job: job, done: make(chan struct{})}
 			_, _ = execution.log.Write([]byte(job.Log))
 			execution.log.truncated = execution.log.truncated || job.LogTruncated
+			if job.Status == "running" || job.Status == "cancelling" {
+				reconciled := time.Now().UTC()
+				if reconciled.Before(job.StartedAt) {
+					reconciled = job.StartedAt
+				}
+				execution.job.Status, execution.job.CompletedAt = "interrupted", &reconciled
+				execution.job.ExitCode, execution.job.RecoveryRequired = nil, true
+				if err := manager.saveJob(execution); err != nil {
+					return fmt.Errorf("reconcile job %s: %w", id, err)
+				}
+			}
 			close(execution.done)
 			manager.jobs[id] = execution
 			manager.order = append(manager.order, id)
@@ -143,13 +155,23 @@ func (manager *Manager) loadJob(id string) (Job, error) {
 		return Job{}, errors.New("metadata contains trailing data")
 	}
 	job := record.Job
-	if record.Version != 1 || job.ID != id || job.Options.Validate() != nil || job.StartedAt.IsZero() || job.CompletedAt == nil || job.CompletedAt.Before(job.StartedAt) {
+	if record.Version != 1 || job.ID != id || job.Options.Validate() != nil || job.StartedAt.IsZero() || (job.CompletedAt != nil && job.CompletedAt.Before(job.StartedAt)) {
 		return Job{}, errors.New("invalid job metadata")
 	}
 	switch job.Status {
-	case "completed", "failed", "cancelled", "timed_out":
+	case "completed", "failed", "cancelled", "timed_out", "interrupted":
+		if job.CompletedAt == nil {
+			return Job{}, errors.New("terminal job requires completion time")
+		}
+	case "running", "cancelling":
+		if job.CompletedAt != nil || job.ExitCode != nil {
+			return Job{}, errors.New("active job contains terminal metadata")
+		}
 	default:
 		return Job{}, errors.New("invalid saved job status")
+	}
+	if job.RecoveryRequired && job.Status != "interrupted" {
+		return Job{}, errors.New("cleanup acknowledgement only applies to interrupted jobs")
 	}
 	return job, nil
 }

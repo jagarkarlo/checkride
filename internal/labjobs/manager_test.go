@@ -239,3 +239,71 @@ func TestBoundedLogTail(t *testing.T) {
 		t.Fatalf("tail size=%d, truncated=%v", len(log), truncated)
 	}
 }
+
+func TestRestartRequiresRecoveryAcknowledgement(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "jobs")
+	id := strings.Repeat("a", 24)
+	if err := os.MkdirAll(filepath.Join(directory, id, "suite"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	metadata := `{"version":1,"job":{"id":"aaaaaaaaaaaaaaaaaaaaaaaa","status":"running","options":{"writes":10,"rpoSeconds":60},"startedAt":"2026-01-01T00:00:00Z","log":"last saved log","logTruncated":false,"artifacts":[]}}`
+	if err := os.WriteFile(filepath.Join(directory, id, "job.json"), []byte(metadata), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, id, "suite", "suite.json"), []byte(`{"status":"running"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := New("/bin/true", directory)
+	if err != nil {
+		t.Fatalf("reconcile interrupted job: %v", err)
+	}
+	t.Cleanup(manager.Close)
+	job, err := manager.Get(id)
+	if err != nil || job.Status != "interrupted" || !job.RecoveryRequired || job.CompletedAt == nil || job.ExitCode != nil || job.Log != "last saved log" || string(job.Summary) != `{"status":"running"}` {
+		t.Fatalf("reconciled job = %+v, %v", job, err)
+	}
+	if _, err := manager.Start(Options{10, 60}); !errors.Is(err, ErrRecoveryRequired) {
+		t.Fatalf("new job before cleanup acknowledgement = %v", err)
+	}
+	if err := manager.Cancel(id); err != nil {
+		t.Fatalf("historical cancellation must not signal a reused process: %v", err)
+	}
+	if err := manager.AcknowledgeRecovery(id); err != nil {
+		t.Fatal(err)
+	}
+	manager.Close()
+	reopened, err := New("/bin/true", directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(reopened.Close)
+	job, _ = reopened.Get(id)
+	if job.RecoveryRequired || job.Status != "interrupted" {
+		t.Fatalf("acknowledgement did not persist: %+v", job)
+	}
+	started, err := reopened.Start(Options{10, 60})
+	if err != nil {
+		t.Fatalf("start after acknowledgement: %v", err)
+	}
+	<-reopened.jobs[started.ID].done
+}
+
+func TestDataDirectoryHasExclusiveOwner(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "jobs")
+	manager, err := New("/bin/true", directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(manager.Close)
+	other, err := New("/bin/true", directory)
+	if err == nil {
+		other.Close()
+		t.Fatal("two managers acquired the same history directory")
+	}
+	manager.Close()
+	other, err = New("/bin/true", directory)
+	if err != nil {
+		t.Fatalf("lock not released: %v", err)
+	}
+	other.Close()
+}

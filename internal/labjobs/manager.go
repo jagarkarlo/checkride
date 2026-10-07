@@ -18,7 +18,8 @@ import (
 
 var ErrBusy = errors.New("a lab job is already active")
 var ErrNotFound = errors.New("lab job or artifact not found")
-var ErrCapacity = errors.New("lab job session limit reached; restart after archiving results")
+var ErrCapacity = errors.New("lab history limit reached; stop the server and archive older job directories")
+var ErrRecoveryRequired = errors.New("interrupted jobs require cleanup acknowledgement before starting another suite")
 
 var artifactNames = []string{"suite.json", "zero-loss.drillrun.json", "tail-loss.drillrun.json", "budget-loss.drillrun.json"}
 
@@ -35,17 +36,18 @@ func (options Options) Validate() error {
 }
 
 type Job struct {
-	ID           string          `json:"id"`
-	Status       string          `json:"status"`
-	Options      Options         `json:"options"`
-	StartedAt    time.Time       `json:"startedAt"`
-	CompletedAt  *time.Time      `json:"completedAt,omitempty"`
-	ExitCode     *int            `json:"exitCode,omitempty"`
-	Log          string          `json:"log"`
-	LogTruncated bool            `json:"logTruncated"`
-	Summary      json.RawMessage `json:"summary,omitempty"`
-	Artifacts    []string        `json:"artifacts"`
-	StorageError string          `json:"storageError,omitempty"`
+	ID               string          `json:"id"`
+	Status           string          `json:"status"`
+	Options          Options         `json:"options"`
+	StartedAt        time.Time       `json:"startedAt"`
+	CompletedAt      *time.Time      `json:"completedAt,omitempty"`
+	ExitCode         *int            `json:"exitCode,omitempty"`
+	Log              string          `json:"log"`
+	LogTruncated     bool            `json:"logTruncated"`
+	Summary          json.RawMessage `json:"summary,omitempty"`
+	Artifacts        []string        `json:"artifacts"`
+	StorageError     string          `json:"storageError,omitempty"`
+	RecoveryRequired bool            `json:"recoveryRequired,omitempty"`
 }
 
 type execution struct {
@@ -71,6 +73,7 @@ type Manager struct {
 	timeout    time.Duration
 	grace      time.Duration
 	storageErr error
+	lock       *os.File
 }
 
 func New(executable, directory string) (*Manager, error) {
@@ -104,8 +107,14 @@ func New(executable, directory string) (*Manager, error) {
 		return nil, err
 	}
 	manager := &Manager{executable: resolved, directory: directory, root: root, jobs: make(map[string]*execution), command: exec.Command, timeout: 15 * time.Minute, grace: 30 * time.Second}
+	manager.lock, err = lockHistory(root)
+	if err != nil {
+		_ = root.Close()
+		return nil, fmt.Errorf("lock lab history: %w", err)
+	}
 	if err := manager.loadHistory(); err != nil {
 		_ = root.Close()
+		_ = manager.lock.Close()
 		return nil, fmt.Errorf("load lab history: %w", err)
 	}
 	return manager, nil
@@ -126,6 +135,11 @@ func (manager *Manager) Start(options Options) (Job, error) {
 	if manager.storageErr != nil {
 		return Job{}, fmt.Errorf("lab history unavailable: %w", manager.storageErr)
 	}
+	for _, execution := range manager.jobs {
+		if execution.job.RecoveryRequired {
+			return Job{}, ErrRecoveryRequired
+		}
+	}
 	if len(manager.jobs) >= 50 {
 		return Job{}, ErrCapacity
 	}
@@ -143,7 +157,11 @@ func (manager *Manager) Start(options Options) (Job, error) {
 	command.WaitDelay = manager.grace
 	execution := &execution{job: Job{ID: id, Status: "running", Options: options, StartedAt: time.Now().UTC(), Artifacts: []string{}}, command: command, done: make(chan struct{})}
 	command.Stdout, command.Stderr = &execution.log, &execution.log
+	if err := manager.saveJob(execution); err != nil {
+		return Job{}, fmt.Errorf("save initial lab job: %w", err)
+	}
 	if err := command.Start(); err != nil {
+		_ = manager.root.Remove(filepath.Join(id, "job.json"))
 		_ = manager.root.Remove(id)
 		return Job{}, fmt.Errorf("start lab runner: %w", err)
 	}
@@ -194,6 +212,10 @@ func (manager *Manager) stop(id, outcome string) error {
 	}
 	execution.outcome = outcome
 	execution.job.Status = "cancelling"
+	if err := manager.saveJob(execution); err != nil {
+		manager.storageErr = err
+		execution.job.StorageError = err.Error()
+	}
 	_ = interrupt(execution.command)
 	execution.killTimer = time.AfterFunc(manager.grace, func() {
 		manager.mu.Lock()
@@ -206,6 +228,27 @@ func (manager *Manager) stop(id, outcome string) error {
 }
 
 func (manager *Manager) Cancel(id string) error { return manager.stop(id, "cancelled") }
+
+func (manager *Manager) AcknowledgeRecovery(id string) error {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if manager.closed || manager.storageErr != nil {
+		return errors.New("lab history is not available for recovery acknowledgement")
+	}
+	execution, exists := manager.jobs[id]
+	if !exists {
+		return ErrNotFound
+	}
+	if !execution.job.RecoveryRequired {
+		return nil
+	}
+	execution.job.RecoveryRequired = false
+	if err := manager.saveJob(execution); err != nil {
+		execution.job.RecoveryRequired = true
+		return fmt.Errorf("save recovery acknowledgement: %w", err)
+	}
+	return nil
+}
 
 func (manager *Manager) Get(id string) (Job, error) {
 	manager.mu.Lock()
@@ -303,6 +346,7 @@ func (manager *Manager) Close() {
 		<-done
 	}
 	_ = manager.root.Close()
+	_ = manager.lock.Close()
 }
 
 type tailBuffer struct {
