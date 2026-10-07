@@ -162,6 +162,50 @@ def test_lab_workflow_compares_suite_summary_to_go_reports(lab_gate_workspace, c
     assert (result.returncode == 0) is (change in ("unchanged", "within-tolerance")), result.stderr
 
 
+@pytest.mark.parametrize("change", ["unchanged", "partial", "missing-evidence", "no-summary"])
+def test_lab_workflow_emits_independent_suite_review(lab_gate_workspace, change):
+    workspace, steps = lab_gate_workspace
+    assert "Write independent suite review" in steps
+    source = workspace / "lab-results/suite/suite.json"
+    original = source.read_text()
+    removed = workspace / "lab-results/suite/budget-loss.drillrun.json"
+    backup = removed.with_suffix(".saved")
+    report_path = workspace / "lab-results/suite-review.json"
+    summary = json.loads(original)
+    try:
+        if change == "partial":
+            summary.update(status="interrupted", passed=False, cases=summary["cases"][:1])
+            source.write_text(json.dumps(summary))
+        elif change == "missing-evidence":
+            removed.rename(backup)
+        elif change == "no-summary":
+            source.unlink()
+        result = subprocess.run(
+            ["bash", "-e", "-o", "pipefail"],
+            input=steps["Write independent suite review"],
+            cwd=workspace,
+            env={**os.environ, "RUNNER_TEMP": str(workspace / "runner")},
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        expected = 0 if change == "unchanged" else 2 if change == "no-summary" else 1
+        assert result.returncode == expected, result.stderr
+        if change == "no-summary":
+            assert not report_path.read_text()
+        else:
+            review = json.loads(report_path.read_text())
+            assert review["apiVersion"] == "nostekon/suite-review/v1alpha1"
+            assert review["kind"] == "SuiteReview"
+            assert review["passed"] is (change == "unchanged")
+            assert review["provenance"] == {"status": "unverified"}
+            assert "source" not in review["cases"][0]
+    finally:
+        source.write_text(original)
+        if backup.exists():
+            backup.rename(removed)
+
+
 def test_lab_suite_measures_all_three_policy_outcomes(tmp_path):
     from nostekon.lab_suite import execute_lab_suite
 

@@ -135,6 +135,13 @@ jobs:
               $case.rpo.met == $report.rpo.met
             )
           ' >/dev/null
+      - name: Write independent suite review
+        if: always()
+        run: |
+          mkdir -p lab-results
+          go build -o "$RUNNER_TEMP/nostekon-report" ./cmd/nostekon-report
+          "$RUNNER_TEMP/nostekon-report" --suite lab-results/suite \
+            >lab-results/suite-review.json
       - name: Remove disposable clusters
         if: always()
         run: |
