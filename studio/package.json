@@ -13,6 +13,7 @@
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.6",
     "@fontsource/ibm-plex-mono": "^5.2.6",
+    "fflate": "^0.8.3",
     "idb": "^8.0.3",
     "lucide-react": "^0.468.0",
     "react": "^19.1.1",
