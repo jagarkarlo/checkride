@@ -253,6 +253,37 @@ file-sync, replacement and directory-sync failure tests, plus a bounded child
 process killed with SIGKILL while writing its next snapshot. The preceding
 published summary was retained byte-for-byte; no live clusters were involved.
 
+### Manual CI suite gate
+
+The **Isolated restore lab** GitHub Actions workflow is manual-only. A repository
+operator can select **Run workflow** for an approved revision; ordinary pushes
+do not start Kubernetes lab clusters. The job uses a disposable Ubuntu runner,
+creates the two dedicated k3d clusters and runs:
+
+```bash
+nostekon lab suite --writes 10 --rpo-seconds 60 --output-dir lab-results/suite
+```
+
+The suite must exit `0` with its expected case exits `0/1/0`. The workflow then
+evaluates all three original DrillRuns independently with the Go report binary,
+retaining the zero-loss, strict-loss and budgeted-loss verdict checks. Its final
+gate requires a completed, passed summary with the three ordered cases and
+compares all eight RPO fields against those Go reports. Loss-window seconds
+allow a difference of at most `0.000001`; counts, budget and `met` must agree
+exactly. A missing case, unexpected exit or changed summary claim fails the job.
+
+The retained artifact contains the summary, original case evidence and SQLite
+ledgers under `lab-results/suite/`, plus the three independent reports under
+`lab-results/`. Cleanup and artifact upload are attempted even after a failed
+step. Retention remains seven days; interrupted jobs are not automatically
+resumed, and cleanup is still best-effort.
+
+Verified locally on 2026-10-07: workflow lint, all three Go report shell steps
+against the unchanged recorded bundle, and summary-gate tests for every RPO
+field, allowed timing tolerance, case order, exits and incomplete results.
+Those checks do not establish that this revised manual lab job has run on
+GitHub; a successful ordinary CI run is not a live-cluster lab result.
+
 ### Review a suite in Studio
 
 Open [Policy suite](/demo/index.html#/suite) to review the recorded three-case
