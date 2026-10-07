@@ -190,6 +190,18 @@ observed exits, measured RPO and the final suite status. Keep individual evidenc
 files for independent evaluation; the summary is a regression result, not a
 replacement for a DrillRun report or authenticated provenance.
 
+Each checkpoint is serialized into a private `0600` temporary file in the
+suite directory. The runner flushes and syncs that file, atomically replaces
+`suite.json`, then syncs the directory. A serialization, file-sync or replacement
+failure leaves the previous published snapshot unchanged. A directory-sync
+failure occurs after replacement: the new JSON is complete, but durability is
+unconfirmed and execution stops with an error.
+
+Once a snapshot has been published, interruption during a later write does not
+replace it with partial JSON. Before the first publication, there may be no
+complete summary. Atomic publication does not make all suite artifacts one
+transaction or automatically resume an interrupted run.
+
 To evaluate the intentionally failed case independently, build the Go binary
 so its exit status is preserved:
 
@@ -208,8 +220,11 @@ Suite `--rpo-seconds` accepts 1-86400 and changes only the `budget-loss` objecti
 `--restore-context` and `--image` use the same isolation checks as `lab run`.
 SIGINT or SIGTERM returns 130 and attempts normal cleanup. Inspect the summary
 and cleanup messages before rerunning with a fresh directory. A forcibly killed
-process can leave a running or partial summary and namespaces requiring cleanup;
-the summary is not an atomic crash-recovery mechanism.
+process can leave the last complete summary marked **running**, with fewer cases
+than the available evidence, and namespaces requiring cleanup. It can also leave
+private `.suite-*.tmp` files. Do not promote those files into `suite.json`; retain
+the published snapshot and inspect the individual evidence and ledger files.
+The suite does not automatically recover or clean up after an uncatchable stop.
 
 Cancellation during cleanup takes precedence over an earlier execution error.
 The runner still attempts cleanup for both created namespaces and records both
@@ -224,7 +239,8 @@ the summary records `status: interrupted`, `passed: false` and a completion
 timestamp. The unfinished case records `error: lab interrupted`; earlier
 completed case results and artifacts are retained, and no later case starts.
 Repeated cancellation during final evidence/checkpoint writing is not covered
-by this guarantee and can leave partial artifacts.
+by the final-status guarantee. The published summary remains a complete snapshot,
+but other artifacts may be partial and the latest progress may not be published.
 
 Verified on 2026-10-05 with three real two-cluster restores: drill exits 0/1/0,
 lost writes 0/2/2, every measured RPO field matching the independent Go evaluator,
@@ -232,6 +248,10 @@ private artifact permissions and all six temporary namespaces removed.
 The cancellation precedence and evaluation checkpoints above were verified
 separately with command-boundary tests on 2026-10-05, including interruption
 during each of the three cases. Those tests did not run against live clusters.
+Atomic checkpoint publication was verified on 2026-10-07 with serialization,
+file-sync, replacement and directory-sync failure tests, plus a bounded child
+process killed with SIGKILL while writing its next snapshot. The preceding
+published summary was retained byte-for-byte; no live clusters were involved.
 
 ### Review a suite in Studio
 
