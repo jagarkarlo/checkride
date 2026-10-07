@@ -7,6 +7,110 @@ async function suiteBundle() {
   })));
 }
 
+test("installed app keeps lab execution disabled by default", async ({ page }) => {
+  test.skip(!process.env.NOSTEKON_APP_URL, "Requires the packaged app.");
+  await page.goto("/#/lab");
+  await expect(page.getByRole("link", { name: "Lab", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Lab jobs" })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Lab availability" })).toContainText("Execution disabled");
+  await expect(page.getByRole("button", { name: "Run suite", exact: true })).toBeDisabled();
+});
+
+for (const width of [390, 1440]) {
+  test(`installed app lab job progresses into independently reviewed evidence at ${width}px`, async ({ page }, testInfo) => {
+    test.skip(!process.env.NOSTEKON_APP_URL, "Requires the packaged app.");
+    const files = await suiteBundle();
+    const summary = JSON.parse(files[0].buffer.toString());
+    const identifier = "a".repeat(24);
+    const errors: string[] = [];
+    const starts: unknown[] = [];
+    let started = false;
+    let completed = false;
+    const snapshot = () => ({
+      id: identifier, status: completed ? "completed" : "running", options: { writes: 10, rpoSeconds: 60 },
+      startedAt: "2026-10-07T10:00:00Z", ...(completed ? { completedAt: "2026-10-07T10:01:00Z", exitCode: 0 } : {}),
+      log: completed ? "Suite finished.\n" : "Suite started.\n", logTruncated: false,
+      artifacts: completed ? files.map(file => file.name) : ["suite.json"],
+      summary: completed ? summary : { ...summary, status: "running", passed: false, cases: [] },
+    });
+    page.on("pageerror", error => errors.push(error.message));
+    await page.route("**/api/v1/lab**", async route => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      expect(request.headers()["x-nostekon-lab"]).toBe("true");
+      if (path.includes("/artifacts/")) {
+        const file = files.find(file => path.endsWith(`/artifacts/${file.name}`));
+        expect(file).toBeDefined();
+        await route.fulfill({ status: 200, contentType: "application/json", body: file!.buffer });
+      } else if (path === "/api/v1/lab/jobs" && request.method() === "POST") {
+        starts.push(request.postDataJSON()); started = true;
+        await route.fulfill({ status: 202, json: snapshot() });
+      } else if (path === "/api/v1/lab/jobs") {
+        await route.fulfill({ json: started ? [snapshot()] : [] });
+      } else if (path.endsWith(identifier)) {
+        await route.fulfill({ json: snapshot() });
+      } else {
+        await route.fulfill({ json: { enabled: true } });
+      }
+    });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/#/lab");
+    await expect(page.getByRole("status", { name: "Lab availability" })).toContainText("Local execution enabled");
+    await page.getByLabel("Writes per case").fill("99");
+    await page.getByRole("button", { name: "Run suite", exact: true }).click();
+    expect(starts).toEqual([]);
+    await page.getByLabel("Writes per case").fill("10");
+    await page.getByRole("button", { name: "Run suite", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("running");
+    expect(starts).toEqual([{ writes: 10, rpoSeconds: 60 }]);
+    await expect(page.getByRole("button", { name: "Run suite", exact: true })).toBeDisabled();
+    completed = true;
+    await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("completed");
+    await expect(page.getByRole("progressbar", { name: "Completed policy cases" })).toHaveAttribute("value", "3");
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "suite.json", exact: true }).click();
+    expect(await readFile((await (await download).path())!)).toEqual(files[0].buffer);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`lab-completed-${width}.png`), fullPage: true });
+    await page.getByRole("button", { name: "Review suite", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches the summary");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Imported evidence");
+    await page.getByRole("button", { name: "Save cases", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Suite save result" })).toContainText("3 cases saved to Runs");
+    await page.getByRole("link", { name: "Runs", exact: true }).click();
+    await page.reload();
+    await expect(page.locator(".saved-runs tbody tr")).toHaveCount(3);
+    expect(errors).toEqual([]);
+  });
+}
+
+test("installed app lab cancellation retains an interrupted summary", async ({ page }) => {
+  test.skip(!process.env.NOSTEKON_APP_URL, "Requires the packaged app.");
+  const files = await suiteBundle();
+  const summary = JSON.parse(files[0].buffer.toString());
+  const identifier = "b".repeat(24);
+  let cancelled = false;
+  const snapshot = () => ({
+    id: identifier, status: cancelled ? "cancelled" : "running", options: { writes: 10, rpoSeconds: 60 },
+    startedAt: "2026-10-07T10:00:00Z", ...(cancelled ? { completedAt: "2026-10-07T10:01:00Z", exitCode: 130 } : {}),
+    log: "", logTruncated: false, artifacts: ["suite.json"],
+    summary: { ...summary, status: cancelled ? "interrupted" : "running", passed: false, cases: [] },
+  });
+  await page.route("**/api/v1/lab**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/cancel")) { cancelled = true; await route.fulfill({ status: 202, json: { status: "cancellation requested" } }); }
+    else if (path === "/api/v1/lab/jobs") await route.fulfill({ json: [snapshot()] });
+    else if (path.endsWith(identifier)) await route.fulfill({ json: snapshot() });
+    else await route.fulfill({ json: { enabled: true } });
+  });
+  await page.goto("/#/lab");
+  await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("running");
+  await page.getByRole("button", { name: "Cancel job", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("cancelled");
+  await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("exit 130");
+  await expect(page.getByRole("button", { name: "Review suite", exact: true })).toBeEnabled();
+});
+
 for (const width of [390, 1440]) {
   test(`installed app evaluates and saves evidence through the API at ${width}px`, async ({ page }, testInfo) => {
     test.skip(!process.env.NOSTEKON_APP_URL, "Requires the packaged app; static demo checks run separately.");
