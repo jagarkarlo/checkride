@@ -3,14 +3,17 @@
 import json
 import os
 import select
+import shutil
 import signal
 import stat
 import subprocess
 import sys
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from nostekon import lab as restore
 from nostekon.ledger import Ledger
@@ -52,6 +55,111 @@ def commands_write_id(commands):
         arg for _, _, args, _ in commands for arg in args if arg.startswith("INSERT INTO")
     )
     return insert.split("'")[1]
+
+
+def test_lab_workflow_exercises_the_suite_runner():
+    workflow = yaml.safe_load(
+        (Path(__file__).parent.parent / ".github/workflows/lab.yml").read_text()
+    )
+    commands = "\n".join(step.get("run", "") for step in workflow["jobs"]["restore"]["steps"])
+    assert "nostekon lab suite --writes 10 --rpo-seconds 60" in commands
+    assert "nostekon lab run" not in commands
+
+
+@pytest.fixture(scope="module")
+def lab_gate_workspace(tmp_path_factory):
+    if any(shutil.which(tool) is None for tool in ("go", "jq", "bash")):
+        pytest.skip("workflow contract checks need Go, jq and bash")
+    repository = Path(__file__).parent.parent
+    workspace = tmp_path_factory.mktemp("lab-gate")
+    for name in ("cmd", "internal"):
+        shutil.copytree(repository / name, workspace / name)
+    shutil.copy2(repository / "go.mod", workspace / "go.mod")
+    shutil.copytree(
+        repository / "examples/suites/postgresql-policy", workspace / "lab-results/suite"
+    )
+    runner = workspace / "runner"
+    runner.mkdir()
+    workflow = yaml.safe_load((repository / ".github/workflows/lab.yml").read_text())
+    steps = {
+        step["name"]: step["run"] for step in workflow["jobs"]["restore"]["steps"] if "run" in step
+    }
+    environment = {**os.environ, "RUNNER_TEMP": str(runner)}
+    for name in (
+        "Evaluate V4 evidence",
+        "Verify deliberate acknowledged-write loss",
+        "Verify acknowledged-write loss within an explicit RPO budget",
+    ):
+        assert "nostekon lab" not in steps[name]
+        result = subprocess.run(
+            ["bash", "-e", "-o", "pipefail"],
+            input=steps[name],
+            cwd=workspace,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert result.returncode == 0, result.stderr
+    return workspace, steps
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "unchanged",
+        "acknowledged",
+        "recovered",
+        "lost",
+        "holes",
+        "unexpected",
+        "seconds",
+        "objectiveSeconds",
+        "met",
+        "within-tolerance",
+        "exit",
+        "missing-case",
+        "status",
+        "case-passed",
+        "order",
+    ],
+)
+def test_lab_workflow_compares_suite_summary_to_go_reports(lab_gate_workspace, change):
+    workspace, steps = lab_gate_workspace
+    source = workspace / "lab-results/suite/suite.json"
+    original = source.read_text()
+    summary = json.loads(original)
+    if change in ("acknowledged", "recovered", "lost", "holes", "unexpected", "objectiveSeconds"):
+        summary["cases"][2]["rpo"][change] += 1
+    elif change == "seconds":
+        summary["cases"][2]["rpo"]["seconds"] += 0.01
+    elif change == "within-tolerance":
+        summary["cases"][2]["rpo"]["seconds"] += 0.0000005
+    elif change == "met":
+        summary["cases"][2]["rpo"]["met"] = False
+    elif change == "exit":
+        summary["cases"][1]["observedExitCode"] = 0
+    elif change == "missing-case":
+        summary["cases"].pop()
+    elif change == "status":
+        summary["status"] = "running"
+    elif change == "case-passed":
+        summary["cases"][2]["passed"] = False
+    elif change == "order":
+        summary["cases"].reverse()
+    try:
+        source.write_text(json.dumps(summary))
+        result = subprocess.run(
+            ["bash", "-e", "-o", "pipefail"],
+            input=steps["Verify suite summary against Go reports"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    finally:
+        source.write_text(original)
+    assert (result.returncode == 0) is (change in ("unchanged", "within-tolerance")), result.stderr
 
 
 def test_lab_suite_measures_all_three_policy_outcomes(tmp_path):

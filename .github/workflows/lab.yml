@@ -32,13 +32,16 @@ jobs:
           docker info >/dev/null
       - name: Create isolated clusters
         run: make lab-up
-      - name: Run restore drill
+      - name: Run three-case policy suite
         run: |
           mkdir -p lab-results
-          nostekon lab run --writes 10 --output lab-results/drillrun.json
+          nostekon lab suite --writes 10 --rpo-seconds 60 \
+            --output-dir lab-results/suite
       - name: Evaluate V4 evidence
         run: |
-          go run ./cmd/nostekon-report lab-results/drillrun.json >lab-results/report.json
+          go build -o "$RUNNER_TEMP/nostekon-report" ./cmd/nostekon-report
+          "$RUNNER_TEMP/nostekon-report" lab-results/suite/zero-loss.drillrun.json \
+            >lab-results/report.json
           jq -e '
             .verdict == "verified" and
             .requestedLevel == "V4" and
@@ -56,15 +59,7 @@ jobs:
           ' lab-results/report.json >/dev/null
       - name: Verify deliberate acknowledged-write loss
         run: |
-          if nostekon lab run --writes 10 --after-backup-writes 2 \
-            --output lab-results/tail-loss.drillrun.json; then
-            echo "Tail-loss drill unexpectedly passed" >&2
-            exit 1
-          else
-            test "$?" -eq 1
-          fi
-          go build -o "$RUNNER_TEMP/nostekon-report" ./cmd/nostekon-report
-          if "$RUNNER_TEMP/nostekon-report" lab-results/tail-loss.drillrun.json \
+          if "$RUNNER_TEMP/nostekon-report" lab-results/suite/tail-loss.drillrun.json \
             >lab-results/tail-loss.report.json; then
             echo "Tail-loss report unexpectedly passed" >&2
             exit 1
@@ -87,9 +82,7 @@ jobs:
           ' lab-results/tail-loss.report.json >/dev/null
       - name: Verify acknowledged-write loss within an explicit RPO budget
         run: |
-          nostekon lab run --writes 10 --after-backup-writes 2 --rpo-seconds 60 \
-            --output lab-results/budget-loss.drillrun.json
-          "$RUNNER_TEMP/nostekon-report" lab-results/budget-loss.drillrun.json \
+          "$RUNNER_TEMP/nostekon-report" lab-results/suite/budget-loss.drillrun.json \
             >lab-results/budget-loss.report.json
           jq -e '
             .verdict == "verified" and
@@ -109,6 +102,39 @@ jobs:
             (.levels[] | select(.id == "V4") | .checks |
               any(.source == "ledger" and .passed == true))
           ' lab-results/budget-loss.report.json >/dev/null
+      - name: Verify suite summary against Go reports
+        run: |
+          jq -en \
+            --slurpfile suite lab-results/suite/suite.json \
+            --slurpfile zero lab-results/report.json \
+            --slurpfile tail lab-results/tail-loss.report.json \
+            --slurpfile budget lab-results/budget-loss.report.json '
+            $suite[0] as $summary |
+            [$zero[0], $tail[0], $budget[0]] as $reports |
+            $summary.apiVersion == "nostekon/lab-suite/v1alpha1" and
+            $summary.kind == "LabSuiteResult" and
+            $summary.status == "passed" and
+            $summary.passed == true and
+            $summary.completedAt != null and
+            [$summary.cases[].name] == ["zero-loss", "tail-loss", "budget-loss"] and
+            [$summary.cases[].expectedExitCode] == [0, 1, 0] and
+            [$summary.cases[].observedExitCode] == [0, 1, 0] and
+            all(range(0; 3); . as $index |
+              $summary.cases[$index] as $case |
+              $reports[$index] as $report |
+              $case.passed == true and
+              $case.drillRun == ($case.name + ".drillrun.json") and
+              $report.verdict == (if $case.expectedExitCode == 0 then "verified" else "failed" end) and
+              $case.rpo.acknowledged == $report.rpo.acknowledged and
+              $case.rpo.recovered == $report.rpo.recovered and
+              $case.rpo.lost == $report.rpo.lost and
+              $case.rpo.holes == $report.rpo.holes and
+              $case.rpo.unexpected == $report.rpo.unexpected and
+              (($case.rpo.seconds - $report.rpo.seconds) | fabs) <= 0.000001 and
+              $case.rpo.objectiveSeconds == $report.rpo.objectiveSeconds and
+              $case.rpo.met == $report.rpo.met
+            )
+          ' >/dev/null
       - name: Remove disposable clusters
         if: always()
         run: |
