@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -87,5 +88,55 @@ func TestLabRequestBoundary(t *testing.T) {
 	handler.ServeHTTP(response, labRequest(http.MethodGet, "/api/v1/lab/jobs/"+job.ID, ""))
 	if response.Code != http.StatusOK {
 		t.Fatalf("poll = %d", response.Code)
+	}
+}
+
+func TestLabRecoveryRequiresExplicitLocalAcknowledgement(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("lab execution is Linux-only")
+	}
+	directory := filepath.Join(t.TempDir(), "jobs")
+	id := strings.Repeat("a", 24)
+	if err := os.MkdirAll(filepath.Join(directory, id), 0700); err != nil {
+		t.Fatal(err)
+	}
+	record := `{"version":1,"job":{"id":"aaaaaaaaaaaaaaaaaaaaaaaa","status":"running","options":{"writes":10,"rpoSeconds":60},"startedAt":"2026-01-01T00:00:00Z","log":"","logTruncated":false,"artifacts":[]}}`
+	if err := os.WriteFile(filepath.Join(directory, id, "job.json"), []byte(record), 0600); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := labjobs.New("/bin/true", directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(manager.Close)
+	handler := NewHandlerWithLab(nil, nil, manager)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, labRequest(http.MethodPost, "/api/v1/lab/jobs", `{"writes":10,"rpoSeconds":60}`))
+	if response.Code != http.StatusConflict {
+		t.Fatalf("start before recovery = %d", response.Code)
+	}
+	path := "/api/v1/lab/jobs/" + id + "/acknowledge-recovery"
+	request := labRequest(http.MethodPost, path, `{"cleanupConfirmed":true}`)
+	request.Header.Set("Origin", "https://evil.example")
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("foreign recovery = %d", response.Code)
+	}
+	for _, body := range []string{`{}`, `{"cleanupConfirmed":false}`, `{"cleanupConfirmed":true,"resume":true}`, `{"cleanupConfirmed":true} {}`} {
+		response = httptest.NewRecorder()
+		handler.ServeHTTP(response, labRequest(http.MethodPost, path, body))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("invalid acknowledgement %s = %d", body, response.Code)
+		}
+	}
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, labRequest(http.MethodPost, path, `{"cleanupConfirmed":true}`))
+	var job labjobs.Job
+	if err := json.Unmarshal(response.Body.Bytes(), &job); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusOK || job.RecoveryRequired || job.Status != "interrupted" {
+		t.Fatalf("acknowledged job = %d %+v", response.Code, job)
 	}
 }

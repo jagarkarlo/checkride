@@ -69,7 +69,7 @@ func registerLabRoutes(mux *http.ServeMux, manager *labjobs.Manager) {
 		job, err := manager.Start(options)
 		if err != nil {
 			status := http.StatusInternalServerError
-			if errors.Is(err, labjobs.ErrBusy) || errors.Is(err, labjobs.ErrCapacity) {
+			if errors.Is(err, labjobs.ErrBusy) || errors.Is(err, labjobs.ErrCapacity) || errors.Is(err, labjobs.ErrRecoveryRequired) {
 				status = http.StatusConflict
 			}
 			writeJSON(writer, status, map[string]string{"error": err.Error()})
@@ -92,6 +92,36 @@ func registerLabRoutes(mux *http.ServeMux, manager *labjobs.Manager) {
 			return
 		}
 		writeJSON(writer, http.StatusAccepted, map[string]string{"status": "cancellation requested"})
+	}))
+	mux.HandleFunc("POST /api/v1/lab/jobs/{id}/acknowledge-recovery", guard(func(writer http.ResponseWriter, request *http.Request) {
+		mediaType, _, err := mime.ParseMediaType(request.Header.Get("Content-Type"))
+		if err != nil || mediaType != "application/json" {
+			writeJSON(writer, http.StatusUnsupportedMediaType, map[string]string{"error": "Content-Type must be application/json"})
+			return
+		}
+		data, err := io.ReadAll(http.MaxBytesReader(writer, request.Body, 4096))
+		if err != nil {
+			writeJSON(writer, http.StatusRequestEntityTooLarge, map[string]string{"error": "Lab request exceeds 4 KiB"})
+			return
+		}
+		var acknowledgement struct {
+			CleanupConfirmed bool `json:"cleanupConfirmed"`
+		}
+		if decodeStrictJSON(data, &acknowledgement) != nil || !acknowledgement.CleanupConfirmed {
+			writeJSON(writer, http.StatusBadRequest, map[string]string{"error": "Explicit cleanupConfirmed: true is required"})
+			return
+		}
+		id := request.PathValue("id")
+		if err := manager.AcknowledgeRecovery(id); err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, labjobs.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			writeJSON(writer, status, map[string]string{"error": err.Error()})
+			return
+		}
+		job, _ := manager.Get(id)
+		writeJSON(writer, http.StatusOK, job)
 	}))
 	mux.HandleFunc("GET /api/v1/lab/jobs/{id}/artifacts/{name}", guard(func(writer http.ResponseWriter, request *http.Request) {
 		name := request.PathValue("name")
