@@ -284,6 +284,68 @@ field, allowed timing tolerance, case order, exits and incomplete results.
 Those checks do not establish that this revised manual lab job has run on
 GitHub; a successful ordinary CI run is not a live-cluster lab result.
 
+### Run the suite from Studio
+
+This is an opt-in Linux host feature, not remote cluster management. Prepare the
+two dedicated clusters and PostgreSQL image using this guide first. The host
+needs the editable Python installation (`.[dev]`), `kubectl`, the lab kubeconfig,
+Go 1.25 and a built Studio. Jobs always use the CLI's fixed local
+`k3d-nostekon-source` and `k3d-nostekon-restore` contexts; the browser cannot choose
+an executable, command, image, cluster context or filesystem path.
+
+From the repository root, after installing the Python package and preparing the
+lab:
+
+```bash
+npm ci --prefix studio
+npm run build --prefix studio
+NOSTEKON_ADDR=127.0.0.1:8181 \
+  NOSTEKON_STUDIO_DIR="$PWD/studio/dist" \
+  NOSTEKON_LAB_EXECUTABLE="$PWD/.venv/bin/nostekon" \
+  NOSTEKON_LAB_DATA_DIR="$HOME/.local/share/nostekon/lab-jobs" \
+  go run ./cmd/nostekon-api
+```
+
+Use an unused loopback port if `8181` is occupied. The executable path assumes
+this guide's `.venv` installation; change it to the actual trusted CLI path.
+The data directory is created with mode `0700`; an existing directory must be
+private and must not be a symlink. Do not reuse another application's directory.
+Open `http://127.0.0.1:8181/#/lab` and choose **Run suite**. Default settings are
+10 writes and a 60-second tail-loss budget; input bounds remain 1..98 writes and
+1..86400 seconds. This deletes source test namespaces after their backups, not
+arbitrary workloads. Never point this feature at production clusters.
+
+Only one job can run at a time. The session admits at most 50 jobs without
+silently evicting prior results. Checkpoints expose case-level progress; process
+output is the latest 64 KiB, marked when truncated. Output can be buffered until
+the CLI finishes. A job's `completed` status means its process exited zero,
+not that captures are authenticated. **Review suite** evaluates original case
+JSON through the existing Go report API; saved cases remain Imported evidence
+and signature-unverified.
+
+**Cancel job**, the 15-minute timeout and graceful server shutdown send SIGINT
+to the entire job process group. After 30 seconds, remaining processes are
+forcibly stopped. SIGKILL cannot guarantee namespace cleanup or the final
+checkpoint. Inspect retained files and namespace cleanup checks before starting
+another run. Ordinary server restart clears session job discovery, but leaves
+artifacts at `<data-directory>/<job-id>/suite/`; import those JSON files manually.
+There is no automatic resume, cross-process job lock, history reindexing or
+retention cleanup. Run only one enabled API instance for these shared lab clusters.
+
+Lab API routes are disabled without both opt-in variables. Enabled requests
+require a loopback listener, loopback Host and peer, same-origin browser context
+and `X-Nostekon-Lab: true`; foreign origins/hosts and cross-site requests are
+rejected. These checks prevent browser-driven cross-origin execution, not access
+by other local programs or OS users. This is a trusted single-operator tool,
+not authentication or multi-user authorization. Do not enable it behind a public
+proxy or mount host credentials/Docker sockets into the default app container.
+
+Verified on 2026-10-07 with real subprocess command, cancellation and timeout
+tests; request-origin/input boundary tests; and desktop/mobile browser tests
+using controlled job responses plus actual Go evidence evaluation. The default
+Docker app's disabled mode was also tested. No live Kubernetes job was launched
+as part of this verification.
+
 ### Review a suite in Studio
 
 Open [Policy suite](/demo/index.html#/suite) to review the recorded three-case

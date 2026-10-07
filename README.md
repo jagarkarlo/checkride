@@ -85,7 +85,8 @@ flowchart LR
 | Attestation CLI | Signs exact DrillRun bytes and verifies detached signatures against trusted keys | Available as `go run ./cmd/nostekon-attest` |
 | Metrics | Pushes per-drill gauges to a Prometheus Pushgateway, with a bundled Grafana dashboard | Available via `nostekon-report --pushgateway-url` |
 | Lab | Disposable k3d source and restore clusters | Available; bounded PostgreSQL workload and V4 ledger checks |
-| Orchestrator | Runs drills, times every phase, cleans up | Planned |
+| Lab jobs | Starts the fixed PostgreSQL policy suite, exposes checkpoints/output and supports cancellation | Available as a Linux host opt-in; one active job |
+| Orchestrator | Executes general application recovery scenarios | Planned |
 | Analyzer | Predicts restore failures before a drill from manifests and configuration | Planned |
 | Studio | Drill specification workbench and evidence report UI with JSON/Markdown export | Available locally |
 | Copilot | LLM that diagnoses failed drills and proposes fixes that must pass a re-run | Planned |
@@ -95,8 +96,9 @@ flowchart LR
 
 The installable app serves Studio and the Go verification API from one process.
 It can review recorded or imported evidence, compare policy suites, save runs
-in your browser, and export original evidence and reports. It does not launch
-restore jobs or provide shared server-side run history.
+in your browser, and export original evidence and reports. The default container
+cannot launch restore jobs. A separate Linux host opt-in enables the fixed lab
+suite; shared server-side run history is not implemented.
 
 From this checkout, with Docker and Docker Compose available:
 
@@ -157,6 +159,20 @@ On Windows, set those environment variables in PowerShell and run
 An invalid Studio directory stops startup instead of serving a broken UI.
 Public-key signature verification still uses `NOSTEKON_TRUSTED_KEYS_DIR`;
 container installations must mount only trusted public keys read-only.
+
+### Enable local lab jobs
+
+On a Linux workstation with the dedicated k3d lab prepared, Studio can launch
+the existing three-case policy suite, show case checkpoints and process output,
+cancel a job, download its JSON evidence and open it in Suite review. Execution
+must be explicitly enabled with a CLI executable and private data directory;
+the listener must be loopback-only. The default container remains disabled and
+does not receive kubeconfig, a Docker socket or cluster permissions.
+
+See [the lab job runbook](site/src/content/docs/guides/k3d-isolated-restore.md#run-the-suite-from-studio)
+for prerequisites, the exact launch command, request safeguards and interruption
+limits. Job history is session-only; evidence remains on disk after a restart,
+but automatic reindexing, resume and retention pruning are not implemented.
 
 Verified locally on 2026-10-07: the actual image served Studio and its HTTP API;
 desktop and mobile browser tests reviewed all three policy cases, saved them,
