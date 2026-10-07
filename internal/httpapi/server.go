@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"crypto/ed25519"
+	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jagarkarlo/nostekon/internal/schema"
@@ -13,6 +15,10 @@ func NewHandler() http.Handler {
 }
 
 func NewHandlerWithTrustedKeys(configuredKeys map[string]ed25519.PublicKey) http.Handler {
+	return NewHandlerWithStudio(configuredKeys, nil)
+}
+
+func NewHandlerWithStudio(configuredKeys map[string]ed25519.PublicKey, studio fs.FS) http.Handler {
 	trustedKeys := make(map[string]ed25519.PublicKey, len(configuredKeys))
 	for keyID, key := range configuredKeys {
 		trustedKeys[keyID] = append(ed25519.PublicKey(nil), key...)
@@ -32,6 +38,36 @@ func NewHandlerWithTrustedKeys(configuredKeys map[string]ed25519.PublicKey) http
 	mux.HandleFunc("POST /api/v1/runs/report", func(writer http.ResponseWriter, request *http.Request) {
 		runReportHandler(writer, request, trustedKeys)
 	})
+	if studio != nil {
+		files := http.FileServer(http.FS(studio))
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if request.URL.Path == "/api" || strings.HasPrefix(request.URL.Path, "/api/") || request.URL.Path == "/healthz" || request.URL.Path == "/readyz" {
+				mux.ServeHTTP(writer, request)
+				return
+			}
+			if request.Method != http.MethodGet && request.Method != http.MethodHead {
+				writer.Header().Set("Allow", "GET, HEAD")
+				http.Error(writer, "Method Not Allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			for _, segment := range strings.Split(request.URL.Path, "/") {
+				if strings.HasPrefix(segment, ".") {
+					http.NotFound(writer, request)
+					return
+				}
+			}
+			if request.URL.Path != "/" {
+				info, err := fs.Stat(studio, strings.TrimPrefix(request.URL.Path, "/"))
+				if err != nil || info.IsDir() {
+					http.NotFound(writer, request)
+					return
+				}
+			}
+			writer.Header().Set("X-Content-Type-Options", "nosniff")
+			writer.Header().Set("Cache-Control", "no-cache")
+			files.ServeHTTP(writer, request)
+		})
+	}
 	return mux
 }
 
@@ -40,9 +76,13 @@ func NewServer(address string) *http.Server {
 }
 
 func NewServerWithTrustedKeys(address string, trustedKeys map[string]ed25519.PublicKey) *http.Server {
+	return NewServerWithStudio(address, trustedKeys, nil)
+}
+
+func NewServerWithStudio(address string, trustedKeys map[string]ed25519.PublicKey, studio fs.FS) *http.Server {
 	return &http.Server{
 		Addr:              address,
-		Handler:           NewHandlerWithTrustedKeys(trustedKeys),
+		Handler:           NewHandlerWithStudio(trustedKeys, studio),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

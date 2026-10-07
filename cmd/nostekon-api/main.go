@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -33,6 +34,24 @@ func run() error {
 	stopSignals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	var studio fs.FS
+	if directory := os.Getenv("NOSTEKON_STUDIO_DIR"); directory != "" {
+		root, err := os.OpenRoot(directory)
+		if err != nil {
+			return fmt.Errorf("open Studio directory: %w", err)
+		}
+		defer root.Close()
+		studio = root.FS()
+		index, err := fs.Stat(studio, "index.html")
+		if err != nil {
+			return fmt.Errorf("read Studio index: %w", err)
+		}
+		if !index.Mode().IsRegular() {
+			return fmt.Errorf("Studio index.html must be a regular file")
+		}
+		slog.Info("serving Studio", "directory", directory)
+	}
+
 	var trustedKeys map[string]ed25519.PublicKey
 	var err error
 	if directory := os.Getenv("NOSTEKON_TRUSTED_KEYS_DIR"); directory != "" {
@@ -49,7 +68,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("listen on %q: %w", address, err)
 	}
-	server := httpapi.NewServerWithTrustedKeys(address, trustedKeys)
+	server := httpapi.NewServerWithStudio(address, trustedKeys, studio)
 	serveErrors := make(chan error, 1)
 	go func() {
 		serveErrors <- server.Serve(listener)

@@ -74,8 +74,8 @@ export function App() {
             <FileCheck2 size={15} /> Report
           </a>
         </nav>
-        <a className="workbench-link" href={browserDemo ? "/" : "http://127.0.0.1:4321/"} title="Open the product site">
-          <Activity size={14} /> <span>Product site</span>
+        <a className="workbench-link" href={browserDemo ? "/" : "https://github.com/jagarkarlo/nostekon"} title={browserDemo ? "Open the product site" : "Open the project"}>
+          <Activity size={14} /> <span>{browserDemo ? "Product site" : "Project"}</span>
         </a>
         <button className="studio-theme" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
           <span aria-hidden="true">{theme === "dark" ? "☀️" : "🌙"}</span>
