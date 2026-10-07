@@ -1,6 +1,9 @@
 /* Studio styles. Colour roles: accent = interactive, ok/bad/warn = recovery results only. */
 
 .lab-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin: 24px 0; }
+.lab-workspace .library-heading { flex-direction: row; align-items: center; }
+.lab-workspace .run-open { padding: 0; border: 0; background: transparent; color: var(--accent-ink); font: inherit; font-weight: 600; }
+.lab-workspace .run-open[aria-pressed=true] { text-decoration: underline; text-underline-offset: 4px; }
 .lab-controls label { display: grid; gap: 8px; font-size: 13px; }
 .lab-controls input { width: 180px; max-width: 100%; padding: 9px 12px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
 .lab-detail { margin-top: 24px; min-width: 0; }

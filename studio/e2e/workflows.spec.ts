@@ -70,6 +70,11 @@ for (const width of [390, 1440]) {
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "suite.json", exact: true }).click();
     expect(await readFile((await (await download).path())!)).toEqual(files[0].buffer);
+    if (width === 390) {
+      const table = page.getByRole("region", { name: "Lab jobs table" });
+      await table.focus();
+      expect(await table.evaluate(element => { element.scrollLeft = element.scrollWidth; return element.scrollLeft > 0; })).toBe(true);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`lab-completed-${width}.png`), fullPage: true });
     await page.getByRole("button", { name: "Review suite", exact: true }).click();

@@ -141,7 +141,7 @@ export function LabView({ active, onReview }: { active: boolean; onReview: (file
       <label>Tail-loss budget (seconds)<input type="number" min="1" max="86400" required value={budget} disabled={!enabled || busy || running} onChange={event => setBudget(event.target.valueAsNumber)} /></label>
       <button className="primary" type="submit" disabled={!enabled || checking || busy || running}><Play size={15} />Run suite</button>
     </form>
-    {jobs.length > 0 && <section aria-label="Lab session jobs"><div className="table-scroll"><table className="runs-table">
+    {jobs.length > 0 && <section aria-label="Lab session jobs"><div className="table-scroll" role="region" aria-label="Lab jobs table" tabIndex={0}><table className="runs-table">
       <thead><tr><th>Job</th><th>Status</th><th>Writes</th><th>RPO budget</th><th>Started</th></tr></thead>
       <tbody>{jobs.map(item => <tr key={item.id}><th scope="row"><button className="run-open" type="button" onClick={() => setSelected(item.id)} aria-pressed={job?.id === item.id}>{item.id.slice(0, 8)}</button></th><td>{item.status}</td><td>{item.options.writes}</td><td>{item.options.rpoSeconds}s</td><td>{new Date(item.startedAt).toLocaleString()}</td></tr>)}</tbody>
     </table></div></section>}
