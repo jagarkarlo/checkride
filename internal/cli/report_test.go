@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -193,6 +196,140 @@ func TestRunSuiteModeRejectsSingleRunOptions(t *testing.T) {
 		if code != 2 || stdout.Len() != 0 {
 			t.Fatalf("flags=%v exit=%d output=%s", args, code, stdout.String())
 		}
+	}
+}
+
+func suiteArchive(t *testing.T, change func(map[string]any, map[string][]byte), extra ...zip.FileHeader) string {
+	t.Helper()
+	files := make(map[string][]byte)
+	descriptors := []map[string]any{}
+	for _, name := range []string{"suite.json", "zero-loss.drillrun.json", "tail-loss.drillrun.json", "budget-loss.drillrun.json"} {
+		data, err := os.ReadFile(filepath.Join("../../examples/suites/postgresql-policy", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[name] = data
+		digest := sha256.Sum256(data)
+		descriptors = append(descriptors, map[string]any{"name": name, "size": len(data), "sha256": hex.EncodeToString(digest[:])})
+	}
+	manifest := map[string]any{"apiVersion": "nostekon/evidence-bundle/v1alpha1", "kind": "LabEvidenceBundle", "job": map[string]any{"id": strings.Repeat("a", 24), "status": "completed", "completedAt": "2026-10-07T12:00:00Z"}, "files": descriptors, "missingArtifacts": []string{}}
+	if change != nil {
+		change(manifest, files)
+	}
+	data, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files["manifest.json"] = data
+	var output bytes.Buffer
+	archive := zip.NewWriter(&output)
+	for name, source := range files {
+		entry, err := archive.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := entry.Write(source); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, header := range extra {
+		entry, err := archive.CreateHeader(&header)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := entry.Write([]byte("extra")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "evidence.zip")
+	if err := os.WriteFile(path, output.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestRunSuiteGateReadsPortableBundle(t *testing.T) {
+	var zipped, directory, stderr bytes.Buffer
+	path := suiteArchive(t, nil)
+	if code := Run([]string{"--suite", path}, &zipped, &stderr); code != 0 {
+		t.Fatalf("ZIP exit=%d stderr=%s", code, stderr.String())
+	}
+	if code := Run([]string{"--suite", "../../examples/suites/postgresql-policy"}, &directory, &stderr); code != 0 {
+		t.Fatalf("directory exit=%d stderr=%s", code, stderr.String())
+	}
+	if !bytes.Equal(zipped.Bytes(), directory.Bytes()) {
+		t.Fatalf("ZIP and directory reviews differ")
+	}
+}
+
+func TestRunSuiteGateRejectsUnsafeBundles(t *testing.T) {
+	for _, scenario := range []string{"checksum", "size", "missing-declaration", "overlap", "duplicate-descriptor", "recovery", "active", "wrong-version", "oversized", "invalid-utf8", "traversal", "absolute", "ledger", "duplicate-entry", "compression"} {
+		t.Run(scenario, func(t *testing.T) {
+			extra := []zip.FileHeader{}
+			if scenario == "duplicate-entry" {
+				extra = append(extra, zip.FileHeader{Name: "suite.json", Method: zip.Store})
+			}
+			if scenario == "compression" {
+				extra = append(extra, zip.FileHeader{Name: "budget-loss.drillrun.json", Method: zip.Deflate})
+			}
+			path := suiteArchive(t, func(manifest map[string]any, files map[string][]byte) {
+				descriptors := manifest["files"].([]map[string]any)
+				switch scenario {
+				case "checksum":
+					files["suite.json"] = append(files["suite.json"], byte(' '))
+				case "size":
+					descriptors[0]["size"] = 1
+				case "missing-declaration":
+					delete(files, "budget-loss.drillrun.json")
+					manifest["files"] = descriptors[:3]
+				case "overlap":
+					manifest["missingArtifacts"] = []string{"suite.json"}
+				case "duplicate-descriptor":
+					manifest["files"] = append(descriptors[:3], descriptors[0])
+				case "recovery":
+					manifest["job"].(map[string]any)["recoveryRequired"] = true
+				case "active":
+					manifest["job"].(map[string]any)["status"] = "running"
+				case "wrong-version":
+					manifest["apiVersion"] = "unknown"
+				case "oversized":
+					files["suite.json"] = bytes.Repeat([]byte(" "), 64*1024+1)
+				case "invalid-utf8":
+					files["suite.json"] = []byte{255}
+				case "traversal", "absolute", "ledger":
+					delete(files, "budget-loss.drillrun.json")
+					name := "../suite.json"
+					if scenario == "absolute" {
+						name = "/suite.json"
+					}
+					if scenario == "ledger" {
+						name = "zero-loss.drillrun.json.ledger.db"
+					}
+					files[name] = []byte("private")
+				case "duplicate-entry", "compression":
+					delete(files, "budget-loss.drillrun.json")
+				}
+			}, extra...)
+			var stdout, stderr bytes.Buffer
+			if code := Run([]string{"--suite", path}, &stdout, &stderr); code != 2 || stdout.Len() != 0 || stderr.Len() == 0 {
+				t.Fatalf("exit=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+			}
+		})
+	}
+}
+
+func TestRunSuiteGateReportsExplicitPartialBundle(t *testing.T) {
+	path := suiteArchive(t, func(manifest map[string]any, files map[string][]byte) {
+		delete(files, "budget-loss.drillrun.json")
+		manifest["files"] = manifest["files"].([]map[string]any)[:3]
+		manifest["missingArtifacts"] = []string{"budget-loss.drillrun.json"}
+	})
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"--suite", path}, &stdout, &stderr); code != 1 || !strings.Contains(stdout.String(), "Missing evidence: budget-loss.drillrun.json") {
+		t.Fatalf("exit=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
 }
 
