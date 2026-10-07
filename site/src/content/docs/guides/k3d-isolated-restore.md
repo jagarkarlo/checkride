@@ -476,6 +476,80 @@ validation. Installed desktop/mobile workflows check download, import, actual
 Go evaluation, saving and reload; corruption is rejected before evaluation.
 Browser job responses are controlled fixtures, not a new live Kubernetes drill.
 
+### Gate a captured suite in CI
+
+Use the Go report command from this checkout to gate an existing suite directory
+or exported ZIP. This evaluates captured JSON only: no Python, Docker, kubectl,
+credentials, cluster access or running lab server is needed. Go 1.25 is required
+to build the command. Build a binary for CI exit-code handling; `go run` wraps
+nonzero program exits and does not preserve the distinction between `1` and `2`.
+
+```bash
+umask 077
+REPORT_DIR=$(mktemp -d)
+go build -o "$REPORT_DIR/nostekon-report" ./cmd/nostekon-report
+"$REPORT_DIR/nostekon-report" --suite examples/suites/postgresql-policy \
+  > /tmp/nostekon-suite-review.json
+```
+
+For your capture, replace the input directory with its path or the exported
+`nostekon-lab-<job-id>.zip`. Use a private, unique report destination; the shell
+redirection replaces an existing file. The directory reader only reads the
+summary and three known case filenames. It rejects symlinked/non-regular and
+oversized artifacts, ignoring unrelated directory files. ZIP input uses the
+Store-only format, size/name/accounting/UTF-8/hash limits described above, without
+extracting anything to disk. Missing declared case evidence remains a finding.
+
+| Exit | Meaning |
+|---|---|
+| `0` | Complete passing runner summary; all three independently evaluated policy outcomes and measurements agree |
+| `1` | A valid review was written, but the suite gate failed, including partial or missing case evidence |
+| `2` | Usage, input, archive integrity, summary validation or output-write error; no successful review is available |
+
+Let a nonzero exit fail the CI step. Do not use `|| true` or accept a report
+because its filename exists: redirection can leave an empty file after an input
+error. The existing single-DrillRun command is unchanged. Suite mode rejects
+single-run attestation and Pushgateway options rather than implying verification
+or inventing an aggregate metrics instance.
+
+The gate checks ordered cases, expected exits `0, 1, 0`, V4 evaluation and all
+eight RPO fields, with a `0.000001` second comparison tolerance. Expected lost
+counts are `0, 2, 2`, without holes or unexpected writes. The strict-tail case
+must reach V3, fail at V4 against a zero RPO budget and not also miss its RTO or
+fail an unrelated reported check. The runner's canonical zero-budget ledger-loss
+check is allowed alongside the generated ledger failure. An arbitrary failed
+verdict is not sufficient. Partial captures can agree with their summary but
+never pass the complete-suite gate.
+
+The output has `apiVersion: nostekon/suite-review/v1alpha1`, `kind: SuiteReview`,
+`passed`, `complete`, `runnerStatus`, `runnerPassed`, `evidenceMatches`,
+`summarySHA256`, unverified `provenance`, and ordered `cases`. Each case contains
+its expected/observed/evaluated exit codes, `evidenceSHA256`, evaluated `report`
+and `issues`; unavailable evidence/report fields are `null`. It does not embed
+raw source JSON, process logs or SQLite ledgers. Reports can still contain
+sensitive identifiers and findings; inspect them before sharing.
+
+In Studio, **Suite gate** is separate from **Runner result** and evidence
+agreement. **Export review** downloads `suite-review.json` for passing or failing
+reviews; invalid imports clear the review and disable export. The installed app
+and HTTPS/localhost browser demo use the same contract and retain signature-
+unverified provenance. A digest binds the report to submitted bytes, not to a
+trusted operator, execution history or actual restore. Keep the original inputs;
+a review is not an evidence bundle or host-history backup.
+
+The manual lab workflow retains its existing case checks and additionally writes
+`lab-results/suite-review.json` after successful or failed captures. Cleanup and
+artifact upload remain always-on; missing/invalid summaries fail closed rather
+than fabricating a passing review. No workflow dispatch is required to use the
+command locally.
+
+Verified on 2026-10-07 against original recorded evidence and mutated local
+fixtures: directory/ZIP reports agree; incomplete, tampered, unsafe and unrelated
+failure inputs are rejected. Desktop/mobile review downloads match the real Go
+CLI, including static WASM evaluation. The actual workflow shell step was tested
+with passing/partial/missing inputs, without Kubernetes. This verification does
+not claim a new live drill, hosted workflow result or authenticated capture.
+
 ### Review a suite in Studio
 
 Open [Policy suite](/demo/index.html#/suite) to review the recorded three-case

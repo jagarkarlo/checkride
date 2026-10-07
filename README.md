@@ -343,6 +343,15 @@ directories for full history archiving. See the
 [bundle guide](site/src/content/docs/guides/k3d-isolated-restore.md#export-and-import-evidence-bundles)
 for limits and safe transfer.
 
+Captured suites can now be gated without Kubernetes using
+`nostekon-report --suite <suite-directory-or-evidence.zip>`. The command
+independently evaluates all cases and emits a versioned review with source
+digests, findings and a conservative gate result. Studio's **Export review**
+produces the same report contract. Partial agreement is not a passing suite,
+and an unrelated failure cannot substitute for the intentional strict-tail
+loss. See the [CI suite gate](site/src/content/docs/guides/k3d-isolated-restore.md#gate-a-captured-suite-in-ci)
+for exit codes, build commands and trust limits.
+
 To run the disposable isolated PostgreSQL source-loss drill, install Docker,
 k3d, kubectl, Python 3.12+ and Go, then use only the dedicated lab contexts:
 
