@@ -1,8 +1,13 @@
 package labjobs
 
 import (
+	"archive/zip"
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -90,6 +95,99 @@ func TestFixedSuiteCommandAndResult(t *testing.T) {
 	}
 }
 
+func TestEvidenceBundlePreservesOriginalsAndExcludesPrivateData(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "jobs")
+	id := strings.Repeat("a", 24)
+	suite := filepath.Join(directory, id, "suite")
+	if err := os.MkdirAll(suite, 0700); err != nil {
+		t.Fatal(err)
+	}
+	record := `{"version":1,"job":{"id":"aaaaaaaaaaaaaaaaaaaaaaaa","status":"completed","options":{"writes":10,"rpoSeconds":60},"startedAt":"2026-01-01T00:00:00Z","completedAt":"2026-01-01T00:01:00Z","exitCode":0,"log":"private process output","logTruncated":true,"artifacts":[],"storageError":"private host path"}}`
+	if err := os.WriteFile(filepath.Join(directory, id, "job.json"), []byte(record), 0600); err != nil {
+		t.Fatal(err)
+	}
+	originals := map[string][]byte{"suite.json": []byte("{\n  \"status\": \"passed\"\n}\n"), "zero-loss.drillrun.json": []byte("original bytes, even when malformed\n")}
+	for name, data := range originals {
+		if err := os.WriteFile(filepath.Join(suite, name), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(suite, "zero-loss.drillrun.json.ledger.db"), []byte("private ledger"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := New("/bin/true", directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(manager.Close)
+	exporter, supported := any(manager).(interface{ Export(string) ([]byte, error) })
+	if !supported {
+		t.Fatal("lab manager does not support evidence bundle export")
+	}
+	data, err := exporter.Export(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := make(map[string][]byte)
+	for _, entry := range archive.File {
+		if entry.Mode().Perm() != 0600 {
+			t.Fatalf("bundle entry %s has public permissions: %v", entry.Name, entry.Mode())
+		}
+		file, err := entry.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		contents, err := io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[entry.Name] = contents
+	}
+	if len(files) != 3 {
+		t.Fatalf("unexpected bundle entries: %v", files)
+	}
+	for name, original := range originals {
+		if !bytes.Equal(files[name], original) {
+			t.Fatalf("changed original evidence %s", name)
+		}
+	}
+	var manifest struct {
+		APIVersion string `json:"apiVersion"`
+		Kind       string `json:"kind"`
+		Job        Job    `json:"job"`
+		Files      []struct {
+			Name   string `json:"name"`
+			Size   int    `json:"size"`
+			SHA256 string `json:"sha256"`
+		} `json:"files"`
+		MissingArtifacts []string `json:"missingArtifacts"`
+	}
+	if err := json.Unmarshal(files["manifest.json"], &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.APIVersion != "nostekon/evidence-bundle/v1alpha1" || manifest.Kind != "LabEvidenceBundle" || manifest.Job.ID != id || manifest.Job.Status != "completed" || manifest.Job.Options != (Options{10, 60}) || manifest.Job.Log != "" || manifest.Job.StorageError != "" || len(manifest.Job.Summary) != 0 {
+		t.Fatalf("invalid or private manifest: %+v", manifest)
+	}
+	if len(manifest.Files) != 2 || !reflect.DeepEqual(manifest.MissingArtifacts, []string{"tail-loss.drillrun.json", "budget-loss.drillrun.json"}) {
+		t.Fatalf("missing/available files = %+v", manifest)
+	}
+	for _, entry := range manifest.Files {
+		original, exists := originals[entry.Name]
+		checksum := sha256.Sum256(original)
+		if !exists || entry.Size != len(original) || entry.SHA256 != hex.EncodeToString(checksum[:]) {
+			t.Fatalf("invalid checksum entry: %+v", entry)
+		}
+	}
+	if _, err := exporter.Export("missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown export = %v", err)
+	}
+}
+
 func TestLabProcessHelper(t *testing.T) {
 	mode := os.Getenv("NOSTEKON_TEST_HELPER")
 	if mode == "" {
@@ -153,6 +251,9 @@ func TestJobBoundariesAndCancellation(t *testing.T) {
 	}
 	if _, err := manager.Start(Options{10, 60}); !errors.Is(err, ErrBusy) {
 		t.Fatalf("overlap error = %v", err)
+	}
+	if _, err := manager.Export(job.ID); !errors.Is(err, ErrBusy) {
+		t.Fatalf("active export = %v", err)
 	}
 	for deadline := time.Now().Add(5 * time.Second); ; {
 		job, _ = manager.Get(job.ID)
@@ -265,11 +366,17 @@ func TestRestartRequiresRecoveryAcknowledgement(t *testing.T) {
 	if _, err := manager.Start(Options{10, 60}); !errors.Is(err, ErrRecoveryRequired) {
 		t.Fatalf("new job before cleanup acknowledgement = %v", err)
 	}
+	if _, err := manager.Export(id); !errors.Is(err, ErrRecoveryRequired) {
+		t.Fatalf("export before cleanup acknowledgement = %v", err)
+	}
 	if err := manager.Cancel(id); err != nil {
 		t.Fatalf("historical cancellation must not signal a reused process: %v", err)
 	}
 	if err := manager.AcknowledgeRecovery(id); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := manager.Export(id); err != nil {
+		t.Fatalf("export acknowledged partial evidence: %v", err)
 	}
 	manager.Close()
 	reopened, err := New("/bin/true", directory)
@@ -286,6 +393,98 @@ func TestRestartRequiresRecoveryAcknowledgement(t *testing.T) {
 		t.Fatalf("start after acknowledgement: %v", err)
 	}
 	<-reopened.jobs[started.ID].done
+}
+
+func TestEvidenceBundleRejectsUnsafeArtifacts(t *testing.T) {
+	for _, scenario := range []string{"symlink", "dangling-symlink", "directory", "summary-too-large", "case-too-large"} {
+		t.Run(scenario, func(t *testing.T) {
+			manager, err := New("/bin/true", filepath.Join(t.TempDir(), "jobs"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(manager.Close)
+			job, err := manager.Start(Options{10, 60})
+			if err != nil {
+				t.Fatal(err)
+			}
+			<-manager.jobs[job.ID].done
+			suite := filepath.Join(manager.directory, job.ID, "suite")
+			if err := os.Mkdir(suite, 0700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(suite, "suite.json")
+			switch scenario {
+			case "symlink", "dangling-symlink":
+				outside := filepath.Join(t.TempDir(), "private.json")
+				if scenario == "symlink" {
+					if err := os.WriteFile(outside, []byte("private data"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := os.Symlink(outside, path); err != nil {
+					t.Fatal(err)
+				}
+			case "directory":
+				if err := os.Mkdir(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+			default:
+				limit := int64(64 << 10)
+				if scenario == "case-too-large" {
+					path, limit = filepath.Join(suite, "zero-loss.drillrun.json"), 16<<20
+				}
+				file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0600)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = file.Truncate(limit + 1)
+				file.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := manager.Export(job.ID); err == nil {
+				t.Fatal("unsafe artifact was exported or silently marked missing")
+			}
+		})
+	}
+}
+
+func TestEvidenceBundleWithoutArtifactsIsExplicitlyPartial(t *testing.T) {
+	manager, err := New("/bin/true", filepath.Join(t.TempDir(), "jobs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(manager.Close)
+	job, err := manager.Start(Options{10, 60})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-manager.jobs[job.ID].done
+	data, err := manager.Export(job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil || len(archive.File) != 1 || archive.File[0].Name != "manifest.json" {
+		t.Fatalf("metadata-only archive = %v, %v", archive, err)
+	}
+	file, err := archive.File[0].Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	var manifest struct {
+		Files            []any    `json:"files"`
+		MissingArtifacts []string `json:"missingArtifacts"`
+	}
+	if err := json.NewDecoder(file).Decode(&manifest); err != nil || len(manifest.Files) != 0 || !reflect.DeepEqual(manifest.MissingArtifacts, artifactNames) {
+		t.Fatalf("partial manifest = %+v, %v", manifest, err)
+	}
+	manager.Close()
+	if _, err := manager.Export(job.ID); err == nil {
+		t.Fatal("exported from a closed history")
+	}
 }
 
 func TestDataDirectoryHasExclusiveOwner(t *testing.T) {
