@@ -10,6 +10,7 @@ import (
 
 	"github.com/jagarkarlo/nostekon/internal/attest"
 	"github.com/jagarkarlo/nostekon/internal/metrics"
+	"github.com/jagarkarlo/nostekon/internal/suitereview"
 	"github.com/jagarkarlo/nostekon/internal/verify"
 )
 
@@ -18,7 +19,7 @@ const maxReportInputBytes = 16 << 20
 // Run evaluates a captured DrillRun file. The exported entry point is shared
 // by the standalone command and tests.
 func Run(args []string, stdout, stderr io.Writer) int {
-	usage := "usage: nostekon-report [--attestation FILE --trusted-key PUBLIC.pem] [--pushgateway-url URL [--pushgateway-job NAME] [--pushgateway-instance NAME]] <run.json>"
+	usage := "usage: nostekon-report [--suite] [--attestation FILE --trusted-key PUBLIC.pem] [--pushgateway-url URL [--pushgateway-job NAME] [--pushgateway-instance NAME]] <run.json | suite-directory>"
 	if len(args) == 0 || len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
 		fmt.Fprintln(stderr, usage)
 		if len(args) == 1 {
@@ -28,6 +29,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 	flags := flag.NewFlagSet("nostekon-report", flag.ContinueOnError)
 	flags.SetOutput(stderr)
+	suiteMode := flags.Bool("suite", false, "gate a captured PostgreSQL policy suite directory")
 	attestationPath := flags.String("attestation", "", "detached Ed25519 attestation JSON file")
 	trustedKeyPath := flags.String("trusted-key", "", "trusted Ed25519 PKIX public key PEM")
 	pushgatewayURL := flags.String("pushgateway-url", "", "push recovery metrics to this Prometheus Pushgateway URL")
@@ -40,6 +42,32 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if flags.NArg() != 1 || (*attestationPath == "") != (*trustedKeyPath == "") {
 		fmt.Fprintln(stderr, usage)
 		return 2
+	}
+	if *suiteMode {
+		if *attestationPath != "" || *pushgatewayURL != "" || *pushgatewayJob != "nostekon" || *pushgatewayInstance != "" {
+			fmt.Fprintln(stderr, "suite mode cannot use per-run attestation or Pushgateway flags")
+			return 2
+		}
+		sources, err := suitereview.ReadDirectory(flags.Arg(0))
+		if err != nil {
+			fmt.Fprintf(stderr, "read suite: %v\n", err)
+			return 2
+		}
+		review, err := suitereview.Evaluate(sources)
+		if err != nil {
+			fmt.Fprintf(stderr, "review suite: %v\n", err)
+			return 2
+		}
+		encoder := json.NewEncoder(stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(review); err != nil {
+			fmt.Fprintf(stderr, "write suite review: %v\n", err)
+			return 2
+		}
+		if review.Passed {
+			return 0
+		}
+		return 1
 	}
 	file, err := os.Open(flags.Arg(0))
 	if err != nil {

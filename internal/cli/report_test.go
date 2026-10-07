@@ -7,11 +7,194 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/jagarkarlo/nostekon/internal/attest"
 )
+
+func TestRunSuiteGateAcceptsExpectedPolicyFailure(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--suite", "../../examples/suites/postgresql-policy"}, &stdout, &stderr)
+	if code != 0 || stderr.Len() != 0 {
+		t.Fatalf("suite exit=%d stderr=%s output=%s", code, stderr.String(), stdout.String())
+	}
+	var review struct {
+		APIVersion      string `json:"apiVersion"`
+		Kind            string `json:"kind"`
+		Passed          bool   `json:"passed"`
+		Complete        bool   `json:"complete"`
+		EvidenceMatches bool   `json:"evidenceMatches"`
+		Cases           []struct {
+			Name              string   `json:"name"`
+			EvaluatedExitCode *int     `json:"evaluatedExitCode"`
+			EvidenceSHA256    string   `json:"evidenceSHA256"`
+			Issues            []string `json:"issues"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &review); err != nil {
+		t.Fatal(err)
+	}
+	if review.APIVersion != "nostekon/suite-review/v1alpha1" || review.Kind != "SuiteReview" || !review.Passed || !review.Complete || !review.EvidenceMatches || len(review.Cases) != 3 {
+		t.Fatalf("unexpected suite review: %s", stdout.String())
+	}
+	for index, expected := range []int{0, 1, 0} {
+		item := review.Cases[index]
+		if item.EvaluatedExitCode == nil || *item.EvaluatedExitCode != expected || len(item.Issues) != 0 || len(item.EvidenceSHA256) != 64 {
+			t.Fatalf("case %d: %+v", index, item)
+		}
+	}
+}
+
+func suiteFixture(t *testing.T) string {
+	t.Helper()
+	directory := t.TempDir()
+	for _, name := range []string{"suite.json", "zero-loss.drillrun.json", "tail-loss.drillrun.json", "budget-loss.drillrun.json"} {
+		data, err := os.ReadFile(filepath.Join("../../examples/suites/postgresql-policy", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(directory, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return directory
+}
+
+func changeSuiteJSON(t *testing.T, directory, name string, change func(map[string]any)) {
+	t.Helper()
+	path := filepath.Join(directory, name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value map[string]any
+	if err := json.Unmarshal(data, &value); err != nil {
+		t.Fatal(err)
+	}
+	change(value)
+	data, err = json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunSuiteGateFailsClosed(t *testing.T) {
+	for _, scenario := range []struct {
+		name string
+		code int
+	}{
+		{"missing-evidence", 1}, {"partial", 1}, {"empty", 1}, {"runner-failed", 1},
+		{"bad-evidence", 1}, {"non-v4", 1}, {"unrelated-failure", 1},
+		{"wrong-order", 2}, {"missing-observed", 2}, {"wrong-kind", 2}, {"contradictory-passed", 2},
+		{"symlink", 2}, {"oversized-summary", 2}, {"invalid-utf8", 2},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			directory := suiteFixture(t)
+			switch scenario.name {
+			case "missing-evidence":
+				if err := os.Remove(filepath.Join(directory, "tail-loss.drillrun.json")); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink":
+				path := filepath.Join(directory, "tail-loss.drillrun.json")
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink("zero-loss.drillrun.json", path); err != nil {
+					t.Fatal(err)
+				}
+			case "oversized-summary", "invalid-utf8":
+				data := bytes.Repeat([]byte(" "), 64*1024+1)
+				if scenario.name == "invalid-utf8" {
+					data = []byte{255}
+				}
+				if err := os.WriteFile(filepath.Join(directory, "suite.json"), data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "bad-evidence":
+				if err := os.WriteFile(filepath.Join(directory, "zero-loss.drillrun.json"), []byte("{}"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "non-v4":
+				changeSuiteJSON(t, directory, "zero-loss.drillrun.json", func(value map[string]any) { value["spec"].(map[string]any)["upTo"] = "V3" })
+			case "unrelated-failure":
+				changeSuiteJSON(t, directory, "tail-loss.drillrun.json", func(value map[string]any) {
+					value["status"].(map[string]any)["checks"].([]any)[0].(map[string]any)["passed"] = false
+				})
+			default:
+				changeSuiteJSON(t, directory, "suite.json", func(value map[string]any) {
+					cases := value["cases"].([]any)
+					switch scenario.name {
+					case "partial":
+						value["status"], value["passed"], value["cases"] = "interrupted", false, cases[:1]
+					case "empty":
+						value["status"], value["passed"], value["cases"] = "running", false, []any{}
+					case "runner-failed":
+						value["status"], value["passed"] = "failed", false
+					case "wrong-order":
+						cases[0], cases[1] = cases[1], cases[0]
+					case "missing-observed":
+						delete(cases[0].(map[string]any), "observedExitCode")
+					case "wrong-kind":
+						value["kind"] = "wrong"
+					case "contradictory-passed":
+						value["status"] = "failed"
+					}
+				})
+			}
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"--suite", directory}, &stdout, &stderr)
+			if code != scenario.code {
+				t.Fatalf("exit=%d want=%d stderr=%s stdout=%s", code, scenario.code, stderr.String(), stdout.String())
+			}
+			if scenario.code == 1 {
+				var review struct {
+					Passed bool `json:"passed"`
+				}
+				if err := json.Unmarshal(stdout.Bytes(), &review); err != nil || review.Passed {
+					t.Fatalf("invalid failed review: %s (%v)", stdout.String(), err)
+				}
+			} else if stdout.Len() != 0 || stderr.Len() == 0 {
+				t.Fatalf("invalid input must not emit a success report")
+			}
+		})
+	}
+}
+
+func TestRunSuiteGateComparesEveryMeasurement(t *testing.T) {
+	for _, field := range []string{"acknowledged", "recovered", "lost", "holes", "unexpected", "seconds", "objectiveSeconds", "met"} {
+		t.Run(field, func(t *testing.T) {
+			directory := suiteFixture(t)
+			changeSuiteJSON(t, directory, "suite.json", func(value map[string]any) {
+				measurement := value["cases"].([]any)[0].(map[string]any)["rpo"].(map[string]any)
+				if field == "met" {
+					measurement[field] = false
+				} else {
+					measurement[field] = measurement[field].(float64) + 1
+				}
+			})
+			var stdout, stderr bytes.Buffer
+			if code := Run([]string{"--suite", directory}, &stdout, &stderr); code != 1 || !strings.Contains(stdout.String(), field+" differs") {
+				t.Fatalf("exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
+func TestRunSuiteModeRejectsSingleRunOptions(t *testing.T) {
+	for _, args := range [][]string{{"--attestation", "sidecar.json", "--trusted-key", "key.pem"}, {"--pushgateway-url", "http://127.0.0.1:1"}, {"--pushgateway-job", "other"}, {"--pushgateway-instance", "other"}} {
+		var stdout, stderr bytes.Buffer
+		code := Run(append(append([]string{"--suite"}, args...), "../../examples/suites/postgresql-policy"), &stdout, &stderr)
+		if code != 2 || stdout.Len() != 0 {
+			t.Fatalf("flags=%v exit=%d output=%s", args, code, stdout.String())
+		}
+	}
+}
 
 func TestRunWritesVerifiedReport(t *testing.T) {
 	var stdout, stderr bytes.Buffer
