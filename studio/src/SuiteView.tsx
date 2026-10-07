@@ -1,6 +1,7 @@
-import { ArrowRight, CheckCircle2, Download, FlaskConical, LoaderCircle, RefreshCw, Save, ShieldAlert, Upload, XCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, Download, FileArchive, FlaskConical, LoaderCircle, RefreshCw, Save, ShieldAlert, Upload, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
+import { maxBundleBytes, readEvidenceBundle } from "./evidenceBundle";
 import { evaluateSuite, parseSuite } from "./labSuite";
 import type { SuiteReview } from "./labSuite";
 import { formatDuration, isReport } from "./report";
@@ -23,6 +24,7 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
   const [savedCount, setSavedCount] = useState(0);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const bundleInput = useRef<HTMLInputElement>(null);
   const generation = useRef(0);
   const initialized = useRef(false);
   const controller = useRef<AbortController | null>(null);
@@ -116,6 +118,7 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
         <button className="icon-button" type="button" title="Download original suite summary" aria-label="Download original suite summary" disabled={!summary || busy} onClick={downloadSummary}><Download size={16} /></button>
         <button className="tool" type="button" disabled={!canSave || busy || saving} onClick={() => void saveCases()}>{saving ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />} {saving ? "Saving..." : "Save cases"}</button>
         <button className="primary" type="button" disabled={saving} onClick={() => input.current?.click()}><Upload size={15} /> Import suite</button>
+        <button className="tool" type="button" disabled={saving} onClick={() => bundleInput.current?.click()}><FileArchive size={15} /> Import bundle</button>
       </div>
     </header>
     <input ref={input} type="file" accept=".json,application/json" multiple hidden disabled={saving} data-testid="suite-input" onChange={(event) => {
@@ -130,6 +133,15 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
           if (file.size > limit) throw new Error(`${file.name} exceeds the ${file.name === "suite.json" ? "64 KiB" : "16 MiB"} limit.`);
         }
         return new Map(await Promise.all(files.map(async (file) => [file.name, await file.text()] as const)));
+      }, false);
+    }} />
+    <input ref={bundleInput} type="file" accept=".zip,application/zip" hidden disabled={saving} data-testid="suite-bundle-input" onChange={(event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      void load(async () => {
+        if (file.size > maxBundleBytes) throw new Error("Evidence bundle exceeds the 49 MiB limit.");
+        return readEvidenceBundle(new Uint8Array(await file.arrayBuffer()));
       }, false);
     }} />
     {error && <p className="banner bad" role="alert"><XCircle size={16} /> {error}</p>}

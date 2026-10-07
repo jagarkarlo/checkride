@@ -1,10 +1,51 @@
 import { expect, test } from "@playwright/test";
+import { unzipSync, zipSync } from "fflate";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 async function suiteBundle() {
   return Promise.all(["suite.json", "zero-loss.drillrun.json", "tail-loss.drillrun.json", "budget-loss.drillrun.json"].map(async (name) => ({
     name, mimeType: "application/json", buffer: await readFile(new URL(`../../examples/suites/postgresql-policy/${name}`, import.meta.url)),
   })));
+}
+
+function evidenceArchive(files: Awaited<ReturnType<typeof suiteBundle>>) {
+  const entries = Object.fromEntries(files.map(file => [file.name, file.buffer]));
+  const manifest = {
+    apiVersion: "nostekon/evidence-bundle/v1alpha1", kind: "LabEvidenceBundle",
+    job: { id: "a".repeat(24), status: "completed", completedAt: "2026-10-07T10:01:00Z" },
+    files: files.map(file => ({ name: file.name, size: file.buffer.length, sha256: createHash("sha256").update(file.buffer).digest("hex") })),
+    missingArtifacts: [],
+  };
+  return zipSync({ ...entries, "manifest.json": Buffer.from(JSON.stringify(manifest)) }, { level: 0 });
+}
+
+for (const width of [390, 1440]) {
+  test(`portable evidence bundle rejects corruption without stale success at ${width}px`, async ({ page }, testInfo) => {
+    const archive = evidenceArchive(await suiteBundle());
+    const changed = unzipSync(archive);
+    changed["zero-loss.drillrun.json"][0] ^= 1;
+    const corrupted = zipSync(changed, { level: 0 });
+    let evaluations = 0;
+    page.on("request", request => { if (new URL(request.url()).pathname === "/api/v1/runs/report") evaluations++; });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(process.env.NOSTEKON_APP_URL ? "/#/suite" : "/demo/#/suite");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Recorded local lab");
+    const before = evaluations;
+    await page.getByTestId("suite-bundle-input").setInputFiles({ name: "corrupted.zip", mimeType: "application/zip", buffer: Buffer.from(corrupted) });
+    await expect(page.getByRole("alert")).toContainText("checksum mismatch");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save cases", exact: true })).toBeDisabled();
+    expect(evaluations).toBe(before);
+    await page.getByTestId("suite-bundle-input").setInputFiles({ name: "valid.zip", mimeType: "application/zip", buffer: Buffer.from(archive) });
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches the summary");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Imported evidence");
+    await expect(page.getByRole("button", { name: "Save cases", exact: true })).toBeEnabled();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({ path: testInfo.outputPath(`bundle-import-${width}.png`), fullPage: true });
+  });
 }
 
 test("installed app keeps lab execution disabled by default", async ({ page }) => {
@@ -20,6 +61,7 @@ for (const width of [390, 1440]) {
   test(`installed app lab job progresses into independently reviewed evidence at ${width}px`, async ({ page }, testInfo) => {
     test.skip(!process.env.NOSTEKON_APP_URL, "Requires the packaged app.");
     const files = await suiteBundle();
+    const archive = evidenceArchive(files);
     const summary = JSON.parse(files[0].buffer.toString());
     const identifier = "a".repeat(24);
     const errors: string[] = [];
@@ -38,7 +80,9 @@ for (const width of [390, 1440]) {
       const request = route.request();
       const path = new URL(request.url()).pathname;
       expect(request.headers()["x-nostekon-lab"]).toBe("true");
-      if (path.includes("/artifacts/")) {
+      if (path.endsWith("/export")) {
+        await route.fulfill({ contentType: "application/zip", body: Buffer.from(archive) });
+      } else if (path.includes("/artifacts/")) {
         const file = files.find(file => path.endsWith(`/artifacts/${file.name}`));
         expect(file).toBeDefined();
         await route.fulfill({ status: 200, contentType: "application/json", body: file!.buffer });
@@ -62,11 +106,18 @@ for (const width of [390, 1440]) {
     await page.getByLabel("Writes per case").fill("10");
     await page.getByRole("button", { name: "Run suite", exact: true }).click();
     await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("running");
+    await expect(page.getByRole("button", { name: "Export bundle", exact: true })).toBeDisabled();
     expect(starts).toEqual([{ writes: 10, rpoSeconds: 60 }]);
     await expect(page.getByRole("button", { name: "Run suite", exact: true })).toBeDisabled();
     completed = true;
     await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("completed");
     await expect(page.getByRole("progressbar", { name: "Completed policy cases" })).toHaveAttribute("value", "3");
+    const bundleDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export bundle", exact: true }).click();
+    const downloadedBundle = await bundleDownload;
+    expect(downloadedBundle.suggestedFilename()).toBe(`nostekon-lab-${identifier}.zip`);
+    const bundlePath = (await downloadedBundle.path())!;
+    expect(await readFile(bundlePath)).toEqual(Buffer.from(archive));
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "suite.json", exact: true }).click();
     expect(await readFile((await (await download).path())!)).toEqual(files[0].buffer);
@@ -78,6 +129,9 @@ for (const width of [390, 1440]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`lab-completed-${width}.png`), fullPage: true });
     await page.getByRole("button", { name: "Review suite", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches the summary");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Imported evidence");
+    await page.getByTestId("suite-bundle-input").setInputFiles({ name: "exported.zip", mimeType: "application/zip", buffer: await readFile(bundlePath) });
     await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches the summary");
     await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Imported evidence");
     await page.getByRole("button", { name: "Save cases", exact: true }).click();
@@ -113,10 +167,12 @@ test("installed app restart recovery blocks execution until explicit cleanup con
   await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("interrupted");
   await expect(page.getByRole("button", { name: "Run suite", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Confirm cleanup", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Export bundle", exact: true })).toBeDisabled();
   await page.getByRole("checkbox", { name: "Old runner processes stopped and lab namespaces checked" }).check();
   await page.getByRole("button", { name: "Confirm cleanup", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Run suite", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Export bundle", exact: true })).toBeEnabled();
   await page.reload();
   await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("interrupted");
   await expect(page.getByRole("button", { name: "Run suite", exact: true })).toBeEnabled();

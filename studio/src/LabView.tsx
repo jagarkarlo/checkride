@@ -1,6 +1,7 @@
-import { ArrowRight, Check, Download, FlaskConical, LoaderCircle, Play, RefreshCw, Square, XCircle } from "lucide-react";
+import { ArrowRight, Check, Download, FileArchive, FlaskConical, LoaderCircle, Play, RefreshCw, Square, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { browserDemo } from "./api";
+import { maxBundleBytes } from "./evidenceBundle";
 import { parseSuite } from "./labSuite";
 import type { LabSuite } from "./labSuite";
 
@@ -141,6 +142,25 @@ export function LabView({ active, onReview }: { active: boolean; onReview: (file
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Download failed."); }
   }
 
+  async function exportBundle() {
+    if (!job) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/v1/lab/jobs/${job.id}/export`, { headers: { "X-Nostekon-Lab": "true" }, signal: AbortSignal.timeout(30000) });
+      if (!response.ok) {
+        const payload: unknown = await response.json();
+        throw new Error(typeof payload === "object" && payload !== null && "error" in payload ? String(payload.error) : `Bundle export failed (HTTP ${response.status}).`);
+      }
+      if (response.headers.get("Content-Type")?.split(";")[0] !== "application/zip") throw new Error("Invalid evidence bundle response.");
+      const blob = await response.blob();
+      if (blob.size > maxBundleBytes) throw new Error("Evidence bundle exceeds the 49 MiB limit.");
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob); link.download = `nostekon-lab-${job.id}.zip`; link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not export evidence."); }
+    finally { setBusy(false); }
+  }
+
   async function review() {
     if (!job) return;
     setBusy(true); setError("");
@@ -175,6 +195,7 @@ export function LabView({ active, onReview }: { active: boolean; onReview: (file
       <div className="section-toolbar"><h2>Job {job.id.slice(0, 8)}</h2><div className="library-actions">
         <button className="tool" type="button" disabled={busy || job.status !== "running"} onClick={() => void cancel()}><Square size={15} />Cancel job</button>
         <button className="tool" type="button" disabled={busy || !job.completedAt || !job.artifacts.includes("suite.json")} onClick={() => void review()}><ArrowRight size={15} />Review suite</button>
+        <button className="tool" type="button" disabled={busy || running || !job.completedAt || !!job.recoveryRequired} onClick={() => void exportBundle()}><FileArchive size={15} />Export bundle</button>
       </div></div>
       <p role="status" aria-label="Lab job status"><strong>{job.status}</strong>{job.exitCode !== undefined && ` · exit ${job.exitCode}`}</p>
       {job.checkpointError && <p className="banner bad" role="alert"><XCircle size={16} />{job.checkpointError}</p>}
