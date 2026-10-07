@@ -131,7 +131,7 @@ func (manager *Manager) Start(options Options) (Job, error) {
 	command := manager.command(manager.executable, "lab", "suite", "--writes", strconv.Itoa(options.Writes), "--rpo-seconds", strconv.Itoa(options.RPOSeconds), "--output-dir", output)
 	prepare(command)
 	command.WaitDelay = manager.grace
-	execution := &execution{job: Job{ID: id, Status: "running", Options: options, StartedAt: time.Now().UTC()}, command: command, done: make(chan struct{})}
+	execution := &execution{job: Job{ID: id, Status: "running", Options: options, StartedAt: time.Now().UTC(), Artifacts: []string{}}, command: command, done: make(chan struct{})}
 	command.Stdout, command.Stderr = &execution.log, &execution.log
 	if err := command.Start(); err != nil {
 		_ = manager.root.Remove(id)

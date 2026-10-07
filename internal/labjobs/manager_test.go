@@ -33,6 +33,9 @@ func TestFixedSuiteCommandAndResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if job.Artifacts == nil {
+		t.Fatal("new jobs must expose an empty artifact array, not null")
+	}
 	deadline := time.After(5 * time.Second)
 	for {
 		job, err = manager.Get(job.ID)
