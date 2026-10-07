@@ -8,6 +8,37 @@ async function suiteBundle() {
 }
 
 for (const width of [390, 1440]) {
+  test(`installed app evaluates and saves evidence through the API at ${width}px`, async ({ page }, testInfo) => {
+    test.skip(!process.env.NOSTEKON_APP_URL, "Requires the packaged app; static demo checks run separately.");
+    const errors: string[] = [];
+    const files = await suiteBundle();
+    const reportStatuses = new Map<string, number>();
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("response", (response) => {
+      if (new URL(response.url()).pathname === "/api/v1/runs/report") {
+        reportStatuses.set(response.request().postDataJSON().metadata.name, response.status());
+      }
+    });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/#/suite");
+    await expect(page.locator(".api-status")).toContainText("API connected");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches the summary");
+    await expect(page.locator(".suite-table tbody tr > td:nth-child(2)")).toHaveText(["verified", "failed", "verified"]);
+    expect(files.slice(1).map(file => reportStatuses.get(JSON.parse(file.buffer.toString()).metadata.name))).toEqual([200, 200, 200]);
+    await page.getByRole("button", { name: "Save cases", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Suite save result" })).toContainText("3 cases saved to Runs");
+    await page.getByRole("link", { name: "Runs", exact: true }).click();
+    await page.reload();
+    await expect(page.locator(".saved-runs tbody tr")).toHaveCount(3);
+    await page.getByRole("button", { name: JSON.parse(files[2].buffer.toString()).metadata.name, exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Failed at V4" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`installed-app-${width}.png`), fullPage: true });
+    expect(errors).toEqual([]);
+  });
+}
+
+for (const width of [390, 1440]) {
   test(`recorded suite reviews all policy outcomes at ${width}px`, async ({ page }, testInfo) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));

@@ -51,6 +51,46 @@ jobs:
       - name: Validate example drills
         run: nostekon validate examples/drills/*.yaml
 
+  app:
+    name: Installed app
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOCKER_BUILDKIT: "1"
+      NOSTEKON_PORT: "8180"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Build app image
+        run: docker compose build
+      - name: Start app
+        run: docker compose up -d --no-build
+      - name: Install browser tests
+        working-directory: studio
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Test installed app
+        working-directory: studio
+        env:
+          NOSTEKON_APP_URL: http://127.0.0.1:8180
+        run: npm run test:e2e -- --grep 'installed app'
+      - name: Stop app
+        if: always()
+        run: docker compose down
+      - name: Upload app browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: installed-app-playwright-results
+          path: studio/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
   package:
     name: Build distributions
     runs-on: ubuntu-latest
