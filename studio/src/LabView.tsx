@@ -14,6 +14,7 @@ interface Job {
   log: string;
   logTruncated: boolean;
   summary?: LabSuite;
+  checkpointError?: string;
   artifacts: string[];
 }
 
@@ -36,7 +37,13 @@ function readJob(payload: unknown): Job {
   const value = payload as Partial<Job>;
   if (typeof value.id !== "string" || !/^[a-f0-9]{24}$/.test(value.id) || !["running", "cancelling", "completed", "failed", "cancelled", "timed_out"].includes(value.status ?? "") || typeof value.startedAt !== "string" || !Number.isFinite(Date.parse(value.startedAt)) || typeof value.log !== "string" || typeof value.logTruncated !== "boolean" || !value.options || !Number.isInteger(value.options.writes) || value.options.writes < 1 || value.options.writes > 98 || !Number.isInteger(value.options.rpoSeconds) || value.options.rpoSeconds < 1 || value.options.rpoSeconds > 86400 || !Array.isArray(value.artifacts) || value.artifacts.some(name => !artifactNames.includes(name))) throw new Error("Invalid lab job response.");
   if (value.completedAt !== undefined && (typeof value.completedAt !== "string" || !Number.isFinite(Date.parse(value.completedAt)))) throw new Error("Invalid job completion timestamp.");
-  return { ...value, summary: value.summary ? parseSuite(JSON.stringify(value.summary)) : undefined } as Job;
+  let summary: LabSuite | undefined;
+  let checkpointError: string | undefined;
+  if (value.summary) {
+    try { summary = parseSuite(JSON.stringify(value.summary)); }
+    catch (reason) { checkpointError = `Could not read checkpoint: ${reason instanceof Error ? reason.message : "Invalid summary."}`; }
+  }
+  return { ...value, summary, checkpointError } as Job;
 }
 
 export function LabView({ active, onReview }: { active: boolean; onReview: (files: Map<string, string>) => void }) {
@@ -151,6 +158,7 @@ export function LabView({ active, onReview }: { active: boolean; onReview: (file
         <button className="tool" type="button" disabled={busy || !job.completedAt || !job.artifacts.includes("suite.json")} onClick={() => void review()}><ArrowRight size={15} />Review suite</button>
       </div></div>
       <p role="status" aria-label="Lab job status"><strong>{job.status}</strong>{job.exitCode !== undefined && ` · exit ${job.exitCode}`}</p>
+      {job.checkpointError && <p className="banner bad" role="alert"><XCircle size={16} />{job.checkpointError}</p>}
       {job.summary && <><progress max={3} value={job.summary.cases.filter(item => item.passed).length} aria-label="Completed policy cases" /><ol className="lab-cases">{job.summary.cases.map(item => <li key={item.name}><strong>{item.name}</strong><span>{item.passed ? "passed" : item.observedExitCode === null ? "in progress" : "needs attention"}</span></li>)}</ol></>}
       <div className="lab-artifacts">{job.artifacts.map(name => <button key={name} className="tool" type="button" onClick={() => void download(name)}><Download size={15} />{name}</button>)}</div>
       <h3>Process output{job.logTruncated ? " (latest 64 KiB)" : ""}</h3><pre className="lab-log" tabIndex={0}>{job.log || "No process output yet."}</pre>

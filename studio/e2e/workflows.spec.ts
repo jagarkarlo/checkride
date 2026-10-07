@@ -99,7 +99,7 @@ test("installed app lab cancellation retains an interrupted summary", async ({ p
     id: identifier, status: cancelled ? "cancelled" : "running", options: { writes: 10, rpoSeconds: 60 },
     startedAt: "2026-10-07T10:00:00Z", ...(cancelled ? { completedAt: "2026-10-07T10:01:00Z", exitCode: 130 } : {}),
     log: "", logTruncated: false, artifacts: ["suite.json"],
-    summary: { ...summary, status: cancelled ? "interrupted" : "running", passed: false, cases: [] },
+    summary: cancelled ? { ...summary, status: "interrupted", passed: false, cases: [] } : { invalid: "checkpoint" },
   });
   await page.route("**/api/v1/lab**", async route => {
     const path = new URL(route.request().url()).pathname;
@@ -110,6 +110,7 @@ test("installed app lab cancellation retains an interrupted summary", async ({ p
   });
   await page.goto("/#/lab");
   await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("running");
+  await expect(page.getByRole("alert")).toContainText("Could not read checkpoint");
   await page.getByRole("button", { name: "Cancel job", exact: true }).click();
   await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("cancelled");
   await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("exit 130");
