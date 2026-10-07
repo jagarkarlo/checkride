@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jagarkarlo/nostekon/internal/labjobs"
 	"github.com/jagarkarlo/nostekon/internal/schema"
 )
 
@@ -19,6 +20,10 @@ func NewHandlerWithTrustedKeys(configuredKeys map[string]ed25519.PublicKey) http
 }
 
 func NewHandlerWithStudio(configuredKeys map[string]ed25519.PublicKey, studio fs.FS) http.Handler {
+	return NewHandlerWithLab(configuredKeys, studio, nil)
+}
+
+func NewHandlerWithLab(configuredKeys map[string]ed25519.PublicKey, studio fs.FS, lab *labjobs.Manager) http.Handler {
 	trustedKeys := make(map[string]ed25519.PublicKey, len(configuredKeys))
 	for keyID, key := range configuredKeys {
 		trustedKeys[keyID] = append(ed25519.PublicKey(nil), key...)
@@ -38,6 +43,7 @@ func NewHandlerWithStudio(configuredKeys map[string]ed25519.PublicKey, studio fs
 	mux.HandleFunc("POST /api/v1/runs/report", func(writer http.ResponseWriter, request *http.Request) {
 		runReportHandler(writer, request, trustedKeys)
 	})
+	registerLabRoutes(mux, lab)
 	if studio != nil {
 		files := http.FileServer(http.FS(studio))
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/jagarkarlo/nostekon/internal/attest"
 	"github.com/jagarkarlo/nostekon/internal/httpapi"
+	"github.com/jagarkarlo/nostekon/internal/labjobs"
 )
 
 func main() {
@@ -52,6 +53,24 @@ func run() error {
 		slog.Info("serving Studio", "directory", directory)
 	}
 
+	var lab *labjobs.Manager
+	executable, dataDirectory := os.Getenv("NOSTEKON_LAB_EXECUTABLE"), os.Getenv("NOSTEKON_LAB_DATA_DIR")
+	if executable != "" || dataDirectory != "" {
+		if executable == "" || dataDirectory == "" {
+			return errors.New("lab execution requires both NOSTEKON_LAB_EXECUTABLE and NOSTEKON_LAB_DATA_DIR")
+		}
+		if !httpapi.LoopbackAddress(address) {
+			return errors.New("lab execution requires an explicit loopback NOSTEKON_ADDR")
+		}
+		var err error
+		lab, err = labjobs.New(executable, dataDirectory)
+		if err != nil {
+			return fmt.Errorf("configure lab execution: %w", err)
+		}
+		defer lab.Close()
+		slog.Info("local lab execution enabled", "directory", dataDirectory)
+	}
+
 	var trustedKeys map[string]ed25519.PublicKey
 	var err error
 	if directory := os.Getenv("NOSTEKON_TRUSTED_KEYS_DIR"); directory != "" {
@@ -69,6 +88,9 @@ func run() error {
 		return fmt.Errorf("listen on %q: %w", address, err)
 	}
 	server := httpapi.NewServerWithStudio(address, trustedKeys, studio)
+	if lab != nil {
+		server.Handler = httpapi.NewHandlerWithLab(trustedKeys, studio, lab)
+	}
 	serveErrors := make(chan error, 1)
 	go func() {
 		serveErrors <- server.Serve(listener)

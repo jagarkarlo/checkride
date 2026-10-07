@@ -9,11 +9,36 @@ import (
 
 func TestRunReturnsBindError(t *testing.T) {
 	t.Setenv("NOSTEKON_STUDIO_DIR", "")
+	t.Setenv("NOSTEKON_LAB_EXECUTABLE", "")
+	t.Setenv("NOSTEKON_LAB_DATA_DIR", "")
 	t.Setenv("NOSTEKON_ADDR", "invalid-address")
 
 	err := run()
 	if err == nil || !strings.Contains(err.Error(), "listen on \"invalid-address\"") {
 		t.Fatalf("run() error = %v, want a bind error", err)
+	}
+}
+
+func TestRunRejectsUnsafeLabConfiguration(t *testing.T) {
+	for _, scenario := range []string{"wildcard", "missing-data", "missing-executable", "invalid-executable"} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Setenv("NOSTEKON_STUDIO_DIR", "")
+			t.Setenv("NOSTEKON_ADDR", "127.0.0.1:invalid-port")
+			t.Setenv("NOSTEKON_LAB_EXECUTABLE", "/missing/nostekon")
+			t.Setenv("NOSTEKON_LAB_DATA_DIR", filepath.Join(t.TempDir(), "jobs"))
+			switch scenario {
+			case "wildcard":
+				t.Setenv("NOSTEKON_ADDR", ":invalid-port")
+			case "missing-data":
+				t.Setenv("NOSTEKON_LAB_DATA_DIR", "")
+			case "missing-executable":
+				t.Setenv("NOSTEKON_LAB_EXECUTABLE", "")
+			}
+			err := run()
+			if err == nil || !strings.Contains(err.Error(), "lab") {
+				t.Fatalf("%s startup = %v", scenario, err)
+			}
+		})
 	}
 }
 
