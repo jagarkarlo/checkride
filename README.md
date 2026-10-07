@@ -171,8 +171,10 @@ does not receive kubeconfig, a Docker socket or cluster permissions.
 
 See [the lab job runbook](site/src/content/docs/guides/k3d-isolated-restore.md#run-the-suite-from-studio)
 for prerequisites, the exact launch command, request safeguards and interruption
-limits. Job history is session-only; evidence remains on disk after a restart,
-but automatic reindexing, resume and retention pruning are not implemented.
+limits. Private job metadata and terminal log tails survive restart and are
+reloaded automatically. Unfinished records become interrupted and block new
+jobs until the operator explicitly confirms process and namespace cleanup.
+Automatic resume and retention pruning are not implemented.
 
 Verified locally on 2026-10-07: the actual image served Studio and its HTTP API;
 desktop and mobile browser tests reviewed all three policy cases, saved them,

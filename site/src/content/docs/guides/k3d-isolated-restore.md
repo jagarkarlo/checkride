@@ -315,7 +315,7 @@ Open `http://127.0.0.1:8181/#/lab` and choose **Run suite**. Default settings ar
 1..86400 seconds. This deletes source test namespaces after their backups, not
 arbitrary workloads. Never point this feature at production clusters.
 
-Only one job can run at a time. The session admits at most 50 jobs without
+Only one job can run at a time. Persistent history admits at most 50 jobs without
 silently evicting prior results. Checkpoints expose case-level progress; process
 output is the latest 64 KiB, marked when truncated. Output can be buffered until
 the CLI finishes. A job's `completed` status means its process exited zero,
@@ -327,10 +327,69 @@ and signature-unverified.
 to the entire job process group. After 30 seconds, remaining processes are
 forcibly stopped. SIGKILL cannot guarantee namespace cleanup or the final
 checkpoint. Inspect retained files and namespace cleanup checks before starting
-another run. Ordinary server restart clears session job discovery, but leaves
-artifacts at `<data-directory>/<job-id>/suite/`; import those JSON files manually.
-There is no automatic resume, cross-process job lock, history reindexing or
-retention cleanup. Run only one enabled API instance for these shared lab clusters.
+another run. Each job has private, versioned `job.json` metadata beside its
+`suite/` directory. Metadata is written before execution, on cancellation and
+after completion using file sync, atomic rename and directory sync. Completed
+metadata and the final log tail are reloaded on startup, newest first. Live log
+output is not checkpointed continuously; a crash can lose that output tail.
+
+### Recover lab history after restart
+
+An unfinished `running` or `cancelling` record becomes **interrupted**, with
+`recoveryRequired: true` and no invented exit code. Its completion timestamp
+is the reconciliation time, not proof that the old process stopped then.
+Original summary/evidence files remain unchanged. New jobs are blocked until
+every interrupted record is acknowledged. No process is reattached, resumed
+or signalled using a stored PID; a crashed API's descendants may still be running.
+
+Before acknowledgement:
+
+1. Stop any old lab suite process and its descendants using the operating
+  system's process tools. Confirm the exact command and process identity;
+  never terminate a process merely because its PID appears in old notes.
+2. Inspect the dedicated source and restore contexts and cleanup checks.
+  Identify only the test namespaces owned by the interrupted job. Remove
+  retained test resources only after confirming ownership; do not delete
+  namespaces by a broad wildcard or assume every prefix match is disposable.
+3. Review the published summary and available original case JSON. Keep partial
+  files for diagnosis; do not promote temporary checkpoint files or invent
+  missing measurements.
+4. In Studio, select the interrupted job, check **Old runner processes stopped
+  and lab namespaces checked**, then choose **Confirm cleanup**. This stores
+  the operator's acknowledgement, not an automated cleanup verification.
+
+For an explicitly reviewed job, the equivalent local API request is:
+
+```bash
+JOB_ID='<24-character-job-id-from-Studio>'
+curl --fail-with-body -X POST \
+  -H 'Content-Type: application/json' -H 'X-Nostekon-Lab: true' \
+  --data '{"cleanupConfirmed":true}' \
+  "http://127.0.0.1:8181/api/v1/lab/jobs/$JOB_ID/acknowledge-recovery"
+```
+
+Use the actual configured loopback port. The checkbox starts unchecked; the
+API rejects missing/false acknowledgement and unexpected fields. Persisting
+the acknowledgement does not change the interrupted verdict into success.
+
+The data directory has an exclusive Linux file lock. A second manager using
+that same directory is rejected; do not remove `.manager.lock` while running.
+Different data directories do not coordinate cluster access. Run only one
+enabled API instance for these shared lab clusters, including direct CLI jobs.
+
+Missing, corrupt, unsupported, oversized, public-readable or symlinked metadata
+stops startup instead of silently discarding history. This includes old job
+directories created before metadata persistence was added. Stop the server,
+check processes/cleanup, preserve the entire affected directory in an archive
+outside the live data root, then restart. Do not hand-edit records to declare
+success. Unpublished private `.job-*.tmp` files are not authoritative metadata.
+
+At the 50-job cap, stop the server and archive whole older job directories
+outside the live root. Keep metadata, summary, case evidence and ledgers together.
+Restarting alone does not reset the cap. There is no automatic resume,
+cross-directory cluster lock or retention pruning. A metadata-write error is
+visible in job details and blocks additional starts until storage is repaired
+and the server restarted; already retained evidence remains separate.
 
 Lab API routes are disabled without both opt-in variables. Enabled requests
 require a loopback listener, loopback Host and peer, same-origin browser context
@@ -345,6 +404,13 @@ tests; request-origin/input boundary tests; and desktop/mobile browser tests
 using controlled job responses plus actual Go evidence evaluation. The default
 Docker app's disabled mode was also tested. No live Kubernetes job was launched
 as part of this verification.
+
+Persistent history was additionally verified on 2026-10-07: a real helper
+process completes and survives manager recreation with matching metadata/logs
+and original artifacts; unfinished-record fixtures require durable explicit
+acknowledgement; concurrent directory ownership and malformed/missing metadata
+are rejected. The browser recovery checkbox and blocked start were tested at
+390px. These are not power-loss, remote-storage or live-cluster crash tests.
 
 ### Review a suite in Studio
 
