@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { unzipSync, zipSync } from "fflate";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 
 async function suiteBundle() {
@@ -21,6 +22,38 @@ function evidenceArchive(files: Awaited<ReturnType<typeof suiteBundle>>) {
 }
 
 for (const width of [390, 1440]) {
+  test(`suite review gate matches the Go CLI and fails partial evidence at ${width}px`, async ({ page }, testInfo) => {
+    const expected = JSON.parse(execFileSync("go", ["run", "./cmd/nostekon-report", "--suite", "examples/suites/postgresql-policy"], { cwd: new URL("../../", import.meta.url), encoding: "utf8" }));
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(process.env.NOSTEKON_APP_URL ? "/#/suite" : "/demo/#/suite");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches the summary");
+    const gate = page.getByRole("region", { name: "Suite review totals" }).locator("div").filter({ has: page.getByText("Suite gate", { exact: true }) });
+    await expect(gate).toContainText("passed");
+    let download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export review", exact: true }).click();
+    let exported = await download;
+    expect(exported.suggestedFilename()).toBe("suite-review.json");
+    expect(JSON.parse(await readFile((await exported.path())!, "utf8"))).toEqual(expected);
+    const files = await suiteBundle();
+    const partial = JSON.parse(files[0].buffer.toString());
+    partial.status = "interrupted"; partial.passed = false; partial.cases = partial.cases.slice(0, 1);
+    await page.getByTestId("suite-input").setInputFiles([{ ...files[0], buffer: Buffer.from(JSON.stringify(partial)) }, files[1]]);
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches the summary");
+    await expect(gate).toContainText("failed");
+    download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export review", exact: true }).click();
+    exported = await download;
+    expect(JSON.parse(await readFile((await exported.path())!, "utf8"))).toMatchObject({ passed: false, complete: false, evidenceMatches: true, runnerStatus: "interrupted" });
+    await page.getByTestId("suite-input").setInputFiles([{ ...files[0], buffer: Buffer.from("invalid") }]);
+    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Export review", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "Recorded suite", exact: true }).click();
+    await expect(gate).toContainText("passed");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({ path: testInfo.outputPath(`suite-review-${width}.png`), fullPage: true });
+  });
+
   test(`portable evidence bundle rejects corruption without stale success at ${width}px`, async ({ page }, testInfo) => {
     const archive = evidenceArchive(await suiteBundle());
     const changed = unzipSync(archive);

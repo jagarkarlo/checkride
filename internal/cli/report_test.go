@@ -92,7 +92,7 @@ func TestRunSuiteGateFailsClosed(t *testing.T) {
 		code int
 	}{
 		{"missing-evidence", 1}, {"partial", 1}, {"empty", 1}, {"runner-failed", 1},
-		{"bad-evidence", 1}, {"non-v4", 1}, {"unrelated-failure", 1},
+		{"bad-evidence", 1}, {"non-v4", 1}, {"unrelated-failure", 1}, {"incomplete-levels", 1}, {"rto-missed", 1},
 		{"wrong-order", 2}, {"missing-observed", 2}, {"wrong-kind", 2}, {"contradictory-passed", 2},
 		{"symlink", 2}, {"oversized-summary", 2}, {"invalid-utf8", 2},
 	} {
@@ -128,6 +128,21 @@ func TestRunSuiteGateFailsClosed(t *testing.T) {
 			case "unrelated-failure":
 				changeSuiteJSON(t, directory, "tail-loss.drillrun.json", func(value map[string]any) {
 					value["status"].(map[string]any)["checks"].([]any)[0].(map[string]any)["passed"] = false
+				})
+			case "incomplete-levels":
+				changeSuiteJSON(t, directory, "tail-loss.drillrun.json", func(value map[string]any) {
+					checks := value["status"].(map[string]any)["checks"].([]any)
+					kept := []any{}
+					for _, check := range checks {
+						if check.(map[string]any)["level"] != "V2" {
+							kept = append(kept, check)
+						}
+					}
+					value["status"].(map[string]any)["checks"] = kept
+				})
+			case "rto-missed":
+				changeSuiteJSON(t, directory, "tail-loss.drillrun.json", func(value map[string]any) {
+					value["spec"].(map[string]any)["objectives"].(map[string]any)["rtoSeconds"] = 0
 				})
 			default:
 				changeSuiteJSON(t, directory, "suite.json", func(value map[string]any) {

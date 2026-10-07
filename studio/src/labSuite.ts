@@ -37,6 +37,52 @@ export interface SuiteReview {
   evidenceMatches: boolean;
 }
 
+export interface SuiteReviewDocument {
+  apiVersion: "nostekon/suite-review/v1alpha1";
+  kind: "SuiteReview";
+  passed: boolean;
+  complete: boolean;
+  runnerStatus: LabSuite["status"];
+  runnerPassed: boolean;
+  evidenceMatches: boolean;
+  summarySHA256: string;
+  provenance: { status: "unverified" };
+  cases: {
+    name: SuiteCase["name"];
+    drillRun: string;
+    expectedExitCode: number;
+    observedExitCode: number | null;
+    evaluatedExitCode: number | null;
+    evidenceSHA256: string | null;
+    report: Report | null;
+    issues: string[];
+  }[];
+}
+
+export function suiteGatePassed(review: SuiteReview): boolean {
+  return review.cases.length === 3 && review.suite.passed && review.evidenceMatches;
+}
+
+export async function createSuiteReview(review: SuiteReview, summary: string): Promise<SuiteReviewDocument> {
+  if (!globalThis.crypto?.subtle) throw new Error("Review export requires HTTPS or localhost.");
+  async function digest(source: string) {
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source));
+    return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return {
+    apiVersion: "nostekon/suite-review/v1alpha1", kind: "SuiteReview",
+    passed: suiteGatePassed(review), complete: review.cases.length === 3,
+    runnerStatus: review.suite.status, runnerPassed: review.suite.passed,
+    evidenceMatches: review.evidenceMatches, summarySHA256: await digest(summary), provenance: { status: "unverified" },
+    cases: await Promise.all(review.cases.map(async (item) => ({
+      name: item.recorded.name, drillRun: item.recorded.drillRun,
+      expectedExitCode: item.recorded.expectedExitCode, observedExitCode: item.recorded.observedExitCode,
+      evaluatedExitCode: item.report ? item.report.verdict === "verified" ? 0 : item.report.verdict === "failed" ? 1 : 2 : null,
+      evidenceSHA256: item.source === undefined ? null : await digest(item.source), report: item.report, issues: item.issues,
+    }))),
+  };
+}
+
 export async function evaluateSuite(suite: LabSuite, sources: Map<string, string>, evaluate: (source: string) => Promise<Report>): Promise<SuiteReview> {
   const cases: ReviewedCase[] = [];
   for (const recorded of suite.cases) {
@@ -65,6 +111,10 @@ export async function evaluateSuite(suite: LabSuite, sources: Map<string, string
         }
         if (Math.abs(report.rpo.seconds - recorded.rpo.seconds) > 0.000001) reviewed.issues.push("seconds differs from the suite summary.");
         if (!report.rpo.consistent) reviewed.issues.push("The restored ledger is inconsistent.");
+        const expectedLoss = recorded.name === "zero-loss" ? 0 : 2;
+        if (report.rpo.lost !== expectedLoss || report.rpo.holes !== 0 || report.rpo.unexpected !== 0 || exitCode !== recorded.expectedExitCode || recorded.name === "tail-loss" && (report.firstFailed !== "V4" || report.deepestPassed !== "V3" || report.rpo.met !== false || report.rpo.objectiveSeconds !== 0 || report.rto?.met === false)) {
+          reviewed.issues.push("Evidence does not demonstrate the expected policy outcome.");
+        }
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") throw error;

@@ -261,7 +261,7 @@ func compare(item *Case, recorded *measurement) {
 	if item.Name == "zero-loss" {
 		expectedLoss = 0
 	}
-	if actual.Lost != expectedLoss || actual.Holes != 0 || actual.Unexpected != 0 || item.EvaluatedExitCode == nil || *item.EvaluatedExitCode != item.ExpectedExitCode || item.Name == "tail-loss" && (report.FirstFailed == nil || *report.FirstFailed != "V4" || *actual.Met || *actual.ObjectiveSeconds != 0) {
+	if actual.Lost != expectedLoss || actual.Holes != 0 || actual.Unexpected != 0 || item.EvaluatedExitCode == nil || *item.EvaluatedExitCode != item.ExpectedExitCode || item.Name == "tail-loss" && (report.FirstFailed == nil || *report.FirstFailed != "V4" || report.DeepestPassed == nil || *report.DeepestPassed != "V3" || *actual.Met || *actual.ObjectiveSeconds != 0 || report.RTO != nil && report.RTO.Met != nil && !*report.RTO.Met) {
 		item.Issues = append(item.Issues, "Evidence does not demonstrate the expected policy outcome.")
 	}
 }

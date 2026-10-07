@@ -2,7 +2,7 @@ import { ArrowRight, CheckCircle2, Download, FileArchive, FlaskConical, LoaderCi
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import { maxBundleBytes, readEvidenceBundle } from "./evidenceBundle";
-import { evaluateSuite, parseSuite } from "./labSuite";
+import { createSuiteReview, evaluateSuite, parseSuite, suiteGatePassed } from "./labSuite";
 import type { SuiteReview } from "./labSuite";
 import { formatDuration, isReport } from "./report";
 import { saveRuns } from "./runStore";
@@ -22,6 +22,7 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const bundleInput = useRef<HTMLInputElement>(null);
@@ -110,12 +111,31 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
     window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
+  async function downloadReview() {
+    if (!review || busy || exporting) return;
+    const current = generation.current;
+    setExporting(true);
+    setError("");
+    try {
+      const document = await createSuiteReview(review, summary);
+      if (current !== generation.current) return;
+      const link = window.document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([JSON.stringify(document, null, 2) + "\n"], { type: "application/json" }));
+      link.download = "suite-review.json";
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    } catch (reason) {
+      if (current === generation.current) setError(reason instanceof Error ? reason.message : "Could not export the review.");
+    } finally { setExporting(false); }
+  }
+
   return <main className="run-library suite-workspace">
     <header className="library-heading">
       <div><p className="workspace-label"><FlaskConical size={14} /> PostgreSQL lab</p><h1>Policy suite</h1></div>
       <div className="library-actions">
         <button className="tool" type="button" disabled={saving} onClick={() => void loadRecorded()}><RefreshCw size={15} /> Recorded suite</button>
         <button className="icon-button" type="button" title="Download original suite summary" aria-label="Download original suite summary" disabled={!summary || busy} onClick={downloadSummary}><Download size={16} /></button>
+        <button className="tool" type="button" disabled={!review || busy || exporting} onClick={() => void downloadReview()}>{exporting ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />} Export review</button>
         <button className="tool" type="button" disabled={!canSave || busy || saving} onClick={() => void saveCases()}>{saving ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />} {saving ? "Saving..." : "Save cases"}</button>
         <button className="primary" type="button" disabled={saving} onClick={() => input.current?.click()}><Upload size={15} /> Import suite</button>
         <button className="tool" type="button" disabled={saving} onClick={() => bundleInput.current?.click()}><FileArchive size={15} /> Import bundle</button>
@@ -151,7 +171,7 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
       <section className="library-stats suite-stats" aria-label="Suite review totals">
         <div><span>Runner result</span><strong className={review.suite.passed ? "ok" : "attention"}>{review.suite.status}</strong></div>
         <div><span>Cases captured</span><strong>{review.cases.length}<small> / 3</small></strong></div>
-        <div><span>Reports evaluated</span><strong>{review.cases.filter((item) => item.report).length}</strong></div>
+        <div><span>Suite gate</span><strong className={suiteGatePassed(review) ? "ok" : "attention"}>{suiteGatePassed(review) ? "passed" : "failed"}</strong></div>
         <div><span>Matching summaries</span><strong>{review.cases.filter((item) => item.issues.length === 0).length}</strong></div>
       </section>
       <div className={`suite-agreement ${review.evidenceMatches ? "ok" : "attention"}`} role="status" aria-label="Suite evidence agreement">

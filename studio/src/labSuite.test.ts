@@ -1,7 +1,7 @@
 import { Zip, ZipPassThrough, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { readEvidenceBundle } from "./evidenceBundle";
-import { evaluateSuite, parseSuite } from "./labSuite";
+import { createSuiteReview, evaluateSuite, parseSuite } from "./labSuite";
 import type { Report } from "./report";
 
 const summary = {
@@ -79,6 +79,48 @@ describe("suite report agreement", () => {
     expect(result.cases[0].issues).toContain("Invalid evidence");
     const empty = parseSuite(JSON.stringify({ ...summary, status: "running", passed: false, cases: [] }));
     expect((await evaluateSuite(empty, new Map(), async () => report)).evidenceMatches).toBe(false);
+  });
+});
+
+const policyMeasurements = [measurement,
+  { ...measurement, acknowledged: 12, recovered: 10, lost: 2, seconds: 1, met: false },
+  { ...measurement, acknowledged: 12, recovered: 10, lost: 2, seconds: 1, objectiveSeconds: 60 },
+];
+const policySummary = JSON.stringify({ ...summary, cases: summary.cases.map((item, index) => ({ ...item, rpo: policyMeasurements[index] })) });
+const policySources = new Map(summary.cases.map((item, index) => [item.drillRun, `original ${index}\n`]));
+const policyReports: Report[] = policyMeasurements.map((measured, index) => ({
+  ...report, verdict: index === 1 ? "failed" : "verified", firstFailed: index === 1 ? "V4" : null, deepestPassed: index === 1 ? "V3" : "V4",
+  rpo: { ...report.rpo!, ...measured },
+}));
+
+describe("machine-readable suite gate", () => {
+  it("exports a passing review with expected policy failure and exact source digests", async () => {
+    const review = await evaluateSuite(parseSuite(policySummary), policySources, async (source) => policyReports[Array.from(policySources.values()).indexOf(source)]);
+    const document = await createSuiteReview(review, policySummary);
+    expect(document).toMatchObject({ apiVersion: "nostekon/suite-review/v1alpha1", kind: "SuiteReview", passed: true, complete: true, evidenceMatches: true, runnerStatus: "passed", runnerPassed: true, provenance: { status: "unverified" } });
+    expect(document.cases.map((item) => item.evaluatedExitCode)).toEqual([0, 1, 0]);
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("original 1\n"));
+    expect(document.cases[1].evidenceSHA256).toBe(Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join(""));
+    expect(JSON.stringify(document)).not.toContain("original 1");
+  });
+
+  it("does not gate a partial capture as passing even when its evidence agrees", async () => {
+    const review = await evaluateSuite(partialSuite, new Map([["zero-loss.drillrun.json", "{}"]]), async () => report);
+    const document = await createSuiteReview(review, JSON.stringify(partialSuite));
+    expect(document).toMatchObject({ passed: false, complete: false, evidenceMatches: true, runnerPassed: false });
+  });
+
+  it.each(["first-failure", "incomplete-levels", "rto-missed"])("rejects unrelated strict-tail %s instead of accepting any failed verdict", async (scenario) => {
+    const review = await evaluateSuite(parseSuite(policySummary), policySources, async (source) => {
+      const evaluated = policyReports[Array.from(policySources.values()).indexOf(source)];
+      if (evaluated.verdict !== "failed") return evaluated;
+      if (scenario === "incomplete-levels") return { ...evaluated, deepestPassed: "V1" };
+      if (scenario === "rto-missed") return { ...evaluated, rto: { seconds: 2, objectiveSeconds: 1, met: false, uncoveredSeconds: 0, slowestPhase: "restore", phases: [], completedAt: "2026-10-07T12:00:00Z" } };
+      return { ...evaluated, firstFailed: "V0" };
+    });
+    expect(review.evidenceMatches).toBe(false);
+    expect(review.cases[1].issues).toContain("Evidence does not demonstrate the expected policy outcome.");
+    expect((await createSuiteReview(review, policySummary)).passed).toBe(false);
   });
 });
 
