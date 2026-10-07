@@ -333,6 +333,16 @@ recorded bundle in `examples/suites/postgresql-policy/`, or import a suite
 summary and its available DrillRun JSON files. Agreement is not authenticated
 provenance; see the [suite review guide](site/src/content/docs/guides/k3d-isolated-restore.md#review-a-suite-in-studio).
 
+Completed host jobs also offer **Export bundle**: one portable ZIP containing
+available original JSON and a versioned SHA-256 manifest. **Import bundle** in
+Suite validates the archive before reviewing it in either the installed app or
+browser demo. Active jobs and interrupted jobs awaiting cleanup confirmation
+cannot be exported. Checksums are not signatures, and missing evidence remains
+missing. Bundles exclude process logs and SQLite ledgers; keep whole job
+directories for full history archiving. See the
+[bundle guide](site/src/content/docs/guides/k3d-isolated-restore.md#export-and-import-evidence-bundles)
+for limits and safe transfer.
+
 To run the disposable isolated PostgreSQL source-loss drill, install Docker,
 k3d, kubectl, Python 3.12+ and Go, then use only the dedicated lab contexts:
 

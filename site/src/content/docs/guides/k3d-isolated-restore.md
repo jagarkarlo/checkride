@@ -412,6 +412,70 @@ acknowledgement; concurrent directory ownership and malformed/missing metadata
 are rejected. The browser recovery checkbox and blocked start were tested at
 390px. These are not power-loss, remote-storage or live-cluster crash tests.
 
+### Export and import evidence bundles
+
+For a stopped host job, **Export bundle** downloads
+`nostekon-lab-<job-id>.zip`. Export requires an idle lab and a completed process
+record. Interrupted records require the cleanup acknowledgement above first;
+this is still the operator's assertion, not automatic cleanup verification.
+The export does not run a drill, alter outcomes, delete files or acknowledge
+recovery. Individual JSON downloads remain available.
+
+The local API equivalent is:
+
+```bash
+JOB_ID='<24-character-job-id-from-Studio>'
+curl --fail-with-body -H 'X-Nostekon-Lab: true' \
+  --output "nostekon-lab-${JOB_ID}.zip" \
+  "http://127.0.0.1:8181/api/v1/lab/jobs/$JOB_ID/export"
+```
+
+Use the actual opt-in loopback port. Disabled execution returns `503`; an unknown
+job returns `404`; active work or pending cleanup returns `409`. Unreadable,
+symlinked, non-regular or oversized evidence fails export instead of silently
+being labelled missing. Inspect the original directory before retrying; do not
+delete evidence to make the error disappear.
+
+The uncompressed ZIP contains `manifest.json` and only the available allowlisted
+`suite.json` and three case DrillRuns. The manifest has
+`apiVersion: nostekon/evidence-bundle/v1alpha1`, `kind: LabEvidenceBundle`, a
+redacted job snapshot, each original file's byte size and lowercase SHA-256, and
+an explicit `missingArtifacts` list. Original JSON bytes are not reformatted,
+even if malformed. Malformed evidence still fails its later report evaluation.
+Partial jobs can export partial bundles; a metadata-only bundle does not become
+a successful suite. File permission hints are `0600`, but extraction tools may
+ignore them; use a private destination.
+
+In **Suite**, choose **Import bundle** and select the exported ZIP. The installed
+app and static browser demo both support this action on HTTPS or localhost.
+Before evaluation, Studio rejects unknown or duplicate filenames, compressed
+entries, inconsistent manifests, invalid UTF-8, size violations and checksum
+mismatches. Version one intentionally accepts only Nostekon's uncompressed ZIP
+format; do not re-compress it with another archiver. Limits are 49 MiB per ZIP,
+64 KiB for the manifest and summary, and 16 MiB per case. Every allowlisted name
+must appear once as present or missing. A corrupt import clears the old review
+and disables saving; correct the input and retry with the original export.
+
+Imported cases use the existing evaluator and **Save cases** transaction. They
+remain **Imported evidence · signatures unverified**. Checksums establish
+agreement with the submitted manifest, not authenticity: someone can change
+both evidence and manifest. No keys, signatures or trusted identity are added,
+and no host job is restored from this import.
+
+The ZIP intentionally excludes process output, storage-error text, arbitrary
+files, SQLite ledgers and original `job.json`. JSON can itself contain sensitive
+details; inspect it before sharing. This is a portable review package, **not a
+full backup**. To free the 50-job cap, follow the offline whole-directory
+archiving procedure above and retain metadata and ledgers together. A downloaded
+ZIP is not a reason to discard the source evidence.
+
+Verified on 2026-10-07: Go ZIP/API tests preserve original bytes and checksums,
+reject unsafe/oversized artifacts, enforce idle/recovery/origin guards and list
+partial evidence. Studio tests cover manifest/size/hash/UTF-8/duplicate/entry
+validation. Installed desktop/mobile workflows check download, import, actual
+Go evaluation, saving and reload; corruption is rejected before evaluation.
+Browser job responses are controlled fixtures, not a new live Kubernetes drill.
+
 ### Review a suite in Studio
 
 Open [Policy suite](/demo/index.html#/suite) to review the recorded three-case
