@@ -9,8 +9,9 @@ import { saveRuns } from "./runStore";
 const recordedFiles = import.meta.glob<string>("../../examples/suites/postgresql-policy/*.json", { query: "?raw", import: "default" });
 const labels = { "zero-loss": "Zero loss", "tail-loss": "Strict tail loss", "budget-loss": "Budgeted tail loss" };
 
-export function SuiteView({ active, onReachability, onOpen }: {
+export function SuiteView({ active, selection, onReachability, onOpen }: {
   active: boolean;
+  selection?: Map<string, string>;
   onReachability: (online: boolean) => void;
   onOpen: (source: string) => void;
 }) {
@@ -76,6 +77,10 @@ export function SuiteView({ active, onReachability, onOpen }: {
       void loadRecorded();
     }
   }, [active]);
+
+  useEffect(() => {
+    if (selection) { initialized.current = true; void load(async () => selection, false); }
+  }, [selection]);
 
   useEffect(() => () => { generation.current++; controller.current?.abort(); }, []);
 

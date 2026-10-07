@@ -1,4 +1,4 @@
-import { Activity, FileCheck2, FlaskConical, LayoutList, PencilRuler, RefreshCw } from "lucide-react";
+import { Activity, FileCheck2, FlaskConical, LayoutList, PencilRuler, RefreshCw, Play } from "lucide-react";
 import nostekonMark from "../../site/src/content/docs/assets/nostekon-mark.svg";
 import { useCallback, useEffect, useState } from "react";
 import { request } from "./api";
@@ -6,13 +6,14 @@ import { ReportView } from "./ReportView";
 import { Studio } from "./Studio";
 import { RunLibrary } from "./RunLibrary";
 import { SuiteView } from "./SuiteView";
+import { LabView } from "./LabView";
 
-type View = "runs" | "design" | "report" | "suite";
+type View = "runs" | "design" | "report" | "suite" | "lab";
 type APIState = "checking" | "online" | "offline";
 
 const viewFromHash = (): View => {
   const hash = window.location.hash.toLowerCase().replace("%2f", "/");
-  return hash === "#/report" ? "report" : hash === "#/design" ? "design" : hash === "#/suite" ? "suite" : "runs";
+  return hash === "#/report" ? "report" : hash === "#/design" ? "design" : hash === "#/suite" ? "suite" : hash === "#/lab" ? "lab" : "runs";
 };
 const browserDemo = window.location.pathname.startsWith("/demo/");
 
@@ -20,6 +21,7 @@ export function App() {
   const [view, setView] = useState<View>(viewFromHash);
   const [apiState, setAPIState] = useState<APIState>("checking");
   const [selection, setSelection] = useState<{ source: string; sampleId: string }>();
+  const [suiteSelection, setSuiteSelection] = useState<Map<string, string>>();
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem("nostekon-theme") ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); }
     catch { return "dark"; }
@@ -66,6 +68,7 @@ export function App() {
         </a>
         <nav className="views" aria-label="Studio views">
           <a href="#/runs" aria-current={view === "runs" ? "page" : undefined}><LayoutList size={15} /> Runs</a>
+          <a href="#/lab" aria-current={view === "lab" ? "page" : undefined}><Play size={15} /> Lab</a>
           <a href="#/suite" aria-current={view === "suite" ? "page" : undefined}><FlaskConical size={15} /> Suite</a>
           <a href="#/design" aria-current={view === "design" ? "page" : undefined}>
             <PencilRuler size={15} /> Design
@@ -91,8 +94,11 @@ export function App() {
         window.location.hash = "/report";
         setView("report");
       }} />}
+      <div className="view" hidden={view !== "lab"}>
+        <LabView active={view === "lab"} onReview={files => { setSuiteSelection(files); window.location.hash = "/suite"; setView("suite"); }} />
+      </div>
       <div className="view" hidden={view !== "suite"}>
-        <SuiteView active={view === "suite"} onReachability={onReachability} onOpen={(source) => {
+        <SuiteView active={view === "suite"} selection={suiteSelection} onReachability={onReachability} onOpen={(source) => {
           setSelection({ source, sampleId: "" });
           window.location.hash = "/report";
           setView("report");
