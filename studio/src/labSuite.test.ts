@@ -110,12 +110,16 @@ describe("machine-readable suite gate", () => {
     expect(document).toMatchObject({ passed: false, complete: false, evidenceMatches: true, runnerPassed: false });
   });
 
-  it.each(["first-failure", "incomplete-levels", "rto-missed"])("rejects unrelated strict-tail %s instead of accepting any failed verdict", async (scenario) => {
+  it.each(["first-failure", "incomplete-levels", "rto-missed", "invariant-missed"])("rejects unrelated strict-tail %s instead of accepting any failed verdict", async (scenario) => {
     const review = await evaluateSuite(parseSuite(policySummary), policySources, async (source) => {
       const evaluated = policyReports[Array.from(policySources.values()).indexOf(source)];
       if (evaluated.verdict !== "failed") return evaluated;
       if (scenario === "incomplete-levels") return { ...evaluated, deepestPassed: "V1" };
       if (scenario === "rto-missed") return { ...evaluated, rto: { seconds: 2, objectiveSeconds: 1, met: false, uncoveredSeconds: 0, slowestPhase: "restore", phases: [], completedAt: "2026-10-07T12:00:00Z" } };
+      if (scenario === "invariant-missed") {
+        const changed: Report = { ...evaluated, levels: [{ id: "V4", question: "Invariant", evidence: "Reported check", status: "failed", inScope: true, checks: [{ name: "invariant", passed: false, source: "reported" }] }] };
+        return changed;
+      }
       return { ...evaluated, firstFailed: "V0" };
     });
     expect(review.evidenceMatches).toBe(false);

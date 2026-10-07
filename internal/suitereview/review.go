@@ -261,7 +261,17 @@ func compare(item *Case, recorded *measurement) {
 	if item.Name == "zero-loss" {
 		expectedLoss = 0
 	}
-	if actual.Lost != expectedLoss || actual.Holes != 0 || actual.Unexpected != 0 || item.EvaluatedExitCode == nil || *item.EvaluatedExitCode != item.ExpectedExitCode || item.Name == "tail-loss" && (report.FirstFailed == nil || *report.FirstFailed != "V4" || report.DeepestPassed == nil || *report.DeepestPassed != "V3" || *actual.Met || *actual.ObjectiveSeconds != 0 || report.RTO != nil && report.RTO.Met != nil && !*report.RTO.Met) {
+	unrelatedFailure := false
+	expectedDetail := fmt.Sprintf("acknowledged-write ledger failed 0s RPO objective: %d lost, %d holes, %d unexpected", actual.Lost, actual.Holes, actual.Unexpected)
+	for _, level := range report.Levels {
+		for _, check := range level.Checks {
+			expectedRunnerFailure := level.ID == "V4" && check.Name == "Lab execution" && check.Source == "reported" && check.Detail == expectedDetail
+			if level.InScope && !check.Passed && check.Source != "ledger" && !expectedRunnerFailure {
+				unrelatedFailure = true
+			}
+		}
+	}
+	if actual.Lost != expectedLoss || actual.Holes != 0 || actual.Unexpected != 0 || item.EvaluatedExitCode == nil || *item.EvaluatedExitCode != item.ExpectedExitCode || item.Name == "tail-loss" && (report.FirstFailed == nil || *report.FirstFailed != "V4" || report.DeepestPassed == nil || *report.DeepestPassed != "V3" || *actual.Met || *actual.ObjectiveSeconds != 0 || unrelatedFailure || report.RTO != nil && report.RTO.Met != nil && !*report.RTO.Met) {
 		item.Issues = append(item.Issues, "Evidence does not demonstrate the expected policy outcome.")
 	}
 }

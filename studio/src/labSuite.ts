@@ -112,7 +112,9 @@ export async function evaluateSuite(suite: LabSuite, sources: Map<string, string
         if (Math.abs(report.rpo.seconds - recorded.rpo.seconds) > 0.000001) reviewed.issues.push("seconds differs from the suite summary.");
         if (!report.rpo.consistent) reviewed.issues.push("The restored ledger is inconsistent.");
         const expectedLoss = recorded.name === "zero-loss" ? 0 : 2;
-        if (report.rpo.lost !== expectedLoss || report.rpo.holes !== 0 || report.rpo.unexpected !== 0 || exitCode !== recorded.expectedExitCode || recorded.name === "tail-loss" && (report.firstFailed !== "V4" || report.deepestPassed !== "V3" || report.rpo.met !== false || report.rpo.objectiveSeconds !== 0 || report.rto?.met === false)) {
+        const expectedDetail = `acknowledged-write ledger failed 0s RPO objective: ${report.rpo.lost} lost, ${report.rpo.holes} holes, ${report.rpo.unexpected} unexpected`;
+        const unrelatedFailure = report.levels.some(level => level.inScope && level.checks.some(check => !check.passed && check.source !== "ledger" && !(level.id === "V4" && check.name === "Lab execution" && check.source === "reported" && check.detail === expectedDetail)));
+        if (report.rpo.lost !== expectedLoss || report.rpo.holes !== 0 || report.rpo.unexpected !== 0 || exitCode !== recorded.expectedExitCode || recorded.name === "tail-loss" && (report.firstFailed !== "V4" || report.deepestPassed !== "V3" || report.rpo.met !== false || report.rpo.objectiveSeconds !== 0 || report.rto?.met === false || unrelatedFailure)) {
           reviewed.issues.push("Evidence does not demonstrate the expected policy outcome.");
         }
       }
