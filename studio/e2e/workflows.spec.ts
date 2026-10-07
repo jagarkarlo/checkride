@@ -89,6 +89,40 @@ for (const width of [390, 1440]) {
   });
 }
 
+test("installed app restart recovery blocks execution until explicit cleanup confirmation", async ({ page }) => {
+  test.skip(!process.env.NOSTEKON_APP_URL, "Requires the packaged app.");
+  const identifier = "c".repeat(24);
+  let confirmed = false;
+  const snapshot = () => ({
+    id: identifier, status: "interrupted", recoveryRequired: !confirmed,
+    options: { writes: 10, rpoSeconds: 60 }, startedAt: "2026-10-07T10:00:00Z", completedAt: "2026-10-07T10:01:00Z",
+    log: "Saved before restart.", logTruncated: false, artifacts: [],
+  });
+  await page.route("**/api/v1/lab**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/acknowledge-recovery")) {
+      expect(route.request().postDataJSON()).toEqual({ cleanupConfirmed: true });
+      expect(route.request().headers()["x-nostekon-lab"]).toBe("true");
+      confirmed = true; await route.fulfill({ json: snapshot() });
+    } else if (path === "/api/v1/lab/jobs") await route.fulfill({ json: [snapshot()] });
+    else if (path.endsWith(identifier)) await route.fulfill({ json: snapshot() });
+    else await route.fulfill({ json: { enabled: true } });
+  });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/#/lab");
+  await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("interrupted");
+  await expect(page.getByRole("button", { name: "Run suite", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Confirm cleanup", exact: true })).toBeDisabled();
+  await page.getByRole("checkbox", { name: "Old runner processes stopped and lab namespaces checked" }).check();
+  await page.getByRole("button", { name: "Confirm cleanup", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Run suite", exact: true })).toBeEnabled();
+  await page.reload();
+  await expect(page.getByRole("status", { name: "Lab job status" })).toContainText("interrupted");
+  await expect(page.getByRole("button", { name: "Run suite", exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test("installed app lab cancellation retains an interrupted summary", async ({ page }) => {
   test.skip(!process.env.NOSTEKON_APP_URL, "Requires the packaged app.");
   const files = await suiteBundle();

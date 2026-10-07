@@ -1,4 +1,4 @@
-import { ArrowRight, Download, FlaskConical, LoaderCircle, Play, RefreshCw, Square, XCircle } from "lucide-react";
+import { ArrowRight, Check, Download, FlaskConical, LoaderCircle, Play, RefreshCw, Square, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { browserDemo } from "./api";
 import { parseSuite } from "./labSuite";
@@ -6,7 +6,7 @@ import type { LabSuite } from "./labSuite";
 
 interface Job {
   id: string;
-  status: "running" | "cancelling" | "completed" | "failed" | "cancelled" | "timed_out";
+  status: "running" | "cancelling" | "completed" | "failed" | "cancelled" | "timed_out" | "interrupted";
   startedAt: string;
   completedAt?: string;
   exitCode?: number;
@@ -15,6 +15,8 @@ interface Job {
   logTruncated: boolean;
   summary?: LabSuite;
   checkpointError?: string;
+  recoveryRequired?: boolean;
+  storageError?: string;
   artifacts: string[];
 }
 
@@ -35,8 +37,9 @@ async function call(path: string, signal?: AbortSignal, body?: object): Promise<
 function readJob(payload: unknown): Job {
   if (typeof payload !== "object" || payload === null) throw new Error("Invalid lab job response.");
   const value = payload as Partial<Job>;
-  if (typeof value.id !== "string" || !/^[a-f0-9]{24}$/.test(value.id) || !["running", "cancelling", "completed", "failed", "cancelled", "timed_out"].includes(value.status ?? "") || typeof value.startedAt !== "string" || !Number.isFinite(Date.parse(value.startedAt)) || typeof value.log !== "string" || typeof value.logTruncated !== "boolean" || !value.options || !Number.isInteger(value.options.writes) || value.options.writes < 1 || value.options.writes > 98 || !Number.isInteger(value.options.rpoSeconds) || value.options.rpoSeconds < 1 || value.options.rpoSeconds > 86400 || !Array.isArray(value.artifacts) || value.artifacts.some(name => !artifactNames.includes(name))) throw new Error("Invalid lab job response.");
+  if (typeof value.id !== "string" || !/^[a-f0-9]{24}$/.test(value.id) || !["running", "cancelling", "completed", "failed", "cancelled", "timed_out", "interrupted"].includes(value.status ?? "") || typeof value.startedAt !== "string" || !Number.isFinite(Date.parse(value.startedAt)) || typeof value.log !== "string" || typeof value.logTruncated !== "boolean" || !value.options || !Number.isInteger(value.options.writes) || value.options.writes < 1 || value.options.writes > 98 || !Number.isInteger(value.options.rpoSeconds) || value.options.rpoSeconds < 1 || value.options.rpoSeconds > 86400 || !Array.isArray(value.artifacts) || value.artifacts.some(name => !artifactNames.includes(name))) throw new Error("Invalid lab job response.");
   if (value.completedAt !== undefined && (typeof value.completedAt !== "string" || !Number.isFinite(Date.parse(value.completedAt)))) throw new Error("Invalid job completion timestamp.");
+  if ((value.recoveryRequired !== undefined && typeof value.recoveryRequired !== "boolean") || (value.storageError !== undefined && typeof value.storageError !== "string")) throw new Error("Invalid job recovery metadata.");
   let summary: LabSuite | undefined;
   let checkpointError: string | undefined;
   if (value.summary) {
@@ -58,7 +61,11 @@ export function LabView({ active, onReview }: { active: boolean; onReview: (file
   const [error, setError] = useState("");
   const [connectionError, setConnectionError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const [cleanupConfirmed, setCleanupConfirmed] = useState(false);
   const running = ["running", "cancelling"].includes(job?.status ?? "") || jobs.some(item => ["running", "cancelling"].includes(item.status));
+  const recoveryRequired = Boolean(job?.recoveryRequired) || jobs.some(item => item.recoveryRequired);
+
+  useEffect(() => { setCleanupConfirmed(false); }, [job?.id, job?.recoveryRequired]);
 
   useEffect(() => {
     if (!active) return;
@@ -106,6 +113,17 @@ export function LabView({ active, onReview }: { active: boolean; onReview: (file
     finally { setBusy(false); }
   }
 
+  async function acknowledgeRecovery() {
+    if (!job || !cleanupConfirmed) return;
+    setBusy(true); setError("");
+    try {
+      const updated = readJob(await call(`/jobs/${job.id}/acknowledge-recovery`, undefined, { cleanupConfirmed: true }));
+      setJob(updated); setJobs(items => items.map(item => item.id === updated.id ? updated : item));
+      setCleanupConfirmed(false); setRefresh(value => value + 1);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not acknowledge recovery."); }
+    finally { setBusy(false); }
+  }
+
   async function readArtifact(name: string) {
     if (!job || !artifactNames.includes(name)) throw new Error("Artifact unavailable.");
     const response = await fetch(`/api/v1/lab/jobs/${job.id}/artifacts/${name}`, { headers: { "X-Nostekon-Lab": "true" }, signal: AbortSignal.timeout(10000) });
@@ -146,9 +164,10 @@ export function LabView({ active, onReview }: { active: boolean; onReview: (file
     <form className="lab-controls" onSubmit={event => { event.preventDefault(); void start(); }}>
       <label>Writes per case<input type="number" min="1" max="98" required value={writes} disabled={!enabled || busy || running} onChange={event => setWrites(event.target.valueAsNumber)} /></label>
       <label>Tail-loss budget (seconds)<input type="number" min="1" max="86400" required value={budget} disabled={!enabled || busy || running} onChange={event => setBudget(event.target.valueAsNumber)} /></label>
-      <button className="primary" type="submit" disabled={!enabled || checking || busy || running}><Play size={15} />Run suite</button>
+      <button className="primary" type="submit" disabled={!enabled || checking || busy || running || recoveryRequired}><Play size={15} />Run suite</button>
     </form>
-    {jobs.length > 0 && <section aria-label="Lab session jobs"><div className="table-scroll" role="region" aria-label="Lab jobs table" tabIndex={0}><table className="runs-table">
+    {recoveryRequired && <p className="banner bad" role="alert"><XCircle size={16} />Interrupted jobs require cleanup confirmation.</p>}
+    {jobs.length > 0 && <section aria-label="Lab job history"><div className="table-scroll" role="region" aria-label="Lab jobs table" tabIndex={0}><table className="runs-table">
       <thead><tr><th>Job</th><th>Status</th><th>Writes</th><th>RPO budget</th><th>Started</th></tr></thead>
       <tbody>{jobs.map(item => <tr key={item.id}><th scope="row"><button className="run-open" type="button" onClick={() => setSelected(item.id)} aria-pressed={job?.id === item.id}>{item.id.slice(0, 8)}</button></th><td>{item.status}</td><td>{item.options.writes}</td><td>{item.options.rpoSeconds}s</td><td>{new Date(item.startedAt).toLocaleString()}</td></tr>)}</tbody>
     </table></div></section>}
@@ -159,6 +178,11 @@ export function LabView({ active, onReview }: { active: boolean; onReview: (file
       </div></div>
       <p role="status" aria-label="Lab job status"><strong>{job.status}</strong>{job.exitCode !== undefined && ` · exit ${job.exitCode}`}</p>
       {job.checkpointError && <p className="banner bad" role="alert"><XCircle size={16} />{job.checkpointError}</p>}
+      {job.storageError && <p className="banner bad" role="alert"><XCircle size={16} />History storage: {job.storageError}</p>}
+      {job.recoveryRequired && <div className="lab-recovery">
+        <label><input type="checkbox" checked={cleanupConfirmed} onChange={event => setCleanupConfirmed(event.target.checked)} disabled={busy} />Old runner processes stopped and lab namespaces checked</label>
+        <button className="tool" type="button" disabled={busy || !cleanupConfirmed} onClick={() => void acknowledgeRecovery()}><Check size={15} />Confirm cleanup</button>
+      </div>}
       {job.summary && <><progress max={3} value={job.summary.cases.filter(item => item.passed).length} aria-label="Completed policy cases" /><ol className="lab-cases">{job.summary.cases.map(item => <li key={item.name}><strong>{item.name}</strong><span>{item.passed ? "passed" : item.observedExitCode === null ? "in progress" : "needs attention"}</span></li>)}</ol></>}
       <div className="lab-artifacts">{job.artifacts.map(name => <button key={name} className="tool" type="button" onClick={() => void download(name)}><Download size={15} />{name}</button>)}</div>
       <h3>Process output{job.logTruncated ? " (latest 64 KiB)" : ""}</h3><pre className="lab-log" tabIndex={0}>{job.log || "No process output yet."}</pre>
