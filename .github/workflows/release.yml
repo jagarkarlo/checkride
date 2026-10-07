@@ -60,12 +60,22 @@ jobs:
               GOOS=$os GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "release/${cmd}_${os}_${arch}${ext}" "./cmd/$cmd"
             done
           done
-      - name: Studio bundle
+      - name: Studio and installable app bundles
         working-directory: studio
         run: |
           npm ci
           npm run build
           tar -czf ../release/nostekon-studio.tar.gz -C dist .
+          for target in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
+            os=${target%/*}; arch=${target#*/}; ext=""
+            if [[ "$os" = windows ]]; then ext=.exe; fi
+            bundle="$RUNNER_TEMP/nostekon-app-${os}-${arch}"
+            mkdir -p "$bundle/studio"
+            cp "../release/nostekon-api_${os}_${arch}${ext}" "$bundle/nostekon-api${ext}"
+            cp -R dist/. "$bundle/studio/"
+            cp ../README.md "$bundle/README.md"
+            tar -czf "../release/nostekon-app_${os}_${arch}.tar.gz" -C "$bundle" .
+          done
       - name: Checksums
         working-directory: release
         run: sha256sum * > SHA256SUMS
@@ -91,8 +101,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          title="Nostekon $TAG — verified evidence reporting"
-          body='Nostekon pre-alpha release: DrillRun evidence evaluation, V0–V4 verdicts, phased RTO, acknowledged-write RPO, local report and Ed25519 attestation CLIs, Studio evidence review, and the multi-page product site. Restore execution is the next roadmap step.'
+          title="Nostekon $TAG - installable evidence app"
+          body='Nostekon pre-alpha release: a one-process Studio and Go API app, DrillRun evidence evaluation, V0-V4 verdicts, phased RTO, acknowledged-write RPO, policy-suite review, browser-local run saving, and report/Ed25519 attestation CLIs. Extract a nostekon-app archive and start nostekon-api with NOSTEKON_STUDIO_DIR=./studio. The app reviews evidence; it does not launch restores. Browser-launched isolated drill execution, server-side run storage and authenticated multi-user deployment remain planned. This release does not publish to PyPI.'
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$body" --prerelease
             gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
