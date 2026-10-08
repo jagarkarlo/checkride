@@ -39,12 +39,19 @@ const levels = [
         <h2>A failed drill, read in one screen</h2>
         <p class="section-lead">The report keeps the reason next to the verdict, so nobody has to dig through logs to learn what went wrong.</p>
       </div>
-      <Shot name="report-failed" alt="Nostekon Studio report for a synthetic cluster-loss drill that failed at V3: row counts did not match, and recovery took longer than the objective." caption="Synthetic sample evidence, evaluated by the Go engine in your browser. It is not a recorded restore." />
+      <Shot name="report-failed" height={900} alt="Nostekon Studio report for a synthetic cluster-loss drill that failed at V3: row counts did not match, and recovery took longer than the objective." caption="Synthetic sample evidence, evaluated by the Go engine in your browser. It is not a recorded restore." />
     </div>
   </section>
 
   <section class="section">
     <div class="wrap">
+      <div class="section-head"><h2>A valid signature is not a successful recovery</h2><p class="section-lead">Keep byte integrity, key trust and recovery results separate.</p></div>
+      <dl class="facts">
+        <div><dt>Authenticate the public key</dt><dd>Studio imports only Ed25519 public keys. Compare the full fingerprint with the owner through a trusted channel before explicitly granting local trust. A key beside an evidence file is not automatically trustworthy.</dd></div>
+        <div><dt>Verify the original bytes</dt><dd>The same Go verifier runs in the API, CLI and browser. Even an extra newline changes the digest. A successful signature check enables exact original-file export, not a new recovery verdict.</dd></div>
+        <div><dt>Revoke without erasing</dt><dd>Remove local trust when a key should no longer be used. Verification receipts are cleared, while original evidence remains saved. Browser policy does not change the server's separately configured trusted keys.</dd></div>
+      </dl>
+      <p class="prose" style="margin: 24px 0 40px;"><a class="link" href="/docs/reference/drillrun-evidence/#verify-in-studio-or-the-browser-demo">Verify signatures and recheck exported originals</a></p>
       <div class="split">
         <div class="prose">
           <h3>Recovery time</h3>

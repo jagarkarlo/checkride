@@ -115,13 +115,13 @@ The local report API optionally verifies the base64-encoded
 `X-Nostekon-Attestation` header against the public keys in
 `NOSTEKON_TRUSTED_KEYS_DIR`. Put only `*.pem` PKIX Ed25519 public keys there;
 the API loads at most 128 keys during startup and fails startup on an empty
-configured directory or an invalid key. The local Studio's **Attach
-attestation** control sends the sidecar to this API. A valid response includes
+configured directory or an invalid key. In Studio, attach the sidecar and use
+**Check server trust** to send it to this API. A valid response includes
 the verified key ID and evidence digest; an unknown key or changed evidence is
 rejected. If a sidecar is sent while no trust store is configured, the API
 returns `503`. Unsigned requests still return `provenance.status: unverified`.
-The static browser demo has no trusted-key configuration and therefore cannot
-verify a signature; it explicitly reports that limitation instead.
+This server policy is independent of the browser's public-key library. Importing
+or trusting a key in Studio does not configure `NOSTEKON_TRUSTED_KEYS_DIR`.
 
 For scripts that call the endpoint directly:
 
@@ -132,3 +132,54 @@ curl -sS http://localhost:8080/api/v1/runs/report \
   -H "X-Nostekon-Attestation: $sidecar" \
   --data-binary @run.json
 ```
+
+### Verify in Studio or the browser demo
+
+Verified on 2026-10-08 against both the packaged API and browser WebAssembly.
+Both use the same Go Ed25519 verifier as the CLI. No signing or private-key
+import is available in Studio.
+
+1. Import the **original** DrillRun JSON in **Evidence report**, then **Attach
+   attestation**. Reformatting JSON changes the signed bytes.
+2. Open **Public keys**, give the key a label and import the owner's PKIX
+   Ed25519 `PUBLIC KEY` PEM. Imports start **Not trusted**. Private keys are
+   rejected before any API request.
+3. Compare the complete 64-character fingerprint with the owner through an
+   independent trusted channel. This is SHA-256 of the raw 32-byte Ed25519 key,
+   not a hash of the PEM or PKIX wrapper. Select **Trust public key**, confirm
+   the fingerprint checkbox, then **Confirm trust**.
+4. Close the dialog, select that key and **Verify signature**. A valid result
+   binds the exact original bytes to the selected locally trusted key. Recovery
+   verdicts and server provenance remain separate.
+5. **Download signed originals** exports the original JSON, detached sidecar,
+   public key and a computed signature-check receipt. The receipt and archive
+   container are not independently signed. A bundled key is not a trust anchor.
+
+Extract the ZIP into a new directory and independently verify it from the
+repository root, using a public key you have already authenticated:
+
+```bash
+go run ./cmd/nostekon-attest verify \
+  --evidence /path/to/extracted/nostekon.run.json \
+  --attestation /path/to/extracted/nostekon.run.attestation.json \
+  --trusted-key "$HOME/.config/nostekon/trusted-keys/operator.pem"
+```
+
+This is an original-file archive, not a host-job bundle for **Import bundle**.
+Import its extracted evidence and sidecar separately. **Save run** retains
+original evidence and the computed report, not the sidecar or local verification
+receipt; reopen and check the signature again when needed.
+
+The public-key library is local to this browser origin and capped at 20 keys;
+there is no silent eviction. Re-importing a key preserves its trust or revoked
+state. **Revoke local trust** prevents further checks and exports with that key;
+open tabs are notified, and verification/export re-read policy. Deletion requires
+confirmation and does not delete evidence. Neither operation revokes the key in
+the server configuration or establishes when a signature was made. Clear site
+data or a different origin means a different local policy. Keep authenticated
+public keys and originals outside browser storage.
+
+Changed evidence, a wrong key, malformed sidecars or unsupported versions fail
+verification and disable signed export. Edits, selection changes and policy
+changes clear local receipts. Signature validity is not independent capture
+authenticity, operator identity, trusted signing time or successful recovery.

@@ -619,8 +619,9 @@ evaluated JSON evidence. It does not authenticate the capture, inspect the
 SQLite ledger, reproduce every runner acceptance check, verify signatures or
 prove that a restore actually happened. Imported bundles remain labelled
 **Imported evidence**; the built-in bundle is **Recorded local lab**. Both
-remain signature-unverified. Follow the existing attestation workflow for
-trusted-key verification outside the static demo.
+remain signature-unverified. Verify an individual original case and its sidecar
+with the [Studio or CLI attestation workflow](../reference/drillrun-evidence.md#verify-in-studio-or-the-browser-demo).
+That does not sign or authenticate the suite summary, gate or bundle manifest.
 
 Verified on 2026-10-05 in the browser demo at 390px and 1440px: all three
 recorded outcomes, changed-summary detection, missing/invalid imports and
