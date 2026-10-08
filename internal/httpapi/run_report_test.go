@@ -53,7 +53,7 @@ func TestSelectedPublicKeyCheckDoesNotConfigureServerTrust(t *testing.T) {
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), sidecar.KeyID) {
 		t.Fatalf("key inspection status=%d body=%s", response.Code, response.Body.String())
 	}
-	for _, scenario := range []string{"valid", "tampered", "wrong-key", "missing-sidecar", "private-key", "oversized-header"} {
+	for _, scenario := range []string{"valid", "tampered", "wrong-key", "missing-sidecar", "missing-key", "private-key", "oversized-header", "invalid-base64", "unknown-sidecar-field", "relabeled-version", "invalid-signature", "oversized-sidecar"} {
 		t.Run(scenario, func(t *testing.T) {
 			body := string(evidence)
 			keyBytes := publicPEM
@@ -73,12 +73,36 @@ func TestSelectedPublicKeyCheckDoesNotConfigureServerTrust(t *testing.T) {
 			if scenario == "missing-sidecar" {
 				attestationBytes = nil
 			}
+			if scenario == "missing-key" {
+				keyBytes = nil
+			}
+			if scenario == "unknown-sidecar-field" {
+				attestationBytes = []byte(strings.TrimSuffix(string(encoded), "}") + `,"surprise":true}`)
+			}
+			if scenario == "oversized-sidecar" {
+				attestationBytes = []byte(strings.Repeat(" ", (16<<10)+1))
+			}
+			if scenario == "relabeled-version" || scenario == "invalid-signature" {
+				changed := sidecar
+				if scenario == "relabeled-version" {
+					changed.APIVersion = attest.LegacyVersion
+				} else {
+					changed.Signature = base64.StdEncoding.EncodeToString(make([]byte, ed25519.SignatureSize))
+				}
+				attestationBytes, err = json.Marshal(changed)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/attestations/verify", strings.NewReader(body))
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("X-Nostekon-Attestation", base64.StdEncoding.EncodeToString(attestationBytes))
 			request.Header.Set("X-Nostekon-Public-Key", base64.StdEncoding.EncodeToString(keyBytes))
 			if scenario == "oversized-header" {
 				request.Header.Set("X-Nostekon-Public-Key", strings.Repeat("a", (32<<10)+1))
+			}
+			if scenario == "invalid-base64" {
+				request.Header.Set("X-Nostekon-Attestation", "not base64!")
 			}
 			checked := httptest.NewRecorder()
 			handler.ServeHTTP(checked, request)
@@ -103,6 +127,44 @@ func TestSelectedPublicKeyCheckDoesNotConfigureServerTrust(t *testing.T) {
 	handler.ServeHTTP(checked, request)
 	if checked.Code != http.StatusServiceUnavailable {
 		t.Fatal("selected key silently configured server trust")
+	}
+}
+
+func TestAttestationInputBoundsAndSharedCapacity(test *testing.T) {
+	for _, testCase := range []struct {
+		name, path, body, contentType string
+		status                        int
+	}{
+		{"key-media-type", "/key", "public", "text/plain", http.StatusUnsupportedMediaType},
+		{"key-oversize", "/key", strings.Repeat("a", (16<<10)+1), "application/x-pem-file", http.StatusRequestEntityTooLarge},
+		{"key-invalid", "/key", "not a key", "application/x-pem-file", http.StatusUnprocessableEntity},
+		{"evidence-media-type", "/verify", "{}", "text/plain", http.StatusUnsupportedMediaType},
+		{"evidence-oversize", "/verify", strings.Repeat("a", maxRunRequestBytes+1), "application/json", http.StatusRequestEntityTooLarge},
+	} {
+		test.Run(testCase.name, func(test *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/attestations"+testCase.path, strings.NewReader(testCase.body))
+			request.Header.Set("Content-Type", testCase.contentType)
+			response := httptest.NewRecorder()
+			NewHandler().ServeHTTP(response, request)
+			if response.Code != testCase.status {
+				test.Fatalf("status=%d want=%d body=%s", response.Code, testCase.status, response.Body.String())
+			}
+		})
+	}
+	for index := 0; index < cap(reportSlots); index++ {
+		reportSlots <- struct{}{}
+	}
+	defer func() {
+		for index := 0; index < cap(reportSlots); index++ {
+			<-reportSlots
+		}
+	}()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/attestations/verify", strings.NewReader("{}"))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	NewHandler().ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || response.Header().Get("Retry-After") != "1" {
+		test.Fatalf("unbounded signature capacity: %d %s", response.Code, response.Body.String())
 	}
 }
 

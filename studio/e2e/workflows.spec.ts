@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 import { unzipSync, zipSync } from "fflate";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 async function suiteBundle() {
   return Promise.all(["suite.json", "zero-loss.drillrun.json", "tail-loss.drillrun.json", "budget-loss.drillrun.json"].map(async (name) => ({
@@ -22,6 +24,95 @@ function evidenceArchive(files: Awaited<ReturnType<typeof suiteBundle>>) {
 }
 
 for (const width of [390, 1440]) {
+  test(`signature trust verifies native Go sidecars without upgrading recovery at ${width}px`, async ({ page, context }, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), "nostekon-signature-"));
+    const privatePath = join(directory, "private.pem");
+    const publicPath = join(directory, "public.pem");
+    const sidecarPath = join(directory, "run.attestation.json");
+    const root = new URL("../../", import.meta.url);
+    const evidencePath = new URL("../../examples/runs/k3d-ledger-tail-loss.run.json", import.meta.url).pathname;
+    try {
+      execFileSync("go", ["run", "./cmd/nostekon-attest", "keygen", "--private", privatePath, "--public", publicPath], { cwd: root });
+      execFileSync("go", ["run", "./cmd/nostekon-attest", "sign", "--evidence", evidencePath, "--key", privatePath, "--output", sidecarPath], { cwd: root });
+      const evidence = await readFile(evidencePath);
+      const publicKey = await readFile(publicPath);
+      const sidecar = await readFile(sidecarPath);
+      await page.setViewportSize({ width, height: 1000 });
+      const reportURL = process.env.NOSTEKON_APP_URL ? "/#/report" : "/demo/#/report";
+      await page.goto(reportURL);
+      await page.getByTestId("evidence-input").setInputFiles({ name: "failed.run.json", mimeType: "application/json", buffer: evidence });
+      await expect(page.locator(".verdict.failed")).toBeVisible();
+      await page.getByTestId("attestation-input").setInputFiles({ name: "run.attestation.json", mimeType: "application/json", buffer: sidecar });
+      await page.getByRole("button", { name: "Public keys", exact: true }).click();
+      await page.getByLabel("Public key label").fill("Lab operator");
+      await page.getByTestId("public-key-input").setInputFiles({ name: "public.pem", mimeType: "application/x-pem-file", buffer: publicKey });
+      await expect(page.getByRole("row", { name: /Lab operator/ })).toContainText("Not trusted");
+      const trustAction = await page.getByRole("button", { name: "Trust public key", exact: true }).boundingBox();
+      expect(trustAction!.x).toBeGreaterThanOrEqual(0);
+      expect(trustAction!.x + trustAction!.width).toBeLessThanOrEqual(width);
+      await page.getByRole("button", { name: "Trust public key", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Confirm trust", exact: true })).toBeDisabled();
+      await page.getByRole("checkbox", { name: /I verified this fingerprint/ }).check();
+      await page.getByRole("button", { name: "Confirm trust", exact: true }).click();
+      await expect(page.getByRole("row", { name: /Lab operator/ })).toContainText("Trusted locally");
+      await page.getByRole("button", { name: "Close public keys", exact: true }).click();
+      await page.getByRole("button", { name: "Verify signature", exact: true }).click();
+      await expect(page.getByRole("status", { name: "Signature verification" })).toContainText("Signature valid");
+      await expect(page.locator(".verdict.failed")).toBeVisible();
+      await page.getByRole("button", { name: "Save run", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeDisabled();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath(`signature-trust-${width}.png`), fullPage: true });
+      const download = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Download signed originals", exact: true }).click();
+      const archive = unzipSync(await readFile((await (await download).path())!));
+      expect(Buffer.from(archive["nostekon.run.json"])).toEqual(evidence);
+      expect(Buffer.from(archive["nostekon.run.attestation.json"])).toEqual(sidecar);
+      expect(Buffer.from(archive["public-key.pem"])).toEqual(publicKey);
+      expect(Object.keys(archive).sort()).toEqual(["nostekon.run.json", "nostekon.run.attestation.json", "public-key.pem", "signature-check.json"].sort());
+      expect(JSON.parse(Buffer.from(archive["signature-check.json"]).toString())).toMatchObject({ signatureValid: true, trustSource: "selected-public-key", evidenceSHA256: createHash("sha256").update(evidence).digest("hex") });
+      const exportedEvidence = join(directory, "exported.run.json");
+      const exportedSidecar = join(directory, "exported.attestation.json");
+      await writeFile(exportedEvidence, archive["nostekon.run.json"]);
+      await writeFile(exportedSidecar, archive["nostekon.run.attestation.json"]);
+      execFileSync("go", ["run", "./cmd/nostekon-attest", "verify", "--evidence", exportedEvidence, "--attestation", exportedSidecar, "--trusted-key", publicPath], { cwd: root });
+      const second = await context.newPage();
+      await second.goto(reportURL);
+      await second.getByRole("button", { name: "Public keys", exact: true }).click();
+      await expect(second.getByRole("row", { name: /Lab operator/ })).toContainText("Trusted locally");
+      await second.getByRole("button", { name: "Revoke local trust", exact: true }).click();
+      await expect(page.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Download signed originals", exact: true })).toBeDisabled();
+      await second.close();
+      await page.getByRole("button", { name: "Public keys", exact: true }).click();
+      await page.getByRole("button", { name: "Trust public key", exact: true }).click();
+      await page.getByRole("checkbox", { name: /I verified this fingerprint/ }).check();
+      await page.getByRole("button", { name: "Confirm trust", exact: true }).click();
+      await page.getByRole("button", { name: "Close public keys", exact: true }).click();
+      await page.getByTestId("evidence-input").setInputFiles({ name: "edited.run.json", mimeType: "application/json", buffer: Buffer.concat([evidence, Buffer.from("\n")]) });
+      await page.getByTestId("attestation-input").setInputFiles({ name: "run.attestation.json", mimeType: "application/json", buffer: sidecar });
+      await page.getByRole("button", { name: "Verify signature", exact: true }).click();
+      await expect(page.getByRole("alert")).toContainText("digest does not match");
+      await expect(page.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+      await page.reload();
+      await page.getByRole("button", { name: "Public keys", exact: true }).click();
+      await expect(page.getByRole("row", { name: /Lab operator/ })).toContainText("Trusted locally");
+      const privateKey = await readFile(privatePath);
+      let privateRequests = 0;
+      page.on("request", outgoing => { if (outgoing.postData()?.includes("BEGIN PRIVATE KEY")) privateRequests++; });
+      await page.getByTestId("public-key-input").setInputFiles({ name: "private.pem", mimeType: "application/x-pem-file", buffer: privateKey });
+      await expect(page.getByRole("dialog").getByRole("alert")).toContainText("Private keys are not accepted");
+      expect(privateRequests).toBe(0);
+      await expect(page.getByRole("row", { name: /Lab operator/ })).toHaveCount(1);
+      await page.getByRole("button", { name: "Delete public key", exact: true }).click();
+      await page.getByRole("button", { name: "Delete key", exact: true }).click();
+      await expect(page.getByRole("row", { name: /Lab operator/ })).toHaveCount(0);
+      await page.getByRole("button", { name: "Close public keys", exact: true }).click();
+      await page.goto(reportURL.replace("/report", "/runs"));
+      await expect(page.locator(".runs-table tbody tr")).toHaveCount(1);
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+
   test(`suite history preserves originals and re-evaluates saved snapshots at ${width}px`, async ({ page }, testInfo) => {
     const files = await suiteBundle();
     await page.setViewportSize({ width, height: 900 });
@@ -531,7 +622,23 @@ test("theme preference persists across product, docs and demo pages", async ({ p
   await expect(page.locator("[data-theme-toggle]")).toHaveText("☀️");
 });
 
-test("browser demo refuses to claim it verified a detached attestation", async ({ page }) => {
+test("report product captures include trust controls and a separate failed recovery", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/demo/#/report");
+  await page.getByRole("button", { name: /CRUD cluster loss/ }).click();
+  await expect(page.locator(".verdict.failed h2")).toHaveText("Failed at V3: table row counts");
+  await expect(page.getByRole("region", { name: "Evidence trust", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "V3 failed", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const detail = await page.locator(".level-detail").boundingBox();
+  expect(detail!.y + detail!.height).toBeLessThan(900);
+  await page.evaluate(() => document.fonts.ready);
+  for (const theme of ["dark", "light"]) {
+    await page.evaluate(value => { localStorage.setItem("nostekon-theme", value); document.documentElement.setAttribute("data-theme", value); window.scrollTo(0, 0); }, theme);
+    await page.screenshot({ path: testInfo.outputPath(`report-failed-${theme}.png`) });
+  }
+});
+
+test("browser demo requires an explicitly trusted public key for a detached attestation", async ({ page }) => {
   await page.goto("/demo/#/report");
   await page.getByRole("button", { name: /Isolated PostgreSQL restore/ }).click();
   await page.getByRole("button", { name: "Attach attestation" }).click();
@@ -540,7 +647,11 @@ test("browser demo refuses to claim it verified a detached attestation", async (
     mimeType: "application/json",
     buffer: Buffer.from('{"apiVersion":"nostekon/attestation/v1alpha1"}'),
   });
-  await expect(page.locator(".attestation-boundary")).toContainText("browser demo cannot verify");
+  await expect(page.getByRole("button", { name: "Verify signature", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Download signed originals", exact: true })).toBeDisabled();
+  await expect(page.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Check server trust", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("status", { name: "Evidence provenance" })).toContainText("unverified");
 });
 
 for (const width of [390, 1440]) {
