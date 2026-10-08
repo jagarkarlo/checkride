@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { Zip, ZipPassThrough, zipSync } from "fflate";
+import { readSignedArchive } from "./signedArchive";
 import { formatDuration, isReport, objectiveUsage, reportMarkdown, timelineBars } from "./report";
 import type { Report } from "./report";
 
@@ -31,6 +33,60 @@ const report: Report = {
   rpo: null,
   findings: [{ severity: "error", message: "V3 failed: row counts" }],
 };
+
+describe("signed-original archive import", () => {
+  const encode = (text: string) => new TextEncoder().encode(text);
+  function archiveEntries(entries: [string, Uint8Array][]) {
+    const chunks: Uint8Array[] = [];
+    const archive = new Zip((error, chunk) => { if (error) throw error; chunks.push(chunk); });
+    for (const [name, bytes] of entries) {
+      const entry = new ZipPassThrough(name); archive.add(entry); entry.push(bytes, true);
+    }
+    archive.end();
+    const data = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.length, 0));
+    let offset = 0;
+    for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
+    return data;
+  }
+  const originals = {
+    "nostekon.run.json": encode(' { "original": true }\n'),
+    "nostekon.run.attestation.json": encode('{ "signature": "unverified" }\n'),
+    "public-key.pem": encode("-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n"),
+    "signature-check.json": encode('{"signatureValid":true,"trusted":true}'),
+  };
+  it("preserves originals exactly and never returns the bundled receipt as proof", () => {
+    expect(readSignedArchive(zipSync(originals, { level: 0 }))).toEqual({
+      evidence: ' { "original": true }\n', attestation: '{ "signature": "unverified" }\n',
+      publicKey: "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n",
+    });
+  });
+  it.each(["../outside", "nested/public-key.pem", "PRIVATE.pem", "__proto__"])("rejects unexpected entry %s", name => {
+    const archive = archiveEntries([...Object.entries(originals), [name, encode("extra")]]);
+    expect(() => readSignedArchive(archive)).toThrow("Unexpected");
+  });
+  it("requires all four canonical entries and bounded Store ZIPs", () => {
+    const { "public-key.pem": omitted, ...partial } = originals;
+    expect(omitted).toBeDefined();
+    expect(() => readSignedArchive(zipSync(partial, { level: 0 }))).toThrow("Missing");
+    expect(() => readSignedArchive(zipSync(originals, { level: 6 }))).toThrow("uncompressed");
+    expect(() => readSignedArchive(new Uint8Array(17 * 1024 * 1024 + 1))).toThrow("17 MiB");
+    expect(() => readSignedArchive(zipSync({ ...originals, "signature-check.json": new Uint8Array(16 * 1024 + 1) }, { level: 0 }))).toThrow("limit");
+    expect(() => readSignedArchive(zipSync({ ...originals, "nostekon.run.json": new Uint8Array(16 * 1024 * 1024 + 1) }, { level: 0 }))).toThrow("limit");
+  });
+  it("rejects private keys, malformed JSON and invalid UTF-8 before any engine request", () => {
+    for (const replacement of [
+      { "public-key.pem": encode("-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----") },
+      { "nostekon.run.json": encode("not JSON") },
+      { "nostekon.run.attestation.json": encode("not JSON") },
+      { "signature-check.json": encode("not JSON") },
+      { "public-key.pem": new Uint8Array([0xc0, 0x80]) },
+    ]) expect(() => readSignedArchive(zipSync({ ...originals, ...replacement }, { level: 0 }))).toThrow();
+  });
+  it("rejects duplicate canonical names even when their content is identical", () => {
+    const archive = archiveEntries([...Object.entries(originals), ["public-key.pem", originals["public-key.pem"]]]);
+    expect(() => readSignedArchive(archive)).toThrow("Duplicate");
+  });
+});
 
 describe("formatDuration", () => {
   it("formats seconds, minutes and hours compactly", () => {
