@@ -23,6 +23,89 @@ func postRunReport(t *testing.T, body, contentType string) *httptest.ResponseRec
 	return response
 }
 
+func TestSelectedPublicKeyCheckDoesNotConfigureServerTrust(t *testing.T) {
+	privatePEM, publicPEM, err := attest.GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	privatePath := t.TempDir() + "/private.pem"
+	if err := os.WriteFile(privatePath, privatePEM, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	privateKey, err := attest.LoadPrivateKey(privatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence := []byte(`{"original":"exact bytes"}`)
+	sidecar, err := attest.Sign(evidence, privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(sidecar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := NewHandler()
+	inspect := httptest.NewRequest(http.MethodPost, "/api/v1/attestations/key", strings.NewReader(string(publicPEM)))
+	inspect.Header.Set("Content-Type", "application/x-pem-file")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, inspect)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), sidecar.KeyID) {
+		t.Fatalf("key inspection status=%d body=%s", response.Code, response.Body.String())
+	}
+	for _, scenario := range []string{"valid", "tampered", "wrong-key", "missing-sidecar", "private-key", "oversized-header"} {
+		t.Run(scenario, func(t *testing.T) {
+			body := string(evidence)
+			keyBytes := publicPEM
+			attestationBytes := encoded
+			if scenario == "tampered" {
+				body += "\n"
+			}
+			if scenario == "wrong-key" {
+				_, keyBytes, err = attest.GenerateKeyPair()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if scenario == "private-key" {
+				keyBytes = privatePEM
+			}
+			if scenario == "missing-sidecar" {
+				attestationBytes = nil
+			}
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/attestations/verify", strings.NewReader(body))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("X-Nostekon-Attestation", base64.StdEncoding.EncodeToString(attestationBytes))
+			request.Header.Set("X-Nostekon-Public-Key", base64.StdEncoding.EncodeToString(keyBytes))
+			if scenario == "oversized-header" {
+				request.Header.Set("X-Nostekon-Public-Key", strings.Repeat("a", (32<<10)+1))
+			}
+			checked := httptest.NewRecorder()
+			handler.ServeHTTP(checked, request)
+			if scenario == "valid" {
+				var result struct {
+					SignatureValid bool   `json:"signatureValid"`
+					KeyID          string `json:"keyId"`
+					TrustSource    string `json:"trustSource"`
+				}
+				if checked.Code != http.StatusOK || json.Unmarshal(checked.Body.Bytes(), &result) != nil || !result.SignatureValid || result.KeyID != sidecar.KeyID || result.TrustSource != "selected-public-key" {
+					t.Fatalf("signature check status=%d body=%s", checked.Code, checked.Body.String())
+				}
+			} else if checked.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("unsafe input accepted: %d %s", checked.Code, checked.Body.String())
+			}
+		})
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/runs/report", strings.NewReader(string(evidence)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Nostekon-Attestation", base64.StdEncoding.EncodeToString(encoded))
+	checked := httptest.NewRecorder()
+	handler.ServeHTTP(checked, request)
+	if checked.Code != http.StatusServiceUnavailable {
+		t.Fatal("selected key silently configured server trust")
+	}
+}
+
 func TestRunReportBuildsReportForExampleRun(t *testing.T) {
 	data, err := os.ReadFile("../../examples/runs/crud-cluster-loss.run.json")
 	if err != nil {

@@ -164,6 +164,13 @@ func LoadPublicKey(path string) (ed25519.PublicKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read public key: %w", err)
 	}
+	return DecodePublicKey(data)
+}
+
+func DecodePublicKey(data []byte) (ed25519.PublicKey, error) {
+	if len(data) > maxSidecarBytes {
+		return nil, errors.New("public key exceeds the 16 KiB limit")
+	}
 	block, rest := pem.Decode(data)
 	if block == nil || block.Type != "PUBLIC KEY" || strings.TrimSpace(string(rest)) != "" {
 		return nil, errors.New("public key must be one PKIX PEM block")

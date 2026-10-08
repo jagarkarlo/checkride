@@ -1,7 +1,7 @@
 declare global {
   interface Window {
     Go: new () => { importObject: WebAssembly.Imports; run: (instance: WebAssembly.Instance) => Promise<void> };
-    nostekonRequest?: (path: string, body: string) => { status: number; body: string };
+    nostekonRequest?: (path: string, body: string, headers?: Record<string, string>) => { status: number; body: string };
     nostekonReady?: () => void;
   }
 }
@@ -39,7 +39,7 @@ export async function request(path: string, body = "", signal?: AbortSignal, ext
   }
   await loadEngine();
   if (signal?.aborted) throw signal.reason;
-  const result = window.nostekonRequest?.(path, body);
+  const result = window.nostekonRequest?.(path, body, extraHeaders);
   if (!result) throw new Error("The browser validation engine is unavailable.");
   return new Response(result.status === 204 ? null : result.body, {
     status: result.status,

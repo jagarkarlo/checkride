@@ -40,6 +40,8 @@ func NewHandlerWithLab(configuredKeys map[string]ed25519.PublicKey, studio fs.FS
 		_, _ = writer.Write(schema.DrillRunJSONSchema)
 	})
 	mux.HandleFunc("POST /api/v1/drills/validate", validateDrillHandler)
+	mux.HandleFunc("POST /api/v1/attestations/key", inspectPublicKeyHandler)
+	mux.HandleFunc("POST /api/v1/attestations/verify", selectedKeyVerificationHandler)
 	mux.HandleFunc("POST /api/v1/runs/report", func(writer http.ResponseWriter, request *http.Request) {
 		runReportHandler(writer, request, trustedKeys)
 	})

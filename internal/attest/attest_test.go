@@ -33,6 +33,30 @@ func TestSignAndVerifyEvidence(t *testing.T) {
 	}
 }
 
+func TestDecodePublicKeyMatchesFileLoaderAndRejectsUnsafeInputs(t *testing.T) {
+	privatePEM, publicPEM, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := DecodePublicKey(publicPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "public.pem")
+	if err := os.WriteFile(path, publicPEM, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadPublicKey(path)
+	if err != nil || KeyID(key) != KeyID(loaded) {
+		t.Fatal("in-memory and file-loaded key fingerprints differ")
+	}
+	for _, input := range [][]byte{privatePEM, append(append([]byte(nil), publicPEM...), publicPEM...), []byte("not a key"), []byte(strings.Repeat("x", (16<<10)+1))} {
+		if _, err := DecodePublicKey(input); err == nil {
+			t.Fatal("invalid public-key input accepted")
+		}
+	}
+}
+
 func TestVerifyAcceptsLegacyCheckrideSignatures(t *testing.T) {
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
