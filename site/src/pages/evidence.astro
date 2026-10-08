@@ -48,7 +48,7 @@ const levels = [
       <div class="section-head"><h2>A valid signature is not a successful recovery</h2><p class="section-lead">Keep byte integrity, key trust and recovery results separate.</p></div>
       <dl class="facts">
         <div><dt>Authenticate the public key</dt><dd>Studio imports only Ed25519 public keys. Compare the full fingerprint with the owner through a trusted channel before explicitly granting local trust. A key beside an evidence file is not automatically trustworthy.</dd></div>
-        <div><dt>Verify the original bytes</dt><dd>The same Go verifier runs in the API, CLI and browser. Even an extra newline changes the digest. A successful signature check enables exact original-file export, not a new recovery verdict.</dd></div>
+        <div><dt>Verify the original bytes</dt><dd>The same Go verifier runs in the API, CLI and browser. Even an extra newline changes the digest. Signed ZIPs preserve the originals; importing one discards its old receipt and never trusts its key automatically. A signature check does not create a new recovery verdict.</dd></div>
         <div><dt>Revoke without erasing</dt><dd>Remove local trust when a key should no longer be used. Verification receipts are cleared, while original evidence remains saved. Browser policy does not change the server's separately configured trusted keys.</dd></div>
       </dl>
       <p class="prose" style="margin: 24px 0 40px;"><a class="link" href="/docs/reference/drillrun-evidence/#verify-in-studio-or-the-browser-demo">Verify signatures and recheck exported originals</a></p>

@@ -3,7 +3,7 @@ title: Run locally
 description: Validate a recovery drill with the local Go API and Studio.
 ---
 
-The Studio is a local interactive application. Drill-spec validation checks the contract only. The separate DrillRun report evaluator calculates a verdict from caller-supplied evidence; optional configured signature verification checks provenance, not whether a restore really happened. The Go API listens on port 8080 and the Studio development server proxies requests to it. A separate disposable k3d script runs one isolated PostgreSQL restore; Studio does not trigger it.
+The Studio is a local interactive application. Drill-spec validation checks the contract only. The separate DrillRun report evaluator calculates a verdict from caller-supplied evidence; optional configured signature verification checks provenance, not whether a restore really happened. The Go API listens on port 8080 and the Studio development server proxies requests to it. A separate disposable k3d script runs one isolated PostgreSQL restore. The packaged app disables execution by default; the optional host runner exposes only the fixed policy suite.
 
 From the repository root, start the API:
 
@@ -32,6 +32,12 @@ is separate from the API's startup configuration: **Check server trust** uses
 `NOSTEKON_TRUSTED_KEYS_DIR` and adds verified server provenance to the report.
 Follow the [public-key and export workflow](reference/drillrun-evidence.md#verify-in-studio-or-the-browser-demo)
 for fingerprint checks, revocation, limits and independent CLI verification.
+
+**Import signed archive** reopens the exact signed originals from a Studio ZIP.
+It discards the old receipt and imports new public keys without trust. Existing
+revocation decisions remain in effect. Authenticate the fingerprint and perform
+a fresh signature check; the archive alone is not proof of trust or recovery.
+See [archive limits and failure handling](reference/drillrun-evidence.md#import-a-signed-archive).
 
 ## Run the isolated PostgreSQL lab drill
 

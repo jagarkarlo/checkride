@@ -155,6 +155,28 @@ import is available in Studio.
    public key and a computed signature-check receipt. The receipt and archive
    container are not independently signed. A bundled key is not a trust anchor.
 
+### Import a signed archive
+
+In **Report**, choose **Import signed archive** to reopen a ZIP produced by
+**Download signed originals**. The imported evidence and sidecar retain their
+exact UTF-8 bytes. Studio inspects the public key with the shared Go decoder,
+imports new keys as **Not trusted**, and discards the bundled receipt. Existing
+labels and trust or revoked state are preserved; re-import never grants trust.
+
+Authenticate the complete fingerprint independently, make an explicit local
+trust decision, then **Verify signature** again. Even an archive that contains a
+receipt claiming success must pass this fresh check. A changed evidence file
+fails its signature without changing the evaluated recovery policy.
+
+Only uncompressed Store ZIPs with these four unique root entries are supported:
+`nostekon.run.json`, `nostekon.run.attestation.json`, `public-key.pem` and
+`signature-check.json`. Archives are capped at 17 MiB, evidence at 16 MiB, and
+each other file at 16 KiB. Compressed, duplicate, nested, unexpected, oversized,
+invalid-UTF-8 or malformed-JSON entries and private keys are rejected. A failed
+archive import clears the previous report and local receipt instead of leaving
+an old verification visible. Public-key storage errors do not evict keys or
+silently grant trust.
+
 Extract the ZIP into a new directory and independently verify it from the
 repository root, using a public key you have already authenticated:
 
@@ -166,7 +188,8 @@ go run ./cmd/nostekon-attest verify \
 ```
 
 This is an original-file archive, not a host-job bundle for **Import bundle**.
-Import its extracted evidence and sidecar separately. **Save run** retains
+Use **Import signed archive**, or import its extracted evidence and sidecar
+separately. **Save run** retains
 original evidence and the computed report, not the sidecar or local verification
 receipt; reopen and check the signature again when needed.
 

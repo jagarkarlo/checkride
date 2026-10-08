@@ -71,7 +71,7 @@ const steps = [
         <div><dt>Review the whole suite</dt><dd>Compare expected and evaluated case verdicts, recovered writes, loss windows and RPO budgets. An expected policy failure is not mistaken for a broken restore.</dd></div>
         <div><dt>Reopen original captures</dt><dd>Save a suite snapshot, reopen it after reload, and evaluate it again. Original-file downloads and case Runs remain independent; failed and partial captures are retained without inventing missing evidence.</dd></div>
         <div><dt>Move a host-job capture</dt><dd>Export a bounded evidence bundle and verify its manifest before import. A checksum detects changed files; it does not authenticate who captured them.</dd></div>
-        <div><dt>Verify signed originals</dt><dd>Import public keys, explicitly trust their fingerprints, verify detached Ed25519 signatures and export the exact signed files. Revoke local trust without deleting evidence. A valid signature never overrides a failed recovery.</dd></div>
+        <div><dt>Verify signed originals</dt><dd>Import public keys, explicitly trust their fingerprints, verify detached Ed25519 signatures and transfer exact originals as a ZIP. Re-import discards the old receipt and requires fresh verification; local revocation stays in effect. A valid signature never overrides a failed recovery.</dd></div>
         <div><dt>Use the same gate in CI</dt><dd>The browser and native Go CLI produce the same review. Exit 0 means the complete expected policy suite passed; incomplete or mismatching evidence does not get a green gate.</dd></div>
       </dl>
       <p class="prose" style="margin-top: 24px;"><a class="link" href="/docs/guides/k3d-isolated-restore/">Read the suite and evidence workflow</a></p>

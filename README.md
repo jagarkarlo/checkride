@@ -28,6 +28,10 @@ bytes and signatures remain valid. Studio imports saved browser runs once into
 `nostekon-runs`, without changing evidence bytes; its old database is retained
 as a backup. Storage migration is limited to the same browser origin.
 
+The Nostekon name and stepping-stones logo use TM to state a trademark claim,
+not registration or legal clearance. The code remains Apache-2.0; section 6 of
+the license keeps general trademark rights separate.
+
 ## Why
 
 Backup tools report `Completed`. That proves a backup was written, not that
