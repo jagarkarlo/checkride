@@ -9,6 +9,7 @@
     "preview": "astro preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@lucide/astro": "^1.53.0",
     "astro": "^7.3.5"
   }
 }

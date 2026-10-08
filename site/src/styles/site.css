@@ -1,3 +1,6 @@
+.theme-toggle svg { display: block; flex: none; }
+[data-theme="dark"] .theme-toggle [data-theme-icon="moon"],
+[data-theme="light"] .theme-toggle [data-theme-icon="sun"] { display: none; }
 /* Site styles. Same tokens as the Studio so the two feel like one product. */
 
 @font-face { font-family: "DM Sans"; src: url("/fonts/dm-sans-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
@@ -174,19 +177,33 @@ html[data-theme=light] .shot img.shot-light { display: block; }
 .callout p { margin-top: 6px; max-width: 68ch; color: var(--ink-2); font-size: 15.5px; }
 
 /* Footer */
-.footer { padding: 36px 0 44px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 14px; }
-.footer .wrap { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px 32px; }
-.footer nav { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.wordmark sup, .footer-brand sup { margin-left: 2px; font-size: 13px; line-height: 1; vertical-align: super; }
+.footer { padding: 64px 0 28px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 14px; }
+.footer-grid { display: grid; grid-template-columns: minmax(200px, 1.5fr) repeat(4, minmax(0, 1fr)); gap: 36px; }
+.footer-brand { display: inline-flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; }
+.footer-about p { margin: 18px 0 14px; color: var(--ink-2); line-height: 1.7; }
+.footer nav h2 { margin: 4px 0 18px; color: var(--ink); font-size: 14px; font-weight: 600; }
+.footer nav li + li { margin-top: 12px; }
 .footer a { color: var(--ink-2); text-decoration: none; }
 .footer a:hover { color: var(--ink); text-decoration: underline; }
+.footer .footer-brand { color: var(--ink); }
+.footer-notice { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 32px; margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; }
+.legal-body { max-width: 760px; padding-bottom: 64px; }
+.legal-body section { padding: 24px 0; border-top: 1px solid var(--line); }
+.legal-body h2 { margin-bottom: 12px; font-size: 20px; font-weight: 600; }
+.legal-body p + p { margin-top: 12px; }
+.legal-body .legal-links { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 18px; }
 
 @media (max-width: 900px) {
+  .footer-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 24px; }
+  .footer-about { grid-column: 1 / -1; }
   .split, .facts { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .level { grid-template-columns: 44px minmax(0, 1fr); }
   .level p { grid-column: 2; }
   .row { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
+  .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 24px; }
   .masthead .wrap { flex-wrap: wrap; gap: 0 12px; height: auto; padding-top: 10px; }
   .nav { order: 3; width: 100%; margin: 4px 0 0; overflow-x: auto; padding-bottom: 6px; }
   .nav a { flex: none; }

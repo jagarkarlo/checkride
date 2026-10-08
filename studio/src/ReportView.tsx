@@ -24,6 +24,8 @@ import { fieldPathOf, inspectJSON, locateField, scenarioLabels } from "./drill";
 import { formatDuration, isReport, objectiveUsage, reportMarkdown, timelineBars } from "./report";
 import type { LevelResult, Report, RPOResult, RTOResult } from "./report";
 import { saveRun } from "./runStore";
+import { announcePolicyChange, listKeys, saveKey } from "./keyStore";
+import { MAX_SIGNED_ARCHIVE_BYTES, readSignedArchive } from "./signedArchive";
 import { isRecordedSample, samples } from "./samples";
 
 const verdictLabel = { verified: "Verified", failed: "Failed", incomplete: "Incomplete" } as const;
@@ -55,6 +57,10 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
   const [attestation, setAttestation] = useState("");
   const [attestationName, setAttestationName] = useState("");
   const attestationInputRef = useRef<HTMLInputElement>(null);
+  const signedInputRef = useRef<HTMLInputElement>(null);
+  const [importingArchive, setImportingArchive] = useState(false);
+  const [archiveResult, setArchiveResult] = useState("");
+  const [importedKey, setImportedKey] = useState<{ id: string }>();
   const inspection = useMemo(() => inspectJSON(source), [source]);
 
   const build = useCallback(
@@ -100,6 +106,8 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
         setSourceError("");
         setSource(text);
         setSampleId(id);
+        setArchiveResult("");
+        setImportedKey(undefined);
         setAttestation("");
         setAttestationName("");
         await build(text, current);
@@ -113,6 +121,8 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
       setAttestation("");
       setAttestationName("");
       setSource(selection.source);
+      setArchiveResult("");
+      setImportedKey(undefined);
       setSampleId(selection.sampleId);
       setSourceError("");
       void build(selection.source);
@@ -145,6 +155,35 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
     finally { setSaving(false); }
   }
 
+  async function importSignedArchive(file: File) {
+    if (importingArchive) return;
+    const current = ++generation.current;
+    setImportingArchive(true); setIsBuilding(false);
+    setSource(""); setReport(null); setBuiltFrom(""); setSampleId("");
+    setAttestation(""); setAttestationName(""); setImportedKey(undefined);
+    setArchiveResult(""); setSourceError(""); setRequestError(""); setProblems([]); setSaved(false);
+    try {
+      if (file.size > MAX_SIGNED_ARCHIVE_BYTES) throw new Error("Signed archive exceeds the 17 MiB limit.");
+      const originals = readSignedArchive(new Uint8Array(await file.arrayBuffer()));
+      if (current !== generation.current) return;
+      const response = await request("/api/v1/attestations/key", originals.publicKey, AbortSignal.timeout(10000), { "Content-Type": "application/x-pem-file" });
+      const key = await response.json();
+      if (!response.ok || key.algorithm !== "Ed25519" || typeof key.keyId !== "string" || !/^[a-f0-9]{64}$/.test(key.keyId)) throw new Error(key.errors?.join("; ") || "Could not inspect the archive's public key.");
+      if (current !== generation.current) return;
+      const existing = (await listKeys()).find(saved => saved.id === key.keyId);
+      if (current !== generation.current) return;
+      await saveKey(key.keyId, originals.publicKey, existing?.label ?? `Archive key ${key.keyId.slice(0, 12)}`);
+      announcePolicyChange();
+      if (current !== generation.current) return;
+      setSource(originals.evidence); setAttestation(originals.attestation);
+      setAttestationName("nostekon.run.attestation.json"); setImportedKey({ id: key.keyId });
+      await build(originals.evidence, current);
+      if (current === generation.current) setArchiveResult("Signed archive imported · bundled receipt discarded.");
+    } catch (reason) {
+      if (current === generation.current) setSourceError(reason instanceof Error ? reason.message : "Could not import the signed archive.");
+    } finally { setImportingArchive(false); }
+  }
+
   const stale = report !== null && builtFrom !== source;
   const recordedSample = isRecordedSample(sampleId);
 
@@ -159,6 +198,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
                 type="button"
                 className={`template ${sampleId === sample.id ? "active" : ""}`}
                 aria-pressed={sampleId === sample.id}
+                disabled={importingArchive}
                 onClick={() => void loadSample(sample.id)}
               >
                 <span className="template-label">{sample.label}</span>
@@ -178,6 +218,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
           type="file"
           accept=".json,application/json"
           data-testid="evidence-input"
+          disabled={importingArchive}
           hidden
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -191,6 +232,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
                 setSourceError("");
                 setSource(text);
                 setSampleId("");
+                setArchiveResult(""); setImportedKey(undefined);
                 setAttestation("");
                 setAttestationName("");
                 void build(text);
@@ -202,11 +244,13 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
           type="file"
           accept=".attestation.json,application/json"
           data-testid="attestation-input"
+          disabled={importingArchive}
           hidden
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
             if (!file) return;
+            setArchiveResult(""); setImportedKey(undefined);
             setAttestation("");
             setAttestationName("");
             if (source) void build(source);
@@ -227,7 +271,14 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
             }).catch(() => setSourceError("Could not read the attestation sidecar."));
           }}
         />
-        <button className="rail-action" type="button" onClick={() => fileInputRef.current?.click()}>
+        <input ref={signedInputRef} type="file" accept=".zip,application/zip" hidden disabled={importingArchive} data-testid="signed-originals-input" onChange={event => {
+          const file = event.target.files?.[0]; event.target.value = "";
+          if (file) void importSignedArchive(file);
+        }} />
+        <button className="rail-action" type="button" disabled={importingArchive} onClick={() => signedInputRef.current?.click()}>
+          {importingArchive ? <LoaderCircle size={14} className="spin" /> : <Upload size={14} />} Import signed archive
+        </button>
+        <button className="rail-action" type="button" disabled={importingArchive} onClick={() => fileInputRef.current?.click()}>
           <Upload size={14} /> Import DrillRun JSON
         </button>
         <a className="rail-action" href="#/runs">Saved runs</a>
@@ -257,9 +308,10 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
             <XCircle size={15} /> {requestError}
           </div>
         )}
-        <TrustWorkbench evidence={source} attestation={attestation} disabled={!source || stale || isBuilding} onAttach={() => attestationInputRef.current?.click()} onRemove={() => { setAttestation(""); setAttestationName(""); void build(source); }} onServerVerify={browserDemo ? undefined : () => void build(source, undefined, attestation)} />
+        <TrustWorkbench evidence={source} attestation={attestation} importedKey={importedKey} disabled={!source || stale || isBuilding || importingArchive} onAttach={() => attestationInputRef.current?.click()} onRemove={() => { setAttestation(""); setAttestationName(""); setArchiveResult(""); void build(source); }} onServerVerify={browserDemo ? undefined : () => void build(source, undefined, attestation)} />
+        {archiveResult && <p className="workspace-label" role="status" aria-label="Signed archive import">{archiveResult}</p>}
         {attestationName && <p className="workspace-label">{attestationName}</p>}
-        {sourceError && <div className="banner bad"><XCircle size={15} /> {sourceError}</div>}
+        {sourceError && <div className="banner bad" role="alert"><XCircle size={15} /> {sourceError}</div>}
 
         {tab === "evidence" ? (
           <div className="evidence-pane">
@@ -279,7 +331,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
                 ref={editorRef}
                 value={source}
                 errorLine={inspection.ok ? null : inspection.line}
-                onChange={(text) => { generation.current++; setIsBuilding(false); setSource(text); setSampleId(""); setAttestation(""); setAttestationName(""); setSaved(false); }}
+                onChange={(text) => { generation.current++; setIsBuilding(false); setSource(text); setSampleId(""); setAttestation(""); setAttestationName(""); setArchiveResult(""); setImportedKey(undefined); setSaved(false); }}
                 onSubmit={() => void build(source)}
               />
             </div>

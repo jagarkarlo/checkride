@@ -24,7 +24,51 @@ function evidenceArchive(files: Awaited<ReturnType<typeof suiteBundle>>) {
 }
 
 for (const width of [390, 1440]) {
-  test(`signature trust verifies native Go sidecars without upgrading recovery at ${width}px`, async ({ page, context }, testInfo) => {
+  test(`grouped footer has working product, source, docs and legal destinations at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    const footer = page.getByRole("contentinfo");
+    for (const group of ["Product", "Open Source", "Docs", "Legal"]) {
+      await expect(footer.getByRole("navigation", { name: `Footer ${group}`, exact: true })).toBeVisible();
+    }
+    await expect(footer).toContainText("Nostekon™");
+    for (const theme of ["dark", "light"]) {
+      if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator("[data-theme-toggle]").click();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      await footer.screenshot({ path: testInfo.outputPath(`footer-${width}-${theme}.png`) });
+    }
+    const destinations = await footer.locator('a[href^="/"]').evaluateAll(links => links.map(link => link.getAttribute("href")!));
+    for (const href of new Set(destinations)) {
+      const response = await page.request.get(href.split("#")[0]);
+      expect(response.status(), href).toBe(200);
+    }
+    await footer.getByRole("link", { name: "Trademark", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Trademark", exact: true })).toBeVisible();
+    await expect(page.locator("main")).toContainText("name and logo");
+    await expect(page.locator("main")).toContainText("not a registration");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+
+  test(`monochrome theme icons preserve state across product and Studio at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    for (const path of ["/", "/demo/"]) {
+      await page.goto(path);
+      const toggle = page.locator(path === "/" ? "[data-theme-toggle]" : ".studio-theme");
+      const icon = toggle.locator("svg:visible");
+      await expect(icon).toHaveCount(1);
+      await expect(icon).toHaveAttribute("stroke", "currentColor");
+      await expect(toggle).toHaveText("");
+      const before = await page.locator("html").getAttribute("data-theme");
+      await expect(icon).toHaveAttribute("data-theme-icon", before === "dark" ? "sun" : "moon");
+      await toggle.click();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", before === "dark" ? "light" : "dark");
+      await page.reload();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", before === "dark" ? "light" : "dark");
+      await expect(toggle.locator("svg:visible")).toHaveAttribute("data-theme-icon", before === "dark" ? "moon" : "sun");
+    }
+  });
+
+  test(`signature trust verifies native Go sidecars without upgrading recovery at ${width}px`, async ({ page, context, browser, baseURL }, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), "nostekon-signature-"));
     const privatePath = join(directory, "private.pem");
     const publicPath = join(directory, "public.pem");
@@ -76,6 +120,60 @@ for (const width of [390, 1440]) {
       await writeFile(exportedEvidence, archive["nostekon.run.json"]);
       await writeFile(exportedSidecar, archive["nostekon.run.attestation.json"]);
       execFileSync("go", ["run", "./cmd/nostekon-attest", "verify", "--evidence", exportedEvidence, "--attestation", exportedSidecar, "--trusted-key", publicPath], { cwd: root });
+      const recipient = await browser.newContext({ baseURL, viewport: { width, height: 1000 } });
+      try {
+        const transferred = await recipient.newPage();
+        await transferred.goto(reportURL);
+        const imported = { name: "signed-originals.zip", mimeType: "application/zip", buffer: Buffer.from(zipSync({ ...archive, "signature-check.json": Buffer.from('{"signatureValid":true,"trusted":true,"evidenceSHA256":"forged receipt"}') }, { level: 0 })) };
+        const importButton = await transferred.getByRole("button", { name: "Import signed archive", exact: true }).boundingBox();
+        expect(importButton!.x + importButton!.width).toBeLessThanOrEqual(width);
+        await transferred.getByTestId("signed-originals-input").setInputFiles(imported);
+        await expect(transferred.getByRole("status", { name: "Signed archive import" })).toContainText("receipt discarded");
+        await expect(transferred.getByRole("button", { name: "Verify signature", exact: true })).toBeDisabled();
+        await expect(transferred.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+        await expect(transferred.locator(".verdict.failed")).toBeVisible();
+        await transferred.getByRole("button", { name: "Public keys", exact: true }).click();
+        await expect(transferred.getByRole("dialog").locator("tbody tr")).toHaveCount(1);
+        await expect(transferred.getByRole("dialog")).toContainText("Not trusted");
+        await transferred.getByRole("button", { name: "Trust public key", exact: true }).click();
+        await transferred.getByRole("checkbox", { name: /I verified this fingerprint/ }).check();
+        await transferred.getByRole("button", { name: "Confirm trust", exact: true }).click();
+        await transferred.getByRole("button", { name: "Close public keys", exact: true }).click();
+        await transferred.getByRole("button", { name: "Verify signature", exact: true }).click();
+        await expect(transferred.getByRole("status", { name: "Signature verification" })).toContainText("Signature valid");
+        await expect(transferred.locator(".verdict.failed")).toBeVisible();
+        const reexport = transferred.waitForEvent("download");
+        await transferred.getByRole("button", { name: "Download signed originals", exact: true }).click();
+        const rechecked = unzipSync(await readFile((await (await reexport).path())!));
+        for (const name of ["nostekon.run.json", "nostekon.run.attestation.json", "public-key.pem"]) expect(rechecked[name]).toEqual(archive[name]);
+        expect(JSON.parse(Buffer.from(rechecked["signature-check.json"]).toString())).toMatchObject({ signatureValid: true, evidenceSHA256: createHash("sha256").update(evidence).digest("hex") });
+        await transferred.getByTestId("signed-originals-input").setInputFiles({ ...imported, buffer: Buffer.from(zipSync({ ...archive, "nostekon.run.json": Buffer.concat([evidence, Buffer.from("\n")]) }, { level: 0 })) });
+        await expect(transferred.getByRole("status", { name: "Signed archive import" })).toBeVisible();
+        await expect(transferred.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+        await transferred.getByRole("button", { name: "Verify signature", exact: true }).click();
+        await expect(transferred.getByRole("alert")).toContainText("digest does not match");
+        await expect(transferred.getByRole("button", { name: "Download signed originals", exact: true })).toBeDisabled();
+        let keyRequests = 0;
+        transferred.on("request", outgoing => { if (outgoing.url().endsWith("/attestations/key")) keyRequests++; });
+        await transferred.getByTestId("signed-originals-input").setInputFiles({ ...imported, buffer: Buffer.from(zipSync({ ...archive, "public-key.pem": await readFile(privatePath) }, { level: 0 })) });
+        await expect(transferred.getByRole("alert")).toContainText("Private keys are not accepted");
+        expect(keyRequests).toBe(0);
+        await expect(transferred.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+        await expect(transferred.getByRole("button", { name: "Download signed originals", exact: true })).toBeDisabled();
+        await transferred.getByTestId("signed-originals-input").setInputFiles(imported);
+        await expect(transferred.getByRole("status", { name: "Signed archive import" })).toBeVisible();
+        await expect(transferred.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+        await transferred.getByRole("button", { name: "Public keys", exact: true }).click();
+        await expect(transferred.getByRole("dialog").locator("tbody tr")).toHaveCount(1);
+        await transferred.getByRole("button", { name: "Revoke local trust", exact: true }).click();
+        await transferred.getByRole("button", { name: "Close public keys", exact: true }).click();
+        await transferred.getByTestId("signed-originals-input").setInputFiles(imported);
+        await expect(transferred.getByRole("status", { name: "Signed archive import" })).toBeVisible();
+        await expect(transferred.getByRole("button", { name: "Verify signature", exact: true })).toBeDisabled();
+        await expect(transferred.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+        expect(await transferred.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await transferred.screenshot({ path: testInfo.outputPath(`signed-archive-${width}.png`), fullPage: true });
+      } finally { await recipient.close(); }
       const second = await context.newPage();
       await second.goto(reportURL);
       await second.getByRole("button", { name: "Public keys", exact: true }).click();
@@ -596,17 +694,17 @@ test("theme preference persists across product, docs and demo pages", async ({ p
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.locator("[data-theme-toggle]")).toHaveText("☀️");
+  await expect(page.locator('[data-theme-toggle] svg:visible')).toHaveAttribute("data-theme-icon", "sun");
   await expect(page.locator("[data-theme-toggle]")).toHaveAttribute("title", "Switch to light mode");
   await page.locator("[data-theme-toggle]").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await expect(page.locator("[data-theme-toggle]")).toHaveText("🌙");
+  await expect(page.locator('[data-theme-toggle] svg:visible')).toHaveAttribute("data-theme-icon", "moon");
   await expect(page.locator("[data-theme-toggle]")).toHaveAttribute("title", "Switch to dark mode");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nostekon-theme"))).toBe("light");
 
   await page.getByRole("link", { name: "Product", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await expect(page.locator("[data-theme-toggle]")).toHaveText("🌙");
+  await expect(page.locator('[data-theme-toggle] svg:visible')).toHaveAttribute("data-theme-icon", "moon");
   await page.getByRole("link", { name: "Docs", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-md-color-scheme", "default");
 
@@ -619,12 +717,20 @@ test("theme preference persists across product, docs and demo pages", async ({ p
   await expect(page.getByRole("heading", { name: "Recovery runs" })).toBeVisible();
   await page.goto("/product/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.locator("[data-theme-toggle]")).toHaveText("☀️");
+  await expect(page.locator('[data-theme-toggle] svg:visible')).toHaveAttribute("data-theme-icon", "sun");
 });
 
 test("report product captures include trust controls and a separate failed recovery", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/demo/#/report");
+  await page.getByRole("button", { name: /Isolated PostgreSQL restore/ }).click();
+  await expect(page.locator(".verdict.verified h2")).toHaveText("Verified to V3");
+  for (const theme of ["dark", "light"]) {
+    if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator(".studio-theme").click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: testInfo.outputPath(`report-lab-${theme}.png`) });
+  }
   await page.getByRole("button", { name: /CRUD cluster loss/ }).click();
   await expect(page.locator(".verdict.failed h2")).toHaveText("Failed at V3: table row counts");
   await expect(page.getByRole("region", { name: "Evidence trust", exact: true })).toBeVisible();
@@ -633,8 +739,17 @@ test("report product captures include trust controls and a separate failed recov
   expect(detail!.y + detail!.height).toBeLessThan(900);
   await page.evaluate(() => document.fonts.ready);
   for (const theme of ["dark", "light"]) {
-    await page.evaluate(value => { localStorage.setItem("nostekon-theme", value); document.documentElement.setAttribute("data-theme", value); window.scrollTo(0, 0); }, theme);
+    if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator(".studio-theme").click();
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: testInfo.outputPath(`report-failed-${theme}.png`) });
+  }
+  await page.goto("/demo/#/suite");
+  await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches");
+  await expect(page.locator(".suite-table tbody tr")).toHaveCount(3);
+  for (const theme of ["dark", "light"]) {
+    if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator(".studio-theme").click();
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: testInfo.outputPath(`policy-suite-${theme}.png`) });
   }
 });
 
@@ -676,7 +791,7 @@ for (const width of [390, 1440]) {
         if (path !== "/docs/") {
           await expect(mark).toBeVisible();
           const toggle = page.locator(path === "/demo/" ? ".studio-theme" : "[data-theme-toggle]");
-          await expect(toggle).toHaveText(theme === "dark" ? "☀️" : "🌙");
+          await expect(toggle.locator("svg:visible")).toHaveAttribute("data-theme-icon", theme === "dark" ? "sun" : "moon");
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         await page.evaluate(() => window.scrollTo(0, 0));
@@ -723,7 +838,7 @@ test("site stays readable, self-hosted and free of decoration", async ({ page })
     const url = new URL(request.url());
     if (url.hostname !== "127.0.0.1" && url.hostname !== "localhost") external.push(url.hostname);
   });
-  for (const path of ["/", "/product/", "/evidence/", "/roadmap/"]) {
+  for (const path of ["/", "/product/", "/evidence/", "/roadmap/", "/legal/privacy/", "/legal/terms/", "/legal/trademark/", "/legal/license/"]) {
     await page.goto(path);
     await expect(page.locator("h1")).toHaveCount(1);
     const smallText = await page.evaluate(() => {

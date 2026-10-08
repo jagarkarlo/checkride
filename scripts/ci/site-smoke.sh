@@ -2,7 +2,7 @@
 set -euo pipefail
 
 site_dir=${1:-site}
-expected_routes=(/ /product/ /evidence/ /demo/ /roadmap/ /docs/ /start/ /levels/ /comparison/
+expected_routes=(/ /product/ /evidence/ /demo/ /roadmap/ /legal/privacy/ /legal/terms/ /legal/trademark/ /legal/license/ /docs/ /start/ /levels/ /comparison/
   /guides/k3d-isolated-restore/ /guides/ci-recovery-gate/ /guides/metrics-and-dashboard/
   /concepts/how-it-works/ /concepts/write-ledger-rpo/ /concepts/isolated-restores/
   /reference/drill-spec/ /reference/drillrun-evidence/)

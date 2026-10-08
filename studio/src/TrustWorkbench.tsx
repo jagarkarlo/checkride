@@ -2,7 +2,7 @@ import { Download, KeyRound, LoaderCircle, ShieldAlert, ShieldCheck, Trash2, Upl
 import { strToU8, zipSync } from "fflate";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
-import { assertPublicKey, deleteKey, KEY_LIMIT, listKeys, saveKey, setKeyTrust } from "./keyStore";
+import { announcePolicyChange, assertPublicKey, deleteKey, KEY_LIMIT, listKeys, saveKey, setKeyTrust } from "./keyStore";
 import type { SavedKey } from "./keyStore";
 
 interface SignatureCheck {
@@ -14,8 +14,8 @@ interface SignatureCheck {
   trustSource: "selected-public-key";
 }
 
-export function TrustWorkbench({ evidence, attestation, disabled, onAttach, onRemove, onServerVerify }: {
-  evidence: string; attestation: string; disabled: boolean; onAttach: () => void; onRemove: () => void; onServerVerify?: () => void;
+export function TrustWorkbench({ evidence, attestation, importedKey, disabled, onAttach, onRemove, onServerVerify }: {
+  evidence: string; attestation: string; importedKey?: { id: string }; disabled: boolean; onAttach: () => void; onRemove: () => void; onServerVerify?: () => void;
 }) {
   const [keys, setKeys] = useState<SavedKey[]>([]);
   const [selected, setSelected] = useState("");
@@ -44,6 +44,15 @@ export function TrustWorkbench({ evidence, attestation, disabled, onAttach, onRe
     return () => { active = false; generation.current++; channel?.close(); window.removeEventListener("focus", reloadPolicy); };
   }, []);
   useEffect(() => { generation.current++; setProof(null); setError(""); }, [evidence, attestation, selected, disabled]);
+  useEffect(() => {
+    if (!importedKey) return;
+    let active = true;
+    generation.current++; setProof(null); setError("");
+    void listKeys().then(saved => {
+      if (active) { setKeys(saved); setSelected(importedKey.id); }
+    }).catch(reason => { if (active) setError(message(reason)); });
+    return () => { active = false; };
+  }, [importedKey]);
 
   async function importKey(file: File) {
     generation.current++;
@@ -149,9 +158,3 @@ export function TrustWorkbench({ evidence, attestation, disabled, onAttach, onRe
 }
 
 function message(reason: unknown) { return reason instanceof Error ? reason.message : "Could not complete the public-key operation."; }
-
-function announcePolicyChange() {
-  if (typeof BroadcastChannel === "undefined") return;
-  const channel = new BroadcastChannel("nostekon-key-policy");
-  channel.postMessage("changed"); channel.close();
-}

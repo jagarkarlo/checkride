@@ -5,6 +5,12 @@ export interface SavedKey { id: string; pem: string; label: string; trusted: boo
 interface KeyDatabase extends DBSchema { keys: { key: string; value: SavedKey } }
 export const KEY_LIMIT = 20;
 
+export function announcePolicyChange() {
+  if (typeof BroadcastChannel === "undefined") return;
+  const channel = new BroadcastChannel("nostekon-key-policy");
+  channel.postMessage("changed"); channel.close();
+}
+
 export function assertPublicKey(pem: string): void {
   if (typeof pem !== "string" || new TextEncoder().encode(pem).length > 16 * 1024 || !/^\s*-----BEGIN PUBLIC KEY-----\s+[A-Za-z0-9+/=\r\n]+\s+-----END PUBLIC KEY-----\s*$/.test(pem)) throw new Error("Select one public PKIX PEM key, at most 16 KiB. Private keys are not accepted.");
 }

@@ -1,4 +1,4 @@
-import { Activity, FileCheck2, FlaskConical, LayoutList, PencilRuler, RefreshCw, Play } from "lucide-react";
+import { Activity, FileCheck2, FlaskConical, LayoutList, Moon, PencilRuler, RefreshCw, Play, Sun } from "lucide-react";
 import nostekonMark from "../../site/src/content/docs/assets/nostekon-mark.svg";
 import { useCallback, useEffect, useState } from "react";
 import { request } from "./api";
@@ -61,9 +61,9 @@ export function App() {
   return (
     <div className="studio">
       <header className="topbar">
-        <a className="brand" href="#/runs">
+        <a className="brand" href="#/runs" title="Nostekon name and logo are claimed trademarks">
           <img className="brand-mark" src={nostekonMark} width="28" height="28" alt="" />
-          <span className="brand-name">Nostekon</span>
+          <span className="brand-name">Nostekon<sup aria-hidden="true">&trade;</sup></span>
           <span className="brand-product">Studio</span>
         </a>
         <nav className="views" aria-label="Studio views">
@@ -81,7 +81,7 @@ export function App() {
           <Activity size={14} /> <span>{browserDemo ? "Product site" : "Project"}</span>
         </a>
         <button className="studio-theme" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-          <span aria-hidden="true">{theme === "dark" ? "☀️" : "🌙"}</span>
+          {theme === "dark" ? <Sun size={18} data-theme-icon="sun" aria-hidden="true" /> : <Moon size={18} data-theme-icon="moon" aria-hidden="true" />}
         </button>
         <button className={`api-status ${apiState}`} type="button" onClick={() => void checkAPI()} title="Recheck the local API">
           <span className="status-dot" />

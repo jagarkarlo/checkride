@@ -1,5 +1,6 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import { Moon, Sun } from '@lucide/astro';
 import nostekonMark from '../content/docs/assets/nostekon-mark.svg?url';
 import '../styles/site.css';
 
@@ -17,6 +18,26 @@ const navigation = [
   { href: "/demo/index.html", label: "Live demo", id: "demo" },
   { href: "/roadmap/", label: "Roadmap", id: "roadmap" },
   { href: "/docs/", label: "Docs", id: "docs" },
+];
+const source = 'https://github.com/jagarkarlo/nostekon';
+const footerGroups = [
+  { title: 'Product', links: [
+    ['Overview', '/'], ['Evidence', '/evidence/'], ['Studio', '/demo/index.html#/runs'],
+    ['Policy suites', '/demo/index.html#/suite'], ['Roadmap', '/roadmap/'],
+  ] },
+  { title: 'Open Source', links: [
+    ['Self-host', '/docs/start/'], ['GitHub', source], ['Releases', `${source}/releases`],
+    ['Contributing', `${source}/blob/main/CONTRIBUTING.md`], ['Issues', `${source}/issues`],
+  ] },
+  { title: 'Docs', links: [
+    ['Getting started', '/docs/start/'], ['First restore drill', '/docs/guides/k3d-isolated-restore/'],
+    ['Verification levels', '/docs/levels/'], ['Evidence format', '/docs/reference/drillrun-evidence/'],
+    ['Drill specification', '/docs/reference/drill-spec/'],
+  ] },
+  { title: 'Legal', links: [
+    ['Privacy', '/legal/privacy/'], ['Terms', '/legal/terms/'], ['Trademark', '/legal/trademark/'],
+    ['License', '/legal/license/'], ['Security', `${source}/blob/main/SECURITY.md`],
+  ] },
 ];
 ---
 <!doctype html>
@@ -48,8 +69,6 @@ const navigation = [
         const label = `Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`;
         button?.setAttribute('aria-label', label);
         button?.setAttribute('title', label);
-        const icon = button?.querySelector('[data-theme-icon]');
-        if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
       };
       const updateThemeButton = () => {
         applyThemePreference();
@@ -76,7 +95,7 @@ const navigation = [
   <body>
     <header class="masthead">
       <div class="wrap">
-        <a class="wordmark" href="/" aria-label="Nostekon home"><img class="wordmark-mark" src={nostekonMark} width="28" height="28" alt="" />Nostekon</a>
+        <a class="wordmark" href="/" aria-label="Nostekon home" title="Nostekon name and logo are claimed trademarks"><img class="wordmark-mark" src={nostekonMark} width="28" height="28" alt="" /><span>Nostekon<sup aria-hidden="true">&trade;</sup></span></a>
         <nav class="nav" aria-label="Main navigation">
           {navigation.map((item) => (
             <a href={item.href} aria-current={current === item.id ? "page" : undefined}>{item.label}</a>
@@ -85,7 +104,8 @@ const navigation = [
         <div class="masthead-tools">
           <a class="tool-link" href="https://github.com/jagarkarlo/nostekon" aria-label="GitHub repository">GitHub</a>
           <button class="theme-toggle" data-theme-toggle type="button" aria-label="Switch to light mode" title="Switch to light mode">
-            <span data-theme-icon aria-hidden="true">☀️</span>
+            <Sun size={18} data-theme-icon="sun" aria-hidden="true" />
+            <Moon size={18} data-theme-icon="moon" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -95,13 +115,23 @@ const navigation = [
     </main>
     <footer class="footer">
       <div class="wrap">
-        <p>Nostekon is pre-alpha software under the Apache-2.0 license.</p>
-        <nav aria-label="Footer">
-          <a href="/docs/">Documentation</a>
-          <a href="/docs/comparison/">Alternatives</a>
-          <a href="/roadmap/">Roadmap</a>
-          <a href="https://github.com/jagarkarlo/nostekon">Source</a>
-        </nav>
+        <div class="footer-grid">
+          <div class="footer-about">
+            <a class="footer-brand" href="/" aria-label="Nostekon home"><img src={nostekonMark} width="28" height="28" alt="" /><span>Nostekon<sup aria-hidden="true">&trade;</sup></span></a>
+            <p>Run an isolated recovery drill.<br />Inspect what survived.</p>
+            <a class="footer-contact" href={`${source}/issues`}>Project contact</a>
+          </div>
+          {footerGroups.map(group => (
+            <nav aria-label={`Footer ${group.title}`}>
+              <h2>{group.title}</h2>
+              <ul>{group.links.map(([label, href]) => <li><a href={href}>{label}</a></li>)}</ul>
+            </nav>
+          ))}
+        </div>
+        <div class="footer-notice">
+          <p>Pre-alpha software. Apache-2.0.</p>
+          <p>Nostekon and its logo are claimed trademarks. <a href="/legal/trademark/">Brand policy</a></p>
+        </div>
       </div>
     </footer>
   </body>
