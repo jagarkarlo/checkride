@@ -22,6 +22,100 @@ function evidenceArchive(files: Awaited<ReturnType<typeof suiteBundle>>) {
 }
 
 for (const width of [390, 1440]) {
+  test(`suite history preserves originals and re-evaluates saved snapshots at ${width}px`, async ({ page }, testInfo) => {
+    const files = await suiteBundle();
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(process.env.NOSTEKON_APP_URL ? "/#/suite" : "/demo/#/suite");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches the summary");
+    await page.getByRole("button", { name: "Save suite", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Suite snapshot save result" })).toContainText("Suite saved");
+    await page.getByRole("button", { name: "Save suite", exact: true }).click();
+    await page.getByRole("tab", { name: "Saved suites", exact: true }).click();
+    await expect(page.getByRole("row", { name: /PostgreSQL policy suite/ })).toHaveCount(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const name of [/Reopen suite/, /Download original suite files/, /Delete suite/]) {
+      const bounds = await page.getByRole("button", { name }).boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    }
+    await page.screenshot({ path: testInfo.outputPath(`suite-library-${width}.png`), fullPage: true });
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: /Download original suite files/ }).click();
+    const archive = await download;
+    expect(archive.suggestedFilename()).toMatch(/^nostekon-suite-[a-f0-9]+-originals\.zip$/);
+    const originals = unzipSync(await readFile((await archive.path())!));
+    expect(Object.keys(originals).sort()).toEqual(files.map(file => file.name).sort());
+    for (const file of files) expect(Buffer.from(originals[file.name])).toEqual(file.buffer);
+    await page.reload();
+    await page.getByRole("tab", { name: "Saved suites", exact: true }).click();
+    await expect(page.getByRole("row", { name: /PostgreSQL policy suite/ })).toHaveCount(1);
+    await page.getByRole("button", { name: /Reopen suite/ }).click();
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Imported evidence");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches the summary");
+    await page.getByRole("button", { name: "Save cases", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Suite save result" })).toContainText("3 cases saved");
+    await page.getByRole("tab", { name: "Saved suites", exact: true }).click();
+    await page.getByRole("button", { name: /Delete suite/ }).click();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(page.getByRole("row", { name: /PostgreSQL policy suite/ })).toHaveCount(1);
+    await page.getByRole("button", { name: /Delete suite/ }).click();
+    await page.getByRole("button", { name: "Delete suite", exact: true }).click();
+    await expect(page.getByText("No saved suites yet", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Runs", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Saved run totals" })).toContainText("3");
+    await page.getByRole("link", { name: "Suite", exact: true }).click();
+    await page.getByRole("tab", { name: "Review", exact: true }).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({ path: testInfo.outputPath(`suite-history-${width}.png`), fullPage: true });
+  });
+
+  test(`suite history keeps partial captures failed and rejects damaged snapshots at ${width}px`, async ({ page }) => {
+    const files = await suiteBundle();
+    const summary = JSON.parse(files[0].buffer.toString());
+    summary.status = "interrupted"; summary.passed = false; summary.cases = summary.cases.slice(0, 1);
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(process.env.NOSTEKON_APP_URL ? "/#/suite" : "/demo/#/suite");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toBeVisible();
+    await page.getByTestId("suite-input").setInputFiles([{ ...files[0], buffer: Buffer.from(JSON.stringify(summary)) }, files[1]]);
+    const gate = page.getByRole("region", { name: "Suite review totals" }).locator("div").filter({ has: page.getByText("Suite gate", { exact: true }) });
+    await expect(gate).toContainText("failed");
+    await page.getByRole("button", { name: "Save suite", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Suite snapshot save result" })).toBeVisible();
+    await page.getByRole("tab", { name: "Review", exact: true }).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByRole("tab", { name: "Saved suites", exact: true })).toBeFocused();
+    await expect(page.getByRole("row", { name: /PostgreSQL policy suite/ })).toContainText("interrupted");
+    await page.getByRole("button", { name: /Reopen suite/ }).click();
+    await expect(gate).toContainText("failed");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Imported evidence");
+    await page.evaluate(() => new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("nostekon-runs", 2);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction("suites", "readwrite");
+        const saved = transaction.objectStore("suites").getAll();
+        saved.onsuccess = () => {
+          const suite = saved.result[0];
+          suite.files[1].source = "tampered";
+          transaction.objectStore("suites").put(suite);
+        };
+        transaction.oncomplete = () => { db.close(); resolve(); };
+        transaction.onabort = () => { db.close(); reject(transaction.error); };
+      };
+    }));
+    await page.getByRole("tab", { name: "Saved suites", exact: true }).click();
+    await page.getByRole("button", { name: /Reopen suite/ }).click();
+    await expect(page.getByRole("alert")).toContainText("integrity check failed");
+    await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save suite", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Export review", exact: true })).toBeDisabled();
+    await page.getByRole("tab", { name: "Saved suites", exact: true }).click();
+    await expect(page.getByRole("row", { name: /PostgreSQL policy suite/ })).toHaveCount(1);
+  });
+
   test(`suite review gate matches the Go CLI and fails partial evidence at ${width}px`, async ({ page }, testInfo) => {
     const expected = JSON.parse(execFileSync("go", ["run", "./cmd/nostekon-report", "--suite", "examples/suites/postgresql-policy"], { cwd: new URL("../../", import.meta.url), encoding: "utf8" }));
     await page.setViewportSize({ width, height: 900 });

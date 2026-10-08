@@ -591,9 +591,28 @@ Saved cases survive reload on the same browser origin. All cases saved this
 way are labelled **Imported evidence**, including the built-in bundle; saving
 does not add trusted provenance or verify signatures.
 
-This saves individual DrillRuns, not the suite summary or case grouping.
-Download the original summary and retain the input files to review the suite
-again after reload. Clearing browser site data also removes the saved runs.
+**Save cases** stores individual DrillRuns. **Save suite** preserves the original
+summary and available case JSON together in a separate, 20-suite browser library.
+Open **Saved suites** to reopen a snapshot, download its original files or delete
+it. Reopening verifies the snapshot's content hash and evaluates the evidence
+again; a saved snapshot is not a cached passing review. Interrupted and failed
+captures can be retained, and their missing evidence is not filled in.
+
+Identical filenames and exact sources are deduplicated regardless of import
+order. At the 20-suite limit, an existing snapshot can still be saved again;
+new snapshots require an explicit deletion. No suite is silently evicted.
+Storage failure leaves existing snapshots and individual Runs unchanged.
+The version-two database upgrade preserves saved Runs and the completed legacy
+migration. Snapshots remain **Imported evidence**, with unverified signatures.
+
+The download is a ZIP of the original JSON files, not a host-job evidence bundle:
+it has no invented job ID or manifest. Extract it and select the JSON files with
+**Import suite**, or point `nostekon-report --suite` at the extracted directory.
+**Import bundle** remains reserved for manifest-verified host-job exports.
+Deleting a snapshot does not delete case Runs, and deleting a Run does not alter
+a snapshot. Clearing browser site data removes both libraries. These libraries
+are scoped to the browser origin; changing the app's port creates a different
+workspace. Retain original downloads outside the browser for durable backup.
 
 **Evidence matches the summary** means the submitted claims agree with the
 evaluated JSON evidence. It does not authenticate the capture, inspect the
@@ -608,6 +627,11 @@ recorded outcomes, changed-summary detection, missing/invalid imports and
 original-byte downloads. Suite-case saving, reload persistence, deduplication
 and simulated storage-failure rollback/retry were checked in the browser.
 Library-limit rollback and concurrent saves were checked with IndexedDB tests.
+Suite snapshots were verified on 2026-10-08 in the installed app at 390px and
+1440px: exact-file downloads, reload and deduplication, fresh re-evaluation,
+partial captures, damaged-snapshot rejection, independent deletion and keyboard
+tabs. Version-one upgrades, quota rollback and concurrent final-slot saves
+were verified with IndexedDB tests.
 
 ### Ledger And Measurement Limits
 

@@ -1,11 +1,12 @@
-import { ArrowRight, CheckCircle2, Download, FileArchive, FlaskConical, LoaderCircle, RefreshCw, Save, ShieldAlert, Upload, XCircle } from "lucide-react";
+import { Archive, ArrowRight, CheckCircle2, Download, FileArchive, FlaskConical, LoaderCircle, RefreshCw, Save, ShieldAlert, Upload, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import { maxBundleBytes, readEvidenceBundle } from "./evidenceBundle";
 import { createSuiteReview, evaluateSuite, parseSuite, suiteGatePassed } from "./labSuite";
 import type { SuiteReview } from "./labSuite";
 import { formatDuration, isReport } from "./report";
-import { saveRuns } from "./runStore";
+import { saveRuns, saveSuite, suiteSources } from "./runStore";
+import { SuiteHistory } from "./SuiteHistory";
 
 const recordedFiles = import.meta.glob<string>("../../examples/suites/postgresql-policy/*.json", { query: "?raw", import: "default" });
 const labels = { "zero-loss": "Zero loss", "tail-loss": "Strict tail loss", "budget-loss": "Budgeted tail loss" };
@@ -21,6 +22,10 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
   const [recorded, setRecorded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingSuite, setSavingSuite] = useState(false);
+  const [snapshotSaved, setSnapshotSaved] = useState(false);
+  const [originals, setOriginals] = useState<Map<string, string> | null>(null);
+  const [tab, setTab] = useState<"review" | "history">("review");
   const [savedCount, setSavedCount] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
@@ -38,6 +43,9 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
     setBusy(true);
     setError("");
     setSavedCount(0);
+    setSnapshotSaved(false);
+    setOriginals(null);
+    setTab("review");
     setReview(null);
     setSummary("");
     setRecorded(isRecorded);
@@ -63,6 +71,7 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
       if (current !== generation.current) return;
       setReview(result);
       setSummary(text);
+      setOriginals(sources);
     } catch (reason) {
       if (current === generation.current) setError(reason instanceof Error ? reason.message : "Could not review the suite.");
     } finally {
@@ -88,9 +97,24 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
   useEffect(() => () => { generation.current++; controller.current?.abort(); }, []);
 
   const canSave = !!review?.cases.length && review.cases.every((item) => item.report && item.source !== undefined);
+  const persisting = saving || savingSuite;
+
+  async function saveSnapshot() {
+    if (!originals || busy || persisting) return;
+    const current = generation.current;
+    setSavingSuite(true);
+    setSnapshotSaved(false);
+    setError("");
+    try {
+      await saveSuite(originals);
+      if (current === generation.current) setSnapshotSaved(true);
+    } catch (reason) {
+      if (current === generation.current) setError(reason instanceof Error ? reason.message : "Browser storage is unavailable.");
+    } finally { setSavingSuite(false); }
+  }
 
   async function saveCases() {
-    if (!review || !canSave || busy || saving) return;
+    if (!review || !canSave || busy || persisting) return;
     const current = generation.current;
     setSaving(true);
     setSavedCount(0);
@@ -132,16 +156,27 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
   return <main className="run-library suite-workspace">
     <header className="library-heading">
       <div><p className="workspace-label"><FlaskConical size={14} /> PostgreSQL lab</p><h1>Policy suite</h1></div>
-      <div className="library-actions">
-        <button className="tool" type="button" disabled={saving} onClick={() => void loadRecorded()}><RefreshCw size={15} /> Recorded suite</button>
+      {tab === "review" && <div className="library-actions">
+        <button className="tool" type="button" disabled={persisting} onClick={() => void loadRecorded()}><RefreshCw size={15} /> Recorded suite</button>
         <button className="icon-button" type="button" title="Download original suite summary" aria-label="Download original suite summary" disabled={!summary || busy} onClick={downloadSummary}><Download size={16} /></button>
         <button className="tool" type="button" disabled={!review || busy || exporting} onClick={() => void downloadReview()}>{exporting ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />} Export review</button>
-        <button className="tool" type="button" disabled={!canSave || busy || saving} onClick={() => void saveCases()}>{saving ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />} {saving ? "Saving..." : "Save cases"}</button>
-        <button className="primary" type="button" disabled={saving} onClick={() => input.current?.click()}><Upload size={15} /> Import suite</button>
-        <button className="tool" type="button" disabled={saving} onClick={() => bundleInput.current?.click()}><FileArchive size={15} /> Import bundle</button>
-      </div>
+        <button className="tool" type="button" disabled={!originals || busy || persisting} onClick={() => void saveSnapshot()}>{savingSuite ? <LoaderCircle className="spin" size={15} /> : <Archive size={15} />} Save suite</button>
+        <button className="tool" type="button" disabled={!canSave || busy || persisting} onClick={() => void saveCases()}>{saving ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />} {saving ? "Saving..." : "Save cases"}</button>
+        <button className="primary" type="button" disabled={persisting} onClick={() => input.current?.click()}><Upload size={15} /> Import suite</button>
+        <button className="tool" type="button" disabled={persisting} onClick={() => bundleInput.current?.click()}><FileArchive size={15} /> Import bundle</button>
+      </div>}
     </header>
-    <input ref={input} type="file" accept=".json,application/json" multiple hidden disabled={saving} data-testid="suite-input" onChange={(event) => {
+    <div className="library-actions suite-tabs" role="tablist" aria-label="Suite views" onKeyDown={event => {
+      if (persisting || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? "review" : event.key === "End" ? "history" : tab === "review" ? "history" : "review";
+      setTab(next);
+      document.getElementById(`suite-${next}-tab`)?.focus();
+    }}>
+      <button id="suite-review-tab" className={tab === "review" ? "primary" : "tool"} type="button" role="tab" aria-selected={tab === "review"} aria-controls="suite-review-panel" tabIndex={tab === "review" ? 0 : -1} disabled={persisting} onClick={() => setTab("review")}><FlaskConical size={15} /> Review</button>
+      <button id="suite-history-tab" className={tab === "history" ? "primary" : "tool"} type="button" role="tab" aria-selected={tab === "history"} aria-controls="suite-history-panel" tabIndex={tab === "history" ? 0 : -1} disabled={persisting} onClick={() => setTab("history")}><Archive size={15} /> Saved suites</button>
+    </div>
+    <input ref={input} type="file" accept=".json,application/json" multiple hidden disabled={persisting} data-testid="suite-input" onChange={(event) => {
       const files = Array.from(event.target.files ?? []);
       event.target.value = "";
       if (!files.length) return;
@@ -155,7 +190,7 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
         return new Map(await Promise.all(files.map(async (file) => [file.name, await file.text()] as const)));
       }, false);
     }} />
-    <input ref={bundleInput} type="file" accept=".zip,application/zip" hidden disabled={saving} data-testid="suite-bundle-input" onChange={(event) => {
+    <input ref={bundleInput} type="file" accept=".zip,application/zip" hidden disabled={persisting} data-testid="suite-bundle-input" onChange={(event) => {
       const file = event.target.files?.[0];
       event.target.value = "";
       if (!file) return;
@@ -165,6 +200,9 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
       }, false);
     }} />
     {error && <p className="banner bad" role="alert"><XCircle size={16} /> {error}</p>}
+    <section id="suite-history-panel" role="tabpanel" aria-labelledby="suite-history-tab" hidden={tab !== "history"}>{tab === "history" && <SuiteHistory onOpen={suite => void load(() => suiteSources(suite), false)} />}</section>
+    <section id="suite-review-panel" role="tabpanel" aria-labelledby="suite-review-tab" hidden={tab !== "review"}>
+    {snapshotSaved && <p className="banner ok" role="status" aria-label="Suite snapshot save result"><CheckCircle2 size={16} /> Suite saved to this browser.</p>}
     {savedCount > 0 && <p className="banner ok" role="status" aria-label="Suite save result"><CheckCircle2 size={16} /> {savedCount} {savedCount === 1 ? "case" : "cases"} saved to Runs.</p>}
     {busy && <p className="suite-loading" role="status"><LoaderCircle className="spin" size={18} /> Evaluating suite evidence...</p>}
     {review && <>
@@ -202,5 +240,6 @@ export function SuiteView({ active, selection, onReachability, onOpen }: {
         {review.cases.filter((item) => item.issues.length > 0).map((item) => <div key={item.recorded.name}><h3>{labels[item.recorded.name]}</h3><ul>{item.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>{item.recorded.detail && <p>{item.recorded.detail}</p>}</div>)}
       </section>}
     </>}
+    </section>
   </main>;
 }
