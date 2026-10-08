@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deleteDB, openDB } from "idb";
-import { deleteRun, evidenceLabel, listRuns, RUN_LIMIT, saveRun, saveRuns } from "./runStore";
+import { deleteRun, deleteSuite, evidenceLabel, listRuns, listSuites, RUN_LIMIT, saveRun, saveRuns, saveSuite, SUITE_LIMIT, suiteSources as reopenSuite } from "./runStore";
 import type { Report } from "./report";
 
 const report: Report = {
@@ -13,6 +13,97 @@ const report: Report = {
 beforeEach(async () => {
   await deleteDB("checkride-runs");
   await deleteDB("nostekon-runs");
+});
+
+const suiteSummary = JSON.stringify({ apiVersion: "nostekon/lab-suite/v1alpha1", kind: "LabSuiteResult", status: "interrupted", passed: false,
+  cases: [{ name: "zero-loss", drillRun: "zero-loss.drillrun.json", expectedExitCode: 0, observedExitCode: 0, passed: true }],
+});
+const suiteSources = new Map([["suite.json", suiteSummary + "\n"], ["zero-loss.drillrun.json", '{ "original": "suite case" }\n']]);
+
+describe("saved suite snapshots", () => {
+  it("preserves original grouping and bytes, deduplicates by all inputs and deletes without touching runs", async () => {
+    const run = await saveRun("existing run", report);
+    const saved = await saveSuite(suiteSources);
+    await saveSuite(new Map(Array.from(suiteSources).reverse()));
+    const snapshots = await listSuites();
+    expect(snapshots).toHaveLength(1);
+    expect(new Map(snapshots[0].files.map(file => [file.name, file.source]))).toEqual(suiteSources);
+    expect(snapshots[0].id).toBe(saved.id);
+    await deleteSuite(saved.id);
+    expect(await listSuites()).toEqual([]);
+    expect((await listRuns()).map(item => item.id)).toEqual([run.id]);
+  });
+
+  it("upgrades version-one run storage without replaying the legacy migration", async () => {
+    const old = await openDB("nostekon-runs", 1, { upgrade(db) {
+      db.createObjectStore("runs", { keyPath: "id" }); db.createObjectStore("migration");
+    } });
+    await old.put("runs", { id: "old", source: "old original", report, sampleId: "", savedAt: 1 });
+    await old.put("migration", true, "legacy-imported");
+    old.close();
+    await saveSuite(suiteSources);
+    expect((await listRuns()).map(item => item.source)).toEqual(["old original"]);
+    expect(await listSuites()).toHaveLength(1);
+  });
+
+  it("includes all source bytes in the identity and verifies them on reopen", async () => {
+    const original = await saveSuite(suiteSources);
+    expect(await reopenSuite(original)).toEqual(suiteSources);
+    const changed = new Map(suiteSources);
+    changed.set("zero-loss.drillrun.json", "changed original");
+    expect((await saveSuite(changed)).id).not.toBe(original.id);
+    const damaged = { ...original, files: original.files.map(file => file.name === "suite.json" ? file : { ...file, source: "tampered" }) };
+    await expect(reopenSuite(damaged)).rejects.toThrow("integrity");
+    expect(await listSuites()).toHaveLength(2);
+  });
+
+  it("rolls back storage failure and permits a retry without changing runs", async () => {
+    await saveRun("existing", report);
+    const before = await listRuns();
+    const originalPut = IDBObjectStore.prototype.put;
+    const failure = vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(function (this: IDBObjectStore, value, key) {
+      if (this.name === "suites") throw new DOMException("Storage full", "QuotaExceededError");
+      return originalPut.call(this, value, key);
+    });
+    try { await expect(saveSuite(suiteSources)).rejects.toThrow("Storage full"); }
+    finally { failure.mockRestore(); }
+    expect(await listSuites()).toEqual([]);
+    expect(await listRuns()).toEqual(before);
+    await saveSuite(suiteSources);
+    expect(await listSuites()).toHaveLength(1);
+  });
+
+  it("bounds the library and serializes concurrent final-slot saves without eviction", async () => {
+    for (let index = 0; index < SUITE_LIMIT - 1; index++) await saveSuite(new Map([...suiteSources, ["zero-loss.drillrun.json", `case ${index}`]]));
+    const results = await Promise.allSettled([
+      saveSuite(new Map([...suiteSources, ["zero-loss.drillrun.json", "first contender"]])),
+      saveSuite(new Map([...suiteSources, ["zero-loss.drillrun.json", "second contender"]])),
+    ]);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.find(result => result.status === "rejected")?.reason.message).toContain("Delete a suite");
+    const before = await listSuites();
+    await saveSuite(new Map(before[0].files.map(file => [file.name, file.source])));
+    expect(await listSuites()).toHaveLength(SUITE_LIMIT);
+    expect((await listSuites()).map(suite => suite.id).sort()).toEqual(before.map(suite => suite.id).sort());
+  });
+
+  it.each(["missing-summary", "unknown-file", "oversized", "invalid-summary"])("rejects %s before writing", async (scenario) => {
+    const sources = new Map(suiteSources);
+    if (scenario === "missing-summary") sources.delete("suite.json");
+    if (scenario === "unknown-file") sources.set("private.ledger.db", "private");
+    if (scenario === "oversized") sources.set("zero-loss.drillrun.json", "\u00e9".repeat(9 * 1024 * 1024));
+    if (scenario === "invalid-summary") sources.set("suite.json", "{}");
+    await expect(saveSuite(sources)).rejects.toThrow();
+    expect(await listSuites()).toEqual([]);
+  });
+
+  it("surfaces unreadable snapshots without silently dropping them", async () => {
+    await listSuites();
+    const db = await openDB("nostekon-runs", 2);
+    try { await db.put("suites", { id: "bad", files: null, savedAt: 1 }); }
+    finally { db.close(); }
+    await expect(listSuites()).rejects.toThrow("unreadable");
+  });
 });
 
 describe("saved run library", () => {
@@ -37,7 +128,7 @@ describe("saved run library", () => {
     });
     try { await expect(listRuns()).rejects.toThrow("Storage full"); }
     finally { failure.mockRestore(); }
-    const current = await openDB("nostekon-runs", 1);
+    const current = await openDB("nostekon-runs", 2);
     try {
       expect(await current.count("runs")).toBe(0);
       expect(await current.get("migration", "legacy-imported")).toBeUndefined();
@@ -73,7 +164,7 @@ describe("saved run library", () => {
     legacy.close();
     expect(await listRuns()).toEqual([saved]);
     expect((await indexedDB.databases()).map((db) => db.name)).toContain("nostekon-runs");
-    const current = await openDB("nostekon-runs", 1);
+    const current = await openDB("nostekon-runs", 2);
     try { expect(await current.get("runs", saved.id)).toEqual(saved); }
     finally { current.close(); }
     await deleteRun(saved.id);
@@ -176,7 +267,7 @@ describe("saved run library", () => {
 
   it("surfaces damaged records instead of silently losing them", async () => {
     await listRuns();
-    const db = await openDB("nostekon-runs", 1);
+    const db = await openDB("nostekon-runs", 2);
     await db.put("runs", { id: "bad", source: "{}", report: null });
     db.close();
     await expect(listRuns()).rejects.toThrow("unreadable");

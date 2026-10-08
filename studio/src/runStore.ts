@@ -3,6 +3,7 @@ import type { DBSchema } from "idb";
 import { isReport } from "./report";
 import type { Report } from "./report";
 import { isRecordedSample } from "./samples";
+import { parseSuite } from "./labSuite";
 
 export interface SavedRun {
   id: string;
@@ -12,19 +13,29 @@ export interface SavedRun {
   savedAt: number;
 }
 
+export interface SavedSuite {
+  id: string;
+  files: { name: string; source: string }[];
+  savedAt: number;
+}
+
 interface RunDatabase extends DBSchema {
   runs: { key: string; value: SavedRun };
+  suites: { key: string; value: SavedSuite };
   migration: { key: string; value: boolean };
 }
 
 export const RUN_LIMIT = 50;
+export const SUITE_LIMIT = 20;
 const SOURCE_LIMIT = 16 * 1024 * 1024;
+const suiteNames = ["suite.json", "zero-loss.drillrun.json", "tail-loss.drillrun.json", "budget-loss.drillrun.json"];
 
 async function database() {
-  const db = await openDB<RunDatabase>("nostekon-runs", 1, {
+  const db = await openDB<RunDatabase>("nostekon-runs", 2, {
     upgrade(db) {
-      db.createObjectStore("runs", { keyPath: "id" });
-      db.createObjectStore("migration");
+      if (!db.objectStoreNames.contains("runs")) db.createObjectStore("runs", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("migration")) db.createObjectStore("migration");
+      if (!db.objectStoreNames.contains("suites")) db.createObjectStore("suites", { keyPath: "id" });
     },
   });
   try {
@@ -120,6 +131,68 @@ export async function deleteRun(id: string): Promise<void> {
   const db = await database();
   try { await db.delete("runs", id); }
   finally { db.close(); }
+}
+
+function validateSuiteFiles(files: SavedSuite["files"]): void {
+  if (!Array.isArray(files) || files.length < 1 || files.length > 4 || new Set(files.map(file => file?.name)).size !== files.length) throw new Error("Invalid suite files.");
+  for (const file of files) {
+    if (!file || !suiteNames.includes(file.name) || typeof file.source !== "string") throw new Error("Unsupported suite file.");
+    if (new TextEncoder().encode(file.source).length > (file.name === "suite.json" ? 64 * 1024 : SOURCE_LIMIT)) throw new Error("Suite files exceed the 64 KiB summary or 16 MiB evidence limit.");
+  }
+  const summary = files.find(file => file.name === "suite.json");
+  if (!summary) throw new Error("Missing suite.json.");
+  parseSuite(summary.source);
+}
+
+async function suiteDigest(files: SavedSuite["files"]): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(files));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export async function saveSuite(sources: Map<string, string>): Promise<SavedSuite> {
+  const files = Array.from(sources, ([name, source]) => ({ name, source })).sort((left, right) => suiteNames.indexOf(left.name) - suiteNames.indexOf(right.name));
+  validateSuiteFiles(files);
+  const saved: SavedSuite = { id: await suiteDigest(files), files, savedAt: Date.now() };
+  const db = await database();
+  try {
+    const transaction = db.transaction("suites", "readwrite");
+    try {
+      if (!await transaction.store.get(saved.id) && await transaction.store.count() >= SUITE_LIMIT) throw new Error(`The library holds ${SUITE_LIMIT} suites. Delete a suite before saving another.`);
+      await transaction.store.put(saved);
+      await transaction.done;
+    } catch (error) {
+      try { transaction.abort(); } catch {}
+      await transaction.done.catch(() => undefined);
+      throw error;
+    }
+    return saved;
+  } finally { db.close(); }
+}
+
+export async function listSuites(): Promise<SavedSuite[]> {
+  const db = await database();
+  try {
+    const suites = await db.getAll("suites");
+    for (const suite of suites) {
+      if (!suite || typeof suite.id !== "string" || !/^[a-f0-9]{64}$/.test(suite.id) || !Number.isFinite(suite.savedAt) || suite.savedAt < 0) throw new Error("Saved suite data is unreadable.");
+      try { validateSuiteFiles(suite.files); }
+      catch { throw new Error("Saved suite data is unreadable. Original evidence has not been deleted."); }
+    }
+    return suites.sort((left, right) => right.savedAt - left.savedAt);
+  } finally { db.close(); }
+}
+
+export async function deleteSuite(id: string): Promise<void> {
+  const db = await database();
+  try { await db.delete("suites", id); }
+  finally { db.close(); }
+}
+
+export async function suiteSources(suite: SavedSuite): Promise<Map<string, string>> {
+  validateSuiteFiles(suite.files);
+  if (await suiteDigest(suite.files) !== suite.id) throw new Error("Saved suite integrity check failed. Original evidence has not been deleted.");
+  return new Map(suite.files.map(file => [file.name, file.source]));
 }
 
 export function evidenceLabel(sampleId: string): string {
