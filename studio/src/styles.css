@@ -394,6 +394,42 @@ button.finding:hover { filter: brightness(1.12); }
 .delete-dialog p { font-size: 13.5px; line-height: 1.6; overflow-wrap: anywhere; }
 .delete-dialog .library-actions { justify-content: flex-end; }
 
+.trust-workbench { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.trust-workbench .section-toolbar { min-height: 34px; margin-bottom: 10px; }
+.trust-workbench .section-toolbar h2 { display: flex; align-items: center; gap: 8px; width: auto; }
+.trust-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.trust-controls select { flex: 1 1 180px; min-width: 0; max-width: 100%; min-height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); font-size: 13px; }
+.trust-result { margin-bottom: 0; align-items: flex-start; }
+.trust-result > span { min-width: 0; overflow-wrap: anywhere; }
+.trust-result small { display: block; margin-top: 6px; }
+.trust-workbench:has(.trust-dialog[open]) > .banner { display: none; }
+.trust-dialog { width: min(760px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 20px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); }
+.trust-dialog::backdrop { background: rgb(0 0 0 / 50%); }
+.trust-dialog .section-toolbar h2 { width: auto; }
+.trust-import { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.trust-import label { flex: 1 1 160px; min-width: 0; font-size: 13px; }
+.trust-import input { display: block; width: 100%; min-height: 34px; margin-top: 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--ink); }
+.trust-dialog .trust-key-table { min-width: 0; table-layout: fixed; }
+.trust-key-table th:first-child { width: 50%; }
+.trust-key-table th:last-child { width: 128px; }
+.trust-key-table th, .trust-key-table td { white-space: normal; overflow-wrap: anywhere; }
+.trust-key-table small { font-size: 11px; line-height: 1.5; }
+.trust-decision { padding: 16px 0; margin-bottom: 16px; border-block: 1px solid var(--line); font-size: 13px; }
+.trust-decision h3 { margin: 0; font-size: 16px; }
+.trust-decision p { overflow-wrap: anywhere; }
+.trust-decision label { display: flex; align-items: flex-start; gap: 8px; line-height: 1.6; }
+.trust-decision input { flex: none; margin-top: 4px; }
+@media (max-width: 640px) {
+  .trust-dialog { padding: 16px; }
+  .trust-controls select { flex-basis: 100%; }
+  .trust-key-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .trust-key-table tbody, .trust-key-table tr { display: block; }
+  .trust-key-table tr { padding: 12px 0; border-top: 1px solid var(--line); }
+  .trust-key-table th:first-child, .trust-key-table th:last-child { display: block; width: 100%; padding: 8px 0; border: 0; }
+  .trust-key-table td { display: inline-block; padding: 8px 0; border: 0; }
+  .trust-key-table td:last-child { float: right; }
+}
+
 .suite-stats strong { font-size: 25px; }
 .suite-stats small { font-size: 16px; color: var(--ink-3); }
 .suite-agreement { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 0 0 22px; font-size: 14px; }

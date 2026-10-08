@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { browserDemo, request } from "./api";
+import { TrustWorkbench } from "./TrustWorkbench";
 import { CodeEditor } from "./CodeEditor";
 import type { CodeEditorHandle } from "./CodeEditor";
 import { fieldPathOf, inspectJSON, locateField, scenarioLabels } from "./drill";
@@ -53,22 +54,16 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attestation, setAttestation] = useState("");
   const [attestationName, setAttestationName] = useState("");
-  const [attestationBoundary, setAttestationBoundary] = useState("");
   const attestationInputRef = useRef<HTMLInputElement>(null);
   const inspection = useMemo(() => inspectJSON(source), [source]);
 
   const build = useCallback(
-    async (text: string, current = ++generation.current, detachedAttestation = "") => {
+    async (text: string, current = ++generation.current, serverAttestation = "") => {
       setIsBuilding(true);
       setRequestError("");
       setSaved(false);
-      setAttestationBoundary("");
       try {
-        if (browserDemo && detachedAttestation) {
-          setAttestationBoundary("The browser demo cannot verify signatures. Use the local API with NOSTEKON_TRUSTED_KEYS_DIR configured.");
-          return;
-        }
-        const headers: Record<string, string> = detachedAttestation ? { "X-Nostekon-Attestation": btoa(detachedAttestation) } : {};
+        const headers = serverAttestation ? { "X-Nostekon-Attestation": btoa(String.fromCharCode(...new TextEncoder().encode(serverAttestation))) } : undefined;
         const response = await request("/api/v1/runs/report", text, undefined, headers);
         const payload: unknown = await response.json();
         if (current !== generation.current) return;
@@ -115,6 +110,8 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
 
   useEffect(() => {
     if (selection) {
+      setAttestation("");
+      setAttestationName("");
       setSource(selection.source);
       setSampleId(selection.sampleId);
       setSourceError("");
@@ -210,6 +207,9 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
             const file = event.target.files?.[0];
             event.target.value = "";
             if (!file) return;
+            setAttestation("");
+            setAttestationName("");
+            if (source) void build(source);
             if (file.size > 16 * 1024) {
               setSourceError("Attestation sidecar exceeds the 16 KiB limit.");
               return;
@@ -224,19 +224,12 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
               setSourceError("");
               setAttestation(text);
               setAttestationName(file.name);
-              if (source) void build(source, ++generation.current, text);
             }).catch(() => setSourceError("Could not read the attestation sidecar."));
           }}
         />
         <button className="rail-action" type="button" onClick={() => fileInputRef.current?.click()}>
           <Upload size={14} /> Import DrillRun JSON
         </button>
-        <button className="rail-action" type="button" disabled={!source || stale || isBuilding} onClick={() => attestationInputRef.current?.click()}>
-          <ShieldCheck size={14} /> {attestationName || "Attach attestation"}
-        </button>
-        {attestation && <button className="rail-action" type="button" disabled={isBuilding} onClick={() => { setAttestation(""); setAttestationName(""); setAttestationBoundary(""); void build(source, ++generation.current); }}>
-          Remove attestation
-        </button>}
         <a className="rail-action" href="#/runs">Saved runs</a>
       </aside>
 
@@ -252,7 +245,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
             {stale && <span className="stale-inline">Evidence edited</span>}
             <button className="tool" type="button" disabled={!report || stale || isBuilding || saving || saved} onClick={() => void save()} title="Save original evidence and report in this browser"><Save size={15} /> {saved ? "Saved" : saving ? "Saving..." : "Save run"}</button>
             <button className="icon-button" type="button" disabled={!source} aria-label="Download original evidence" title="Download original DrillRun evidence" onClick={() => download("nostekon.run.json", source, "application/json")}><Download size={15} /></button>
-            <button className="primary" type="button" disabled={isBuilding || !inspection.ok || source.length === 0} onClick={() => void build(source, undefined, attestation)}>
+            <button className="primary" type="button" disabled={isBuilding || !inspection.ok || source.length === 0} onClick={() => void build(source)}>
               {isBuilding ? <LoaderCircle className="spin" size={15} /> : <Play size={14} fill="currentColor" />}
               {isBuilding ? "Building…" : "Build report"}
             </button>
@@ -264,7 +257,8 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
             <XCircle size={15} /> {requestError}
           </div>
         )}
-        {attestationBoundary && <div className="banner bad attestation-boundary" role="alert"><ShieldAlert size={15} /> {attestationBoundary}</div>}
+        <TrustWorkbench evidence={source} attestation={attestation} disabled={!source || stale || isBuilding} onAttach={() => attestationInputRef.current?.click()} onRemove={() => { setAttestation(""); setAttestationName(""); void build(source); }} onServerVerify={browserDemo ? undefined : () => void build(source, undefined, attestation)} />
+        {attestationName && <p className="workspace-label">{attestationName}</p>}
         {sourceError && <div className="banner bad"><XCircle size={15} /> {sourceError}</div>}
 
         {tab === "evidence" ? (
@@ -286,7 +280,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
                 value={source}
                 errorLine={inspection.ok ? null : inspection.line}
                 onChange={(text) => { generation.current++; setIsBuilding(false); setSource(text); setSampleId(""); setAttestation(""); setAttestationName(""); setSaved(false); }}
-                onSubmit={() => void build(source, undefined, attestation)}
+                onSubmit={() => void build(source)}
               />
             </div>
           </div>
@@ -324,7 +318,7 @@ function ReportBody({ report, onCopy, copied }: { report: Report; onCopy: () => 
           <p className="mono-meta">{report.name}</p>
           <div className={`provenance-status ${report.provenance?.status ?? "unverified"}`} role="status" aria-label="Evidence provenance">
             {report.provenance?.status === "verified" ? <ShieldCheck size={14} aria-hidden="true" /> : <ShieldAlert size={14} aria-hidden="true" />}
-            <span>{report.provenance?.status === "verified" ? `${report.provenance.algorithm ?? "Signature"} verified` : "Evidence signature unverified"}</span>
+            <span>{report.provenance?.status === "verified" ? `${report.provenance.algorithm ?? "Signature"} verified · server-trusted key` : "Server signature unverified"}</span>
             {report.provenance?.keyId && <code title={report.provenance.keyId}>key {report.provenance.keyId.slice(0, 16)}</code>}
           </div>
         </div>
