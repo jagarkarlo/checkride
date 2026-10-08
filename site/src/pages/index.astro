@@ -2,60 +2,39 @@
 import ProductLayout from '../layouts/ProductLayout.astro';
 import Shot from '../components/Shot.astro';
 
-const description = 'Nostekon runs restore drills and reports whether the application and its data actually came back: how deep recovery went, how long it took and how many acknowledged writes were lost.';
+const description = 'Nostekon runs isolated PostgreSQL recovery drills, checks acknowledged-write loss and independently gates policy suites. Review original evidence in the local app or browser demo.';
 
 const install = `git clone https://github.com/jagarkarlo/nostekon.git
 cd nostekon
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
-nostekon validate examples/drills/mlflow-namespace-loss.yaml`;
+NOSTEKON_PORT=8180 docker compose up --build -d`;
 
-const lab = `make lab-up
-python3 scripts/lab/restore.py --output /tmp/drill.json
-make lab-down`;
-
-const key = `install -d -m 700 "$HOME/.config/nostekon"
-go run ./cmd/nostekon-attest keygen \\
-  --private "$HOME/.config/nostekon/signing-key.pem" \\
-  --public "$HOME/.config/nostekon/trusted-key.pem"`;
-
-const report = `go run ./cmd/nostekon-report /tmp/drill.json
-attestation_dir=$(mktemp -d)
-attestation="$attestation_dir/run.attestation.json"
-go run ./cmd/nostekon-attest sign \\
-  --evidence /tmp/drill.json \\
-  --key "$HOME/.config/nostekon/signing-key.pem" \\
-  --output "$attestation"
-go run ./cmd/nostekon-report \\
-  --attestation "$attestation" \\
-  --trusted-key "$HOME/.config/nostekon/trusted-key.pem" \\
-  /tmp/drill.json
-rm -r "$attestation_dir"`;
+const report = `go build -o /tmp/nostekon-report ./cmd/nostekon-report
+/tmp/nostekon-report --suite examples/suites/postgresql-policy \\
+  > /tmp/nostekon-suite-review.json`;
 
 const steps = [
   { title: "Describe the drill", text: "A YAML file names the failure to simulate, where to restore, how deep to verify and your recovery time and data loss goals.", state: "Available", later: false },
-  { title: "Run the restore", text: "The lab runner backs up a seeded PostgreSQL database, deletes the source namespace and restores into a second k3d cluster. Restoring real applications is not built yet.", state: "Lab only", later: true },
-  { title: "Record what happened", text: "Check results, phase timings and, optionally, a ledger of acknowledged writes go into one DrillRun JSON file.", state: "Available", later: false },
-  { title: "Evaluate the evidence", text: "A Go program turns the file into a report. Its exit code lets a CI job fail on a bad drill.", state: "Available", later: false },
+  { title: "Run the restore", text: "The lab backs up seeded PostgreSQL, deletes its source namespace and restores into a second k3d cluster. A policy suite exercises zero loss, strict tail loss and budgeted loss.", state: "Lab only", later: true },
+  { title: "Record what happened", text: "Original case JSON, a suite summary and a host-side write ledger preserve the measured outcomes. Terminal host jobs can export a checksummed evidence bundle.", state: "Available", later: false },
+  { title: "Evaluate the evidence", text: "The Go engine evaluates each case independently and gates the whole suite. Studio compares the summary with those results and exports the same review as the CLI.", state: "Available", later: false },
   { title: "Sign the evidence", text: "An Ed25519 signature ties the exact file to a key you trust, so later edits are detectable.", state: "Available", later: false },
 ];
 ---
-<ProductLayout title="Find out whether a restore really worked" description={description} current="overview">
+<ProductLayout title="Restore evidence and policy suites" description={description} current="overview">
   <section class="hero">
     <div class="wrap">
-      <h1>Find out whether a restore really worked</h1>
-      <p class="lead">A finished backup job tells you a file was written. It does not tell you the application came back with its data. Nostekon runs a restore drill, records what happened, and reports how far recovery got, how long it took and how many acknowledged writes were lost.</p>
+      <h1>Nostekon</h1>
+      <p class="lead">Find out whether a restore really worked. Run isolated PostgreSQL drills, inspect acknowledged-write loss, and gate three recovery policies with independently evaluated evidence.</p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href="/demo/index.html#/report">Open the demo</a>
-        <a class="btn" href="/docs/">Read the docs</a>
+        <a class="btn btn-primary" href="/demo/index.html#/suite">Open the policy suite</a>
+        <a class="btn" href="#quickstart">Run the local app</a>
       </div>
-      <p class="hero-note">Pre-alpha. Today it runs one disposable PostgreSQL restore on two local k3d clusters and evaluates the evidence. The demo runs in your browser and never contacts a cluster.</p>
+      <p class="hero-note">Pre-alpha. Real captures from two disposable k3d clusters. The browser demo never contacts a cluster; lab execution in the packaged app is disabled by default.</p>
     </div>
   </section>
 
   <section class="wrap" aria-label="Screenshot">
-    <Shot name="report-lab" alt="Nostekon Studio report for a recorded lab run: verified to V3, recovery time 16 seconds, with a per-level breakdown and a recovery timeline." caption="A recorded run from the two-cluster lab, opened in Studio. It reached V3. It has no write ledger, and its signature is unverified." />
+    <Shot name="policy-suite" height={900} alt="Nostekon policy suite with three recorded V4 outcomes: zero loss verified, strict tail loss failed as expected, and budgeted tail loss verified. The independently evaluated suite gate passes." caption="Three real lab captures, one independent policy gate. The strict zero-loss policy fails on two lost writes, as expected; the budgeted policy accepts the measured loss. Signatures remain unverified." />
   </section>
 
   <section class="section">
@@ -87,6 +66,19 @@ const steps = [
 
   <section class="section">
     <div class="wrap">
+      <div class="section-head"><h2>Keep the evidence, not just a green result</h2><p class="section-lead">A review is reproducible from the original inputs.</p></div>
+      <dl class="facts">
+        <div><dt>Review the whole suite</dt><dd>Compare expected and evaluated case verdicts, recovered writes, loss windows and RPO budgets. An expected policy failure is not mistaken for a broken restore.</dd></div>
+        <div><dt>Reopen original captures</dt><dd>Save a suite snapshot, reopen it after reload, and evaluate it again. Original-file downloads and case Runs remain independent; failed and partial captures are retained without inventing missing evidence.</dd></div>
+        <div><dt>Move a host-job capture</dt><dd>Export a bounded evidence bundle and verify its manifest before import. A checksum detects changed files; it does not authenticate who captured them.</dd></div>
+        <div><dt>Use the same gate in CI</dt><dd>The browser and native Go CLI produce the same review. Exit 0 means the complete expected policy suite passed; incomplete or mismatching evidence does not get a green gate.</dd></div>
+      </dl>
+      <p class="prose" style="margin-top: 24px;"><a class="link" href="/docs/guides/k3d-isolated-restore/">Read the suite and evidence workflow</a></p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
       <div class="section-head">
         <h2>How a drill runs</h2>
         <p class="section-lead">The whole flow, with what exists today marked.</p>
@@ -107,40 +99,36 @@ const steps = [
     <div class="wrap">
       <div class="section-head">
         <h2>Try it on your machine</h2>
-        <p class="section-lead">The repository is private for now, so step one needs an account with access.</p>
+        <p class="section-lead">Start with the packaged app or captured evidence. Neither needs a Kubernetes cluster.</p>
       </div>
       <div class="code-grid">
         <div class="code-card quickstart-step">
-          <h3>1. Clone and validate a drill</h3>
-          <p>This checks the drill file against the contract. It does not run a restore. Nostekon is not on PyPI yet, so install it from the clone.</p>
+          <h3>1. Start the local app</h3>
+          <p>Requires Git, Docker and Docker Compose. The container serves Studio and the Go API together on localhost, without cluster credentials or a Docker socket.</p>
           <div class="code-block">
-            <div class="code-head"><span>Shell</span><button class="copy" type="button" data-copy-target="quickstart-install" data-copy-label="Copy CLI setup commands" aria-label="Copy CLI setup commands">Copy</button></div>
+            <div class="code-head"><span>Shell</span><button class="copy" type="button" data-copy-target="quickstart-install" data-copy-label="Copy app setup commands" aria-label="Copy app setup commands">Copy</button></div>
             <pre><code id="quickstart-install">{install}</code></pre>
           </div>
+          <p class="code-note">Open <a class="link" href="http://127.0.0.1:8180/#/suite">127.0.0.1:8180</a>. Lab execution is off. Stop the app with <code>docker compose down</code>.</p>
         </div>
         <div class="code-card quickstart-step">
-          <h3>2. Run the lab restore</h3>
-          <p>Needs Docker, k3d, kubectl, Python 3.12+ and Go. Use only the dedicated lab clusters. The run deletes its own source namespace.</p>
+          <h3>2. Gate a recorded suite</h3>
+          <p>From the same checkout, use Go 1.25+ to evaluate the included three-case capture. This creates a review without starting a restore or contacting Kubernetes.</p>
           <div class="code-block">
-            <div class="code-head"><span>Shell</span><button class="copy" type="button" data-copy-target="quickstart-lab" data-copy-label="Copy lab commands" aria-label="Copy lab commands">Copy</button></div>
-            <pre><code id="quickstart-lab">{lab}</code></pre>
-          </div>
-        </div>
-        <div class="code-card quickstart-step">
-          <h3>3. Read and sign the result</h3>
-          <p>Create a signing key once, then sign and verify each run.</p>
-          <div class="code-block">
-            <div class="code-head"><span>Once</span><button class="copy" type="button" data-copy-target="quickstart-key" data-copy-label="Copy key setup commands" aria-label="Copy key setup commands">Copy</button></div>
-            <pre><code id="quickstart-key">{key}</code></pre>
-          </div>
-          <div class="code-block">
-            <div class="code-head"><span>Each run</span><button class="copy" type="button" data-copy-target="quickstart-report" data-copy-label="Copy report commands" aria-label="Copy report commands">Copy</button></div>
+            <div class="code-head"><span>Shell</span><button class="copy" type="button" data-copy-target="quickstart-report" data-copy-label="Copy suite gate commands" aria-label="Copy suite gate commands">Copy</button></div>
             <pre><code id="quickstart-report">{report}</code></pre>
           </div>
-          <p class="code-note">Keep the private key out of the repository, and never run key setup over an existing key.</p>
+          <p class="code-note">The recorded suite exits 0, including its intentional strict-policy failure. JSON goes to <code>/tmp/nostekon-suite-review.json</code>; invalid input exits 2.</p>
+        </div>
+        <div class="code-card quickstart-step">
+          <h3>3. Run a disposable restore</h3>
+          <p>For a new capture, follow the isolated lab walkthrough. It requires Docker, k3d, kubectl, Python 3.12+ and Go, and deletes only the dedicated lab namespaces.</p>
+          <p><a class="link" href="/docs/guides/k3d-isolated-restore/">Set up the two-cluster lab</a></p>
+          <p class="code-note">Execution requires explicit host opt-in. The review container cannot run drills. Application-specific recovery and production restores are not supported.</p>
+          <p><a class="link" href="/docs/start/">CLI setup, trusted-key verification and runtime details</a></p>
         </div>
       </div>
-      <p class="prose" style="margin-top: 24px;">Prefer not to install anything? <a class="link" href="/demo/index.html#/report">Open the demo</a>. The demo evaluates evidence; it does not connect to Kubernetes. Or <a class="link" href="/docs/start/">follow the CLI setup</a> and the <a class="link" href="/docs/guides/k3d-isolated-restore/">lab walkthrough</a> in the docs.</p>
+      <p class="prose" style="margin-top: 24px;">Prefer not to install anything? <a class="link" href="/demo/index.html#/suite">Open the policy suite</a>. The demo evaluates evidence; it does not connect to Kubernetes. Browser history is local to its origin, not a shared or permanent evidence store.</p>
     </div>
   </section>
 
@@ -154,7 +142,9 @@ const steps = [
           <h3>Works today</h3>
           <ul class="ticks">
             <li>Validate drill files from the CLI, the API or Studio</li>
-            <li>Run one PostgreSQL restore across two local k3d clusters, checked to V3</li>
+            <li>Run a three-case PostgreSQL policy suite across two local k3d clusters, checked through V4</li>
+            <li>Review, save and reopen suite snapshots with original-file downloads</li>
+            <li>Verify portable host-job bundles and independently gate captured suites in CI</li>
             <li>Evaluate evidence: level reached, recovery time by phase, exact data loss from a write ledger</li>
             <li>Sign evidence and verify the signature from the command line</li>
             <li>Push recovery metrics to Prometheus and chart them on a bundled Grafana dashboard</li>

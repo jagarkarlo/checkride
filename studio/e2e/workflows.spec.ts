@@ -577,18 +577,23 @@ for (const width of [390, 1440]) {
 
 test("homepage explains the product and its commands", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1, name: "Find out whether a restore really worked" })).toBeVisible();
-  await expect(page.locator(".hero").getByRole("link", { name: "Open the demo" })).toHaveAttribute("href", "/demo/index.html#/report");
+  await expect(page.getByRole("heading", { level: 1, name: "Nostekon", exact: true })).toBeVisible();
+  await expect(page.locator(".hero").getByRole("link", { name: "Open the policy suite" })).toHaveAttribute("href", "/demo/index.html#/suite");
+  await expect(page.locator(".hero").getByRole("link", { name: "Run the local app" })).toHaveAttribute("href", "#quickstart");
   await expect(page.getByText("The demo evaluates evidence; it does not connect to Kubernetes.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "What a report tells you" })).toBeVisible();
   await expect(page.locator(".step")).toHaveCount(5);
   await expect(page.locator(".step-state", { hasText: "Lab only" })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Not built yet" })).toBeVisible();
+  await expect.poll(() => page.locator(".shot img:visible").evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth === 1280 && image.naturalHeight === 900)).toBe(true);
 
   await expect(page.locator("#quickstart-install")).toContainText("git clone https://github.com/jagarkarlo/nostekon.git");
-  await expect(page.locator("#quickstart-install")).toContainText("examples/drills/mlflow-namespace-loss.yaml");
-  await expect(page.locator("#quickstart")).toContainText("not on PyPI yet");
-  for (const label of ["Copy CLI setup commands", "Copy lab commands", "Copy key setup commands", "Copy report commands"]) {
+  await expect(page.locator("#quickstart-install")).toContainText("docker compose up --build -d");
+  await expect(page.locator("#quickstart-report")).toContainText("--suite examples/suites/postgresql-policy");
+  await expect(page.locator("#quickstart")).toContainText("Lab execution is off");
+  await expect(page.locator("main")).not.toContainText("repository is private");
+  await expect(page.locator("main")).not.toContainText("checked to V3");
+  for (const label of ["Copy app setup commands", "Copy suite gate commands"]) {
     await expect(page.getByRole("button", { name: label })).toBeVisible();
   }
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
