@@ -107,9 +107,60 @@ describe("saved suite snapshots", () => {
 });
 
 describe("saved run library", () => {
+  it("preserves attached originals across reload and unsigned updates without storing a receipt", async () => {
+    const source = '{ "run": "signed original" }\n';
+    const attestation = '{ "apiVersion": "nostekon/attestation/v1alpha1", "signature": "not yet checked" }\n';
+    const saved = await saveRun(source, report, "", attestation);
+    expect(saved.attestation).toBe(attestation);
+    await saveRuns([{ source, report: { ...report, headline: "Fresh evaluation" } }]);
+    const reopened = (await listRuns())[0];
+    expect(reopened.source).toBe(source);
+    expect(reopened.attestation).toBe(attestation);
+    expect(reopened).not.toHaveProperty("signatureCheck");
+    expect(reopened).not.toHaveProperty("trusted");
+    await saveRun(source, report, "", "");
+    expect((await listRuns())[0].attestation).toBe("");
+    expect(await listRuns()).toHaveLength(1);
+  });
+
+  it("rejects malformed or oversized attachments before any batch write", async () => {
+    for (const attestation of ["not JSON", "null", "[]", JSON.stringify({ text: "\u00e9".repeat(9 * 1024) })]) {
+      await expect(saveRuns([{ source: "first", report }, { source: "second", report, attestation }])).rejects.toThrow();
+      expect(await listRuns()).toEqual([]);
+    }
+  });
+
   it("uses only the new database on a fresh installation", async () => {
     await listRuns();
     expect((await indexedDB.databases()).map((db) => db.name)).toEqual(["nostekon-runs"]);
+  });
+
+  it("retains corrupt attached originals and reports the failure without pruning", async () => {
+    const saved = await saveRun("original", report);
+    const db = await openDB("nostekon-runs", 2);
+    try { await db.put("runs", { ...saved, attestation: "damaged JSON" }); }
+    finally { db.close(); }
+    await expect(listRuns()).rejects.toThrow("Attached attestation");
+    const check = await openDB("nostekon-runs", 2);
+    try { expect((await check.get("runs", saved.id)).attestation).toBe("damaged JSON"); }
+    finally { check.close(); }
+  });
+
+  it("rolls back replacement attachments and preserves the old originals on quota failure", async () => {
+    await saveRun("existing", report, "", '{ "signature": "original" }\n');
+    const before = await listRuns();
+    const originalPut = IDBObjectStore.prototype.put;
+    const failure = vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(function (this: IDBObjectStore, value, key) {
+      if (this.name === "runs" && value.source === "second") throw new DOMException("Storage full", "QuotaExceededError");
+      return originalPut.call(this, value, key);
+    });
+    try {
+      await expect(saveRuns([
+        { source: "existing", report, attestation: '{"signature":"replacement"}' },
+        { source: "second", report, attestation: '{"signature":"new"}' },
+      ])).rejects.toThrow("Storage full");
+    } finally { failure.mockRestore(); }
+    expect(await listRuns()).toEqual(before);
   });
 
   it("rolls back interrupted migration and safely retries it", async () => {

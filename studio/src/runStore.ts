@@ -8,6 +8,7 @@ import { parseSuite } from "./labSuite";
 export interface SavedRun {
   id: string;
   source: string;
+  attestation?: string;
   report: Report;
   sampleId: string;
   savedAt: number;
@@ -29,6 +30,15 @@ export const RUN_LIMIT = 50;
 export const SUITE_LIMIT = 20;
 const SOURCE_LIMIT = 16 * 1024 * 1024;
 const suiteNames = ["suite.json", "zero-loss.drillrun.json", "tail-loss.drillrun.json", "budget-loss.drillrun.json"];
+
+function validateAttestation(attestation: unknown): void {
+  if (attestation === undefined || attestation === "") return;
+  if (typeof attestation !== "string" || new TextEncoder().encode(attestation).length > 16 * 1024) throw new Error("Attached attestation exceeds the 16 KiB limit or is unreadable.");
+  try {
+    const value: unknown = JSON.parse(attestation);
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
+  } catch { throw new Error("Attached attestation must contain a JSON object."); }
+}
 
 async function database() {
   const db = await openDB<RunDatabase>("nostekon-runs", 2, {
@@ -86,24 +96,26 @@ export async function listRuns(): Promise<SavedRun[]> {
     if (runs.some((run) => typeof run.source !== "string" || typeof run.id !== "string" || !isReport(run.report))) {
       throw new Error("Saved run data is unreadable. Export available evidence before clearing site storage.");
     }
+    for (const run of runs) validateAttestation(run.attestation);
     return runs.sort((left, right) => right.savedAt - left.savedAt);
   } finally { db.close(); }
 }
 
-export async function saveRun(source: string, report: Report, sampleId = ""): Promise<SavedRun> {
-  return (await saveRuns([{ source, report, sampleId }]))[0];
+export async function saveRun(source: string, report: Report, sampleId = "", attestation?: string): Promise<SavedRun> {
+  return (await saveRuns([{ source, report, sampleId, attestation }]))[0];
 }
 
-export async function saveRuns(inputs: readonly { source: string; report: Report; sampleId?: string }[]): Promise<SavedRun[]> {
+export async function saveRuns(inputs: readonly { source: string; report: Report; sampleId?: string; attestation?: string }[]): Promise<SavedRun[]> {
   if (!inputs.length) return [];
   const runs: SavedRun[] = [];
   const savedAt = Date.now();
-  for (const { source, report, sampleId = "" } of inputs) {
+  for (const { source, report, sampleId = "", attestation } of inputs) {
+    validateAttestation(attestation);
     const bytes = new TextEncoder().encode(source);
     if (bytes.length > SOURCE_LIMIT) throw new Error("Evidence exceeds the 16 MiB limit.");
     const digest = await crypto.subtle.digest("SHA-256", bytes);
     const id = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-    runs.push({ id, source, report, sampleId, savedAt });
+    runs.push({ id, source, report, sampleId, savedAt, ...(attestation === undefined ? {} : { attestation }) });
   }
   const db = await database();
   try {
@@ -111,9 +123,14 @@ export async function saveRuns(inputs: readonly { source: string; report: Report
     try {
       let count = await transaction.store.count();
       for (const run of runs) {
-        if (!await transaction.store.get(run.id)) {
+        const existing = await transaction.store.get(run.id);
+        if (!existing) {
           if (count >= RUN_LIMIT) throw new Error(`The library holds ${RUN_LIMIT} runs. Delete a run before saving another.`);
           count++;
+        }
+        if (run.attestation === undefined && existing?.attestation !== undefined) {
+          validateAttestation(existing.attestation);
+          run.attestation = existing.attestation;
         }
         await transaction.store.put(run);
       }
