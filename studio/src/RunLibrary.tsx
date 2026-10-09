@@ -1,11 +1,11 @@
-import { ArrowRight, ArrowUpRight, CheckCircle2, Database, FileJson, FlaskConical, GitCompareArrows, Search, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CheckCircle2, Database, Download, FileJson, FlaskConical, GitCompareArrows, Paperclip, Search, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { formatDuration } from "./report";
 import { deleteRun, evidenceLabel, listRuns } from "./runStore";
 import type { SavedRun } from "./runStore";
 import { samples } from "./samples";
 
-export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: string) => void }) {
+export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: string, attestation?: string) => void }) {
   const [runs, setRuns] = useState<SavedRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -52,7 +52,7 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
     <header className="library-heading">
       <div><p className="workspace-label"><Database size={14} /> Local workspace</p><h1>Recovery runs</h1></div>
       <div className="library-actions">
-        <a className="tool" href={location.pathname.startsWith("/demo/") ? "/docs/guides/k3d-isolated-restore/" : "http://127.0.0.1:4321/docs/guides/k3d-isolated-restore/"}><FlaskConical size={16} /> Run a lab drill <ArrowUpRight size={13} /></a>
+        <a className="tool" href={location.pathname.startsWith("/demo/") ? "/docs/guides/k3d-isolated-restore/" : "https://github.com/jagarkarlo/nostekon/blob/main/site/src/content/docs/guides/k3d-isolated-restore.md"}><FlaskConical size={16} /> Run a lab drill <ArrowUpRight size={13} /></a>
         <button type="button" className="primary" onClick={() => fileInput.current?.click()}><Upload size={15} /> Import evidence</button>
       </div>
     </header>
@@ -86,13 +86,13 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
         <thead><tr><th aria-label="Comparison selection" /><th>Run</th><th>Evidence</th><th>Verdict</th><th>Depth</th><th>Recovery time</th><th>Data loss</th><th aria-label="Actions" /></tr></thead>
         <tbody>{matching.map((run) => <tr key={run.id}>
           <td><input type="checkbox" aria-label={`Compare ${run.report.name}`} checked={selected.includes(run.id)} disabled={selected.length === 2 && !selected.includes(run.id)} onChange={(event) => { setCompare(false); setSelected(event.target.checked ? [...selected, run.id] : selected.filter((id) => id !== run.id)); }} /></td>
-          <td><button type="button" className="run-name" onClick={() => onOpen(run.source, run.sampleId)}>{run.report.name}</button><small>{run.report.scenario ?? "Unspecified scenario"}</small></td>
-          <td><span className="evidence-kind">{evidenceLabel(run.sampleId)}</span></td>
-          <td><span className={`verdict-tag ${run.report.verdict}`}>{run.report.verdict}</span></td>
-          <td className="mono">{run.report.deepestPassed ?? "None"}</td>
-          <td className="mono">{formatDuration(run.report.rto?.seconds)}</td>
-          <td className="mono">{formatDuration(run.report.rpo?.seconds)}</td>
-          <td><button type="button" className="icon-button" title={`Delete ${run.report.name}`} aria-label={`Delete ${run.report.name}`} onClick={() => setPendingDelete(run)}><Trash2 size={15} /></button></td>
+          <td><button type="button" className="run-name" onClick={() => onOpen(run.source, run.sampleId, run.attestation)}>{run.report.name}</button><small>{run.report.scenario ?? "Unspecified scenario"}</small></td>
+          <td data-label="Evidence"><span className="evidence-kind">{evidenceLabel(run.sampleId)}</span>{run.attestation && <small className="attachment-label"><Paperclip size={13} aria-hidden="true" /> Attestation attached</small>}</td>
+          <td data-label="Verdict"><span className={`verdict-tag ${run.report.verdict}`}>{run.report.verdict}</span></td>
+          <td data-label="Depth" className="mono">{run.report.deepestPassed ?? "None"}</td>
+          <td data-label="Recovery time" className="mono">{formatDuration(run.report.rto?.seconds)}</td>
+          <td data-label="Data loss" className="mono">{formatDuration(run.report.rpo?.seconds)}</td>
+          <td><button type="button" className="icon-button" title={`Download evidence for ${run.report.name}`} aria-label={`Download evidence for ${run.report.name}`} onClick={() => downloadOriginal("nostekon.run.json", run.source)}><Download size={15} /></button>{run.attestation && <button type="button" className="icon-button" title={`Download attestation for ${run.report.name}`} aria-label={`Download attestation for ${run.report.name}`} onClick={() => downloadOriginal("nostekon.run.attestation.json", run.attestation!)}><Paperclip size={15} /></button>}<button type="button" className="icon-button" title={`Delete ${run.report.name}`} aria-label={`Delete ${run.report.name}`} onClick={() => setPendingDelete(run)}><Trash2 size={15} /></button></td>
         </tr>)}</tbody>
       </table></div>}
     </section>
@@ -134,3 +134,10 @@ function RunComparison({ runs, onClose }: { runs: SavedRun[]; onClose: () => voi
 }
 
 function message(reason: unknown) { return reason instanceof Error ? reason.message : "Could not access browser storage."; }
+
+function downloadOriginal(name: string, source: string) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([source], { type: "application/json" }));
+  link.download = name; link.click();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}

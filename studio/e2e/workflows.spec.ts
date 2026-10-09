@@ -105,6 +105,29 @@ for (const width of [390, 1440]) {
       await expect(page.locator(".verdict.failed")).toBeVisible();
       await page.getByRole("button", { name: "Save run", exact: true }).click();
       await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeDisabled();
+      await page.goto(reportURL.replace("/report", "/runs"));
+      await expect(page.locator(".saved-runs")).toContainText("Attestation attached");
+      await expect(page.getByRole("link", { name: "Run a lab drill" })).toHaveAttribute("href", process.env.NOSTEKON_APP_URL ? "https://github.com/jagarkarlo/nostekon/blob/main/site/src/content/docs/guides/k3d-isolated-restore.md" : "/docs/guides/k3d-isolated-restore/");
+      for (const name of [/^Download evidence for/, /^Download attestation for/, /^Delete checkride/]) {
+        const bounds = await page.getByRole("button", { name }).boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds!.x).toBeGreaterThanOrEqual(0);
+        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      }
+      await page.screenshot({ path: testInfo.outputPath(`saved-signed-runs-${width}.png`), fullPage: true });
+      const attachmentDownload = page.waitForEvent("download");
+      await page.getByRole("button", { name: /^Download attestation for/ }).click();
+      expect(await readFile((await (await attachmentDownload).path())!)).toEqual(sidecar);
+      const evidenceDownload = page.waitForEvent("download");
+      await page.getByRole("button", { name: /^Download evidence for/ }).click();
+      expect(await readFile((await (await evidenceDownload).path())!)).toEqual(evidence);
+      await page.locator(".saved-runs .run-name").click();
+      await expect(page.getByRole("button", { name: "Replace attestation", exact: true })).toBeVisible();
+      await expect(page.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Download signed originals", exact: true })).toBeDisabled();
+      await page.getByRole("button", { name: "Verify signature", exact: true }).click();
+      await expect(page.getByRole("status", { name: "Signature verification" })).toContainText("Signature valid");
+      await expect(page.locator(".verdict.failed")).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: testInfo.outputPath(`signature-trust-${width}.png`), fullPage: true });
       const download = page.waitForEvent("download");
@@ -208,6 +231,20 @@ for (const width of [390, 1440]) {
       await page.getByRole("button", { name: "Close public keys", exact: true }).click();
       await page.goto(reportURL.replace("/report", "/runs"));
       await expect(page.locator(".runs-table tbody tr")).toHaveCount(1);
+      await expect(page.locator(".saved-runs")).toContainText("Attestation attached");
+      await page.locator(".saved-runs .run-name").click();
+      await expect(page.getByRole("button", { name: "Replace attestation", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Verify signature", exact: true })).toBeDisabled();
+      await expect(page.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+      await page.getByRole("button", { name: "Remove attestation", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Attach attestation", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Save run", exact: true })).toBeEnabled();
+      await page.getByRole("button", { name: "Save run", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeDisabled();
+      await page.goto(reportURL.replace("/report", "/runs"));
+      await expect(page.locator(".saved-runs")).not.toContainText("Attestation attached");
+      await page.locator(".saved-runs .run-name").click();
+      await expect(page.getByRole("button", { name: "Attach attestation", exact: true })).toBeVisible();
     } finally { await rm(directory, { recursive: true, force: true }); }
   });
 

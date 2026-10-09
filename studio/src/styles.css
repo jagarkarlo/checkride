@@ -366,6 +366,7 @@ button.finding:hover { filter: brightness(1.12); }
 .runs-table tbody tr:hover { background: var(--panel); }
 .runs-table input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); }
 .runs-table small { display: block; margin-top: 5px; color: var(--ink-3); font-size: 12px; overflow-wrap: anywhere; }
+.saved-runs .runs-table .attachment-label { display: flex; align-items: center; gap: 4px; }
 .run-name { max-width: 260px; padding: 0; border: 0; background: transparent; color: var(--ink); font-weight: 700; text-align: left; overflow-wrap: anywhere; }
 .run-name:hover { color: var(--accent-ink); text-decoration: underline; }
 .verdict-tag { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); text-transform: capitalize; white-space: nowrap; }
@@ -511,6 +512,15 @@ button.finding:hover { filter: brightness(1.12); }
   .run-search { flex: 1; min-width: 140px; }
   .run-search input { width: 100%; }
   .runs-table { min-width: 780px; }
+  .saved-runs .runs-table { min-width: 0; }
+  .saved-runs .runs-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .saved-runs .runs-table tbody { display: block; }
+  .saved-runs .runs-table tr { display: grid; grid-template-columns: 28px repeat(2, minmax(0, 1fr)); gap: 16px 12px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+  .saved-runs .runs-table td { min-width: 0; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .saved-runs .runs-table td:nth-child(2), .saved-runs .runs-table td:nth-child(3), .saved-runs .runs-table td:last-child { grid-column: 2 / -1; }
+  .saved-runs .runs-table td:nth-child(4), .saved-runs .runs-table td:nth-child(6) { grid-column: 2; }
+  .saved-runs .runs-table td[data-label]::before { display: block; margin-bottom: 7px; color: var(--ink-3); font-family: "DM Sans", sans-serif; content: attr(data-label); }
+  .saved-runs .runs-table td:last-child { display: flex; gap: 8px; }
   .comparison-table { min-width: 480px; }
   .report-tabs { flex-wrap: wrap; }
   .report-actions { width: 100%; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }

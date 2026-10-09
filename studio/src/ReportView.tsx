@@ -38,7 +38,7 @@ function download(name: string, text: string, type: string) {
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
-export function ReportView({ onReachability, selection }: { onReachability: (online: boolean) => void; selection?: { source: string; sampleId: string } }) {
+export function ReportView({ onReachability, selection }: { onReachability: (online: boolean) => void; selection?: { source: string; sampleId: string; attestation?: string } }) {
   const [source, setSource] = useState("");
   const [sampleId, setSampleId] = useState("");
   const [sourceError, setSourceError] = useState("");
@@ -118,11 +118,17 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
 
   useEffect(() => {
     if (selection) {
-      setAttestation("");
-      setAttestationName("");
+      setAttestation(selection.attestation ?? "");
+      setAttestationName(selection.attestation ? "Saved original attestation" : "");
       setSource(selection.source);
       setArchiveResult("");
       setImportedKey(undefined);
+      if (selection.attestation) {
+        try {
+          const keyId: unknown = JSON.parse(selection.attestation).keyId;
+          if (typeof keyId === "string" && /^[a-f0-9]{64}$/.test(keyId)) setImportedKey({ id: keyId });
+        } catch {}
+      }
       setSampleId(selection.sampleId);
       setSourceError("");
       void build(selection.source);
@@ -150,7 +156,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
   async function save() {
     if (!report || stale) return;
     setSaving(true);
-    try { await saveRun(builtFrom, report, sampleId); setSaved(true); setSourceError(""); }
+    try { await saveRun(builtFrom, report, sampleId, attestation); setSaved(true); setSourceError(""); }
     catch (error) { setSourceError(error instanceof Error ? error.message : "Browser storage is unavailable."); }
     finally { setSaving(false); }
   }
@@ -267,6 +273,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
               }
               setSourceError("");
               setAttestation(text);
+              setSaved(false);
               setAttestationName(file.name);
             }).catch(() => setSourceError("Could not read the attestation sidecar."));
           }}
@@ -294,7 +301,7 @@ export function ReportView({ onReachability, selection }: { onReachability: (onl
           </button>
           <div className="report-actions">
             {stale && <span className="stale-inline">Evidence edited</span>}
-            <button className="tool" type="button" disabled={!report || stale || isBuilding || saving || saved} onClick={() => void save()} title="Save original evidence and report in this browser"><Save size={15} /> {saved ? "Saved" : saving ? "Saving..." : "Save run"}</button>
+            <button className="tool" type="button" disabled={!report || stale || isBuilding || importingArchive || saving || saved} onClick={() => void save()} title="Save original evidence, attached attestation and report in this browser"><Save size={15} /> {saved ? "Saved" : saving ? "Saving..." : "Save run"}</button>
             <button className="icon-button" type="button" disabled={!source} aria-label="Download original evidence" title="Download original DrillRun evidence" onClick={() => download("nostekon.run.json", source, "application/json")}><Download size={15} /></button>
             <button className="primary" type="button" disabled={isBuilding || !inspection.ok || source.length === 0} onClick={() => void build(source)}>
               {isBuilding ? <LoaderCircle className="spin" size={15} /> : <Play size={14} fill="currentColor" />}

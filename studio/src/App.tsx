@@ -20,7 +20,7 @@ const browserDemo = window.location.pathname.startsWith("/demo/");
 export function App() {
   const [view, setView] = useState<View>(viewFromHash);
   const [apiState, setAPIState] = useState<APIState>("checking");
-  const [selection, setSelection] = useState<{ source: string; sampleId: string }>();
+  const [selection, setSelection] = useState<{ source: string; sampleId: string; attestation?: string }>();
   const [suiteSelection, setSuiteSelection] = useState<Map<string, string>>();
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem("nostekon-theme") ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); }
@@ -89,8 +89,8 @@ export function App() {
           {apiState === "offline" && <RefreshCw size={13} />}
         </button>
       </header>
-      {view === "runs" && <RunLibrary onOpen={(source, sampleId) => {
-        setSelection({ source, sampleId });
+      {view === "runs" && <RunLibrary onOpen={(source, sampleId, attestation) => {
+        setSelection({ source, sampleId, attestation });
         window.location.hash = "/report";
         setView("report");
       }} />}
