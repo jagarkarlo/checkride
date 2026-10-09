@@ -1,13 +1,111 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"context"
+	"encoding/json"
 	"io"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestPortableAppStartsOutsideItsDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix interrupt lifecycle; Windows binaries are cross-built separately")
+	}
+	context, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	root := t.TempDir()
+	binary := filepath.Join(root, "nostekon-api")
+	build := exec.CommandContext(context, "go", "build", "-o", binary, ".")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build portable binary: %v\n%s", err, output)
+	}
+	if err := os.Mkdir(filepath.Join(root, "studio"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	original := []byte("<!doctype html><title>Portable Nostekon</title>")
+	if err := os.WriteFile(filepath.Join(root, "studio", "index.html"), original, 0600); err != nil {
+		t.Fatal(err)
+	}
+	process := exec.CommandContext(context, binary, "--addr", "127.0.0.1:0")
+	process.Dir = t.TempDir()
+	process.Env = append(os.Environ(), "NOSTEKON_ADDR=invalid", "NOSTEKON_STUDIO_DIR=", "NOSTEKON_LAB_EXECUTABLE=", "NOSTEKON_LAB_DATA_DIR=", "NOSTEKON_TRUSTED_KEYS_DIR=")
+	logs, err := process.StderrPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := process.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = process.Process.Kill() })
+	ready := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(logs)
+		for scanner.Scan() {
+			if _, address, found := strings.Cut(scanner.Text(), "address="); found {
+				select {
+				case ready <- strings.Fields(address)[0]:
+				default:
+				}
+			}
+		}
+	}()
+	finished := make(chan error, 1)
+	go func() { finished <- process.Wait() }()
+	var address string
+	select {
+	case address = <-ready:
+	case err := <-finished:
+		t.Fatalf("app exited before readiness: %v", err)
+	case <-context.Done():
+		t.Fatal("app did not become ready")
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	for _, path := range []string{"/", "/api/v1/info", "/healthz"} {
+		response, err := client.Get("http://" + address + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(io.LimitReader(response.Body, 64*1024))
+		_ = response.Body.Close()
+		if err != nil || response.StatusCode >= 300 {
+			t.Fatalf("GET %s = %d, %v", path, response.StatusCode, err)
+		}
+		if path == "/" && !bytes.Equal(body, original) {
+			t.Fatalf("Studio bytes changed: %q", body)
+		}
+		if path == "/api/v1/info" {
+			var info struct {
+				Capabilities struct {
+					Studio       bool
+					LabExecution bool
+				}
+			}
+			if err := json.Unmarshal(body, &info); err != nil || !info.Capabilities.Studio || info.Capabilities.LabExecution {
+				t.Fatalf("portable capabilities = %s, %v", body, err)
+			}
+		}
+	}
+	if err := process.Process.Signal(os.Interrupt); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Fatalf("unclean shutdown: %v", err)
+		}
+	case <-context.Done():
+		t.Fatal("app did not shut down")
+	}
+}
 
 func TestVersionAndHelpDoNotStartServer(t *testing.T) {
 	t.Setenv("NOSTEKON_ADDR", "invalid-address")
