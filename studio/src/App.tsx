@@ -82,7 +82,7 @@ export function App() {
         <a className="workbench-link" href={browserDemo ? "/" : "https://github.com/jagarkarlo/nostekon"} title={browserDemo ? "Open the product site" : "Open the project"}>
           <Activity size={14} /> <span>{browserDemo ? "Product site" : "Project"}</span>
         </a>
-        <button className="studio-theme" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+        <button className="studio-theme" data-theme-toggle type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
           {theme === "dark" ? <Sun size={18} data-theme-icon="sun" aria-hidden="true" /> : <Moon size={18} data-theme-icon="moon" aria-hidden="true" />}
         </button>
         <button className="studio-theme" type="button" aria-label="About Nostekon" title="About Nostekon" onClick={() => setAboutOpen(true)}><Activity size={18} aria-hidden="true" /></button>

@@ -109,7 +109,7 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
       </div>
     </header>
     <input ref={backupInput} type="file" accept=".json,application/json" data-testid="run-backup-input" hidden onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void inspectBackup(file); }} />
-    <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={(event) => {
+    <input ref={fileInput} type="file" accept=".json,application/json" data-testid="run-evidence-input" hidden onChange={(event) => {
       const file = event.target.files?.[0];
       event.target.value = "";
       if (!file) return;

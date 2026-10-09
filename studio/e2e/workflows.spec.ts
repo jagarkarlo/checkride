@@ -53,7 +53,7 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const path of ["/", "/demo/"]) {
       await page.goto(path);
-      const toggle = page.locator(path === "/" ? "[data-theme-toggle]" : ".studio-theme");
+      const toggle = page.locator("[data-theme-toggle]");
       const icon = toggle.locator("svg:visible");
       await expect(icon).toHaveCount(1);
       await expect(icon).toHaveAttribute("stroke", "currentColor");
@@ -725,7 +725,7 @@ for (const width of [390, 1440]) {
     await page.getByRole("button", { name: "Save cases", exact: true }).click();
     await expect(page.getByRole("status", { name: "Suite save result" })).toContainText("3 cases saved to Runs");
     for (const theme of ["dark", "light"]) {
-      if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator(".studio-theme").click();
+      if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator("[data-theme-toggle]").click();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       if (width === 390) expect(await page.locator(".suite-workspace .table-scroll").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
       await page.screenshot({ path: testInfo.outputPath(`suite-${width}-${theme}.png`), fullPage: true });
@@ -874,7 +874,7 @@ test("report product captures include trust controls and a separate failed recov
   await page.getByRole("button", { name: /Isolated PostgreSQL restore/ }).click();
   await expect(page.locator(".verdict.verified h2")).toHaveText("Verified to V3");
   for (const theme of ["dark", "light"]) {
-    if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator(".studio-theme").click();
+    if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator("[data-theme-toggle]").click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: testInfo.outputPath(`report-lab-${theme}.png`) });
@@ -887,7 +887,7 @@ test("report product captures include trust controls and a separate failed recov
   expect(detail!.y + detail!.height).toBeLessThan(900);
   await page.evaluate(() => document.fonts.ready);
   for (const theme of ["dark", "light"]) {
-    if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator(".studio-theme").click();
+    if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator("[data-theme-toggle]").click();
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: testInfo.outputPath(`report-failed-${theme}.png`) });
   }
@@ -895,7 +895,7 @@ test("report product captures include trust controls and a separate failed recov
   await expect(page.getByRole("status", { name: "Suite evidence agreement" })).toContainText("Evidence matches");
   await expect(page.locator(".suite-table tbody tr")).toHaveCount(3);
   for (const theme of ["dark", "light"]) {
-    if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator(".studio-theme").click();
+    if (await page.locator("html").getAttribute("data-theme") !== theme) await page.locator("[data-theme-toggle]").click();
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: testInfo.outputPath(`policy-suite-${theme}.png`) });
   }
@@ -938,7 +938,7 @@ for (const width of [390, 1440]) {
         expect(asset.text).toContain("Nostekon stepping-stones mark");
         if (path !== "/docs/") {
           await expect(mark).toBeVisible();
-          const toggle = page.locator(path === "/demo/" ? ".studio-theme" : "[data-theme-toggle]");
+          const toggle = page.locator("[data-theme-toggle]");
           await expect(toggle.locator("svg:visible")).toHaveAttribute("data-theme-icon", theme === "dark" ? "sun" : "moon");
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -1064,7 +1064,7 @@ test("run comparison exposes different recovery policies", async ({ page }, test
 test("imported evidence uses the browser engine and exports the original", async ({ page }) => {
   await page.goto("/demo/");
     const source = await readFile(new URL("../../examples/runs/k3d-postgresql.run.json", import.meta.url));
-  await page.getByRole("main").locator('input[type="file"]').setInputFiles({ name: "lab.json", mimeType: "application/json", buffer: source });
+  await page.getByTestId("run-evidence-input").setInputFiles({ name: "lab.json", mimeType: "application/json", buffer: source });
   await expect(page.getByRole("heading", { name: "Verified to V3" })).toBeVisible();
   await expect(page.getByRole("status", { name: "Evidence provenance" })).toContainText("signature unverified");
   await expect(page.locator(".api-status")).toContainText("Go engine");
