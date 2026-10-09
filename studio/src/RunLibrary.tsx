@@ -1,9 +1,13 @@
-import { ArrowRight, ArrowUpRight, CheckCircle2, Database, Download, FileJson, FlaskConical, GitCompareArrows, Paperclip, Search, Trash2, Upload, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, ArrowUpRight, CheckCircle2, Database, Download, FileJson, FlaskConical, GitCompareArrows, Paperclip, Search, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { formatDuration } from "./report";
-import { deleteRun, evidenceLabel, listRuns } from "./runStore";
+import { formatDuration, isReport } from "./report";
+import type { Report } from "./report";
+import { deleteRun, evidenceLabel, listRuns, saveRuns } from "./runStore";
 import type { SavedRun } from "./runStore";
 import { samples } from "./samples";
+import { request } from "./api";
+import { createRunBackup, MAX_RUN_BACKUP_BYTES, readRunBackup } from "./runBackup";
+import type { OriginalRun } from "./runBackup";
 
 export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: string, attestation?: string) => void }) {
   const [runs, setRuns] = useState<SavedRun[]>([]);
@@ -15,6 +19,11 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
   const [compare, setCompare] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<SavedRun | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupResult, setBackupResult] = useState("");
+  const [pendingRestore, setPendingRestore] = useState<OriginalRun[]>();
+  const backupInput = useRef<HTMLInputElement>(null);
+  const restoreDialog = useRef<HTMLDialogElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -30,6 +39,47 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
     if (pendingDelete) dialog.current?.showModal();
     else dialog.current?.close();
   }, [pendingDelete]);
+
+  useEffect(() => {
+    if (pendingRestore) restoreDialog.current?.showModal(); else restoreDialog.current?.close();
+  }, [pendingRestore]);
+
+  async function exportBackup() {
+    setBackupBusy(true); setError(""); setBackupResult("");
+    try { downloadOriginal("nostekon-runs.backup.json", await createRunBackup(await listRuns())); }
+    catch (reason) { setError(message(reason)); }
+    finally { setBackupBusy(false); }
+  }
+
+  async function inspectBackup(file: File) {
+    setBackupBusy(true); setError(""); setBackupResult(""); setPendingRestore(undefined);
+    try {
+      if (file.size > MAX_RUN_BACKUP_BYTES) throw new Error("Run backup exceeds the 64 MiB limit.");
+      setPendingRestore(await readRunBackup(await file.text()));
+    } catch (reason) { setError(message(reason)); }
+    finally { setBackupBusy(false); }
+  }
+
+  async function restoreBackup() {
+    if (!pendingRestore || backupBusy) return;
+    setBackupBusy(true); setError(""); setBackupResult("");
+    try {
+      const signal = AbortSignal.timeout(60000);
+      const evaluated: { source: string; attestation?: string; report: Report }[] = [];
+      for (const original of pendingRestore) {
+        const response = await request("/api/v1/runs/report", original.source, signal);
+        if (!response.ok) throw new Error(`Backup evidence evaluation failed (HTTP ${response.status}); no runs were restored.`);
+        const report: unknown = await response.json();
+        if (!isReport(report)) throw new Error("Backup evaluation returned an unreadable report; no runs were restored.");
+        evaluated.push({ ...original, report });
+      }
+      if (signal.aborted) throw new Error("Backup evaluation timed out; no runs were restored.");
+      const saved = await saveRuns(evaluated);
+      setRuns(await listRuns()); setPendingRestore(undefined); setSelected([]); setCompare(false);
+      setBackupResult(`${saved.length} run${saved.length === 1 ? "" : "s"} restored. Recovery reports were freshly evaluated; signatures remain unchecked.`);
+    } catch (reason) { setError(message(reason)); setPendingRestore(undefined); }
+    finally { setBackupBusy(false); }
+  }
 
   async function remove() {
     if (!pendingDelete) return;
@@ -52,10 +102,13 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
     <header className="library-heading">
       <div><p className="workspace-label"><Database size={14} /> Local workspace</p><h1>Recovery runs</h1></div>
       <div className="library-actions">
+        <button type="button" className="icon-button" disabled={backupBusy || !runs.length} aria-label="Back up saved runs" title="Back up saved run originals" onClick={() => void exportBackup()}><Archive size={18} /></button>
+        <button type="button" className="icon-button" disabled={backupBusy} aria-label="Restore run backup" title="Restore run backup" onClick={() => backupInput.current?.click()}><ArchiveRestore size={18} /></button>
         <a className="tool" href={location.pathname.startsWith("/demo/") ? "/docs/guides/k3d-isolated-restore/" : "https://github.com/jagarkarlo/nostekon/blob/main/site/src/content/docs/guides/k3d-isolated-restore.md"}><FlaskConical size={16} /> Run a lab drill <ArrowUpRight size={13} /></a>
         <button type="button" className="primary" onClick={() => fileInput.current?.click()}><Upload size={15} /> Import evidence</button>
       </div>
     </header>
+    <input ref={backupInput} type="file" accept=".json,application/json" data-testid="run-backup-input" hidden onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void inspectBackup(file); }} />
     <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={(event) => {
       const file = event.target.files?.[0];
       event.target.value = "";
@@ -70,6 +123,7 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
       <div><span>With RPO evidence</span><strong>{runs.filter((run) => run.report.rpo !== null).length}</strong></div>
     </section>
     {error && <p className="banner bad" role="alert">{error}</p>}
+    {backupResult && <p className="banner good" role="status" aria-label="Run backup restore result">{backupResult}</p>}
     <section className="saved-runs" aria-labelledby="saved-heading">
       <div className="section-toolbar">
         <h2 id="saved-heading">Run history <span>{runs.length}</span></h2>
@@ -103,6 +157,11 @@ export function RunLibrary({ onOpen }: { onOpen: (source: string, sampleId: stri
         void sample.load().then((source) => onOpen(source, sample.id)).catch((reason: unknown) => setError(message(reason)));
       }}><span className={`sample-symbol ${sample.recorded ? "recorded" : ""}`}>{sample.recorded ? <CheckCircle2 size={20} /> : <FlaskConical size={20} />}</span><span><strong>{sample.label}</strong><small>{sample.summary}</small></span><ArrowRight size={17} /></button>)}</div>
     </section>
+    <dialog ref={restoreDialog} className="delete-dialog" aria-labelledby="restore-title" onCancel={event => { if (backupBusy) event.preventDefault(); else setPendingRestore(undefined); }}>
+      <h2 id="restore-title">Restore {pendingRestore?.length ?? 0} saved runs?</h2>
+      <p>Existing copies with matching evidence may be updated. Keys and trust settings are not part of this backup.</p>
+      <div className="library-actions"><button type="button" className="tool" disabled={backupBusy} onClick={() => setPendingRestore(undefined)}>Cancel restore</button><button type="button" className="primary" disabled={backupBusy} onClick={() => void restoreBackup()}><ArchiveRestore size={15} /> {backupBusy ? "Evaluating..." : "Confirm restore"}</button></div>
+    </dialog>
     <dialog ref={dialog} className="delete-dialog" onCancel={() => setPendingDelete(null)}>
       <h2>Delete saved run?</h2><p>{pendingDelete?.report.name}</p><p>This removes the browser copy. Export any evidence you need before deleting.</p>
       <div className="library-actions"><button className="tool" type="button" disabled={deleting} onClick={() => setPendingDelete(null)}>Cancel</button><button className="primary danger" type="button" disabled={deleting} onClick={() => void remove()}><Trash2 size={15} /> {deleting ? "Deleting..." : "Delete run"}</button></div>

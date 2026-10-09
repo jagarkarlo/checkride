@@ -312,6 +312,79 @@ for (const width of [390, 1440]) {
     await expect(dialog).not.toBeVisible();
   });
 
+  test(`run backup restores exact originals without cached verdicts or trust at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const reportURL = process.env.NOSTEKON_APP_URL ? "/#/report" : "/demo/#/report";
+    const evidence = await readFile(new URL("../../examples/runs/k3d-ledger-tail-loss.run.json", import.meta.url));
+    const sidecar = Buffer.from('{ "signature": "unverified original" }\n');
+    await page.goto(reportURL);
+    await page.getByTestId("evidence-input").setInputFiles({ name: "original.json", mimeType: "application/json", buffer: evidence });
+    await expect(page.locator(".verdict.failed")).toBeVisible();
+    await page.getByTestId("attestation-input").setInputFiles({ name: "sidecar.json", mimeType: "application/json", buffer: sidecar });
+    await expect(page.getByRole("button", { name: "Save run", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "Save run", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Saved", exact: true })).toBeDisabled();
+    await page.goto(reportURL.replace("/report", "/runs"));
+    const download = page.waitForEvent("download");
+    for (const name of ["Back up saved runs", "Restore run backup"]) {
+      const bounds = await page.getByRole("button", { name, exact: true }).boundingBox();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    }
+    await page.getByRole("button", { name: "Back up saved runs", exact: true }).click();
+    const backup = await readFile((await (await download).path())!);
+    const contents = JSON.parse(backup.toString());
+    expect(contents.runs[0].evidence).toBe(evidence.toString());
+    expect(contents.runs[0].attestation).toBe(sidecar.toString());
+    expect(contents.runs[0].report).toBeUndefined();
+    expect(contents.trustedKeys).toBeUndefined();
+    const recipient = await page.context().browser()!.newContext();
+    try {
+      const restored = await recipient.newPage();
+      await restored.setViewportSize({ width, height: 900 });
+      await restored.goto(new URL(reportURL.replace("/report", "/runs"), page.url()).href);
+      const input = restored.getByTestId("run-backup-input");
+      await input.setInputFiles({ name: "backup.json", mimeType: "application/json", buffer: backup });
+      await expect(restored.getByRole("dialog", { name: "Restore 1 saved runs?" })).toBeVisible();
+      await expect(restored.locator(".runs-table tbody tr")).toHaveCount(0);
+      await restored.getByRole("button", { name: "Confirm restore", exact: true }).click();
+      await expect(restored.getByRole("status", { name: "Run backup restore result" })).toContainText("1 run restored");
+      await expect(restored.locator(".saved-runs")).toContainText("failed");
+      await expect(restored.locator(".saved-runs")).toContainText("Imported evidence");
+      await expect(restored.locator(".saved-runs")).toContainText("Attestation attached");
+      const invalidEvidence = '{"kind":"DrillRun","apiVersion":"unknown"}';
+      const failedBatch = { ...contents, runs: [contents.runs[0], { evidence: invalidEvidence, sha256: createHash("sha256").update(invalidEvidence).digest("hex") }] };
+      await input.setInputFiles({ name: "invalid-case.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(failedBatch)) });
+      await restored.getByRole("button", { name: "Confirm restore", exact: true }).click();
+      await expect(restored.getByRole("alert")).toContainText("no runs were restored");
+      await expect(restored.locator(".runs-table tbody tr")).toHaveCount(1);
+      await restored.evaluate(() => {
+        const originalPut = IDBObjectStore.prototype.put;
+        IDBObjectStore.prototype.put = function (value, key) {
+          if (this.name === "runs") throw new DOMException("Backup quota full", "QuotaExceededError");
+          return originalPut.call(this, value, key);
+        };
+      });
+      await input.setInputFiles({ name: "retry.json", mimeType: "application/json", buffer: backup });
+      await restored.getByRole("button", { name: "Confirm restore", exact: true }).click();
+      await expect(restored.getByRole("alert")).toContainText("Backup quota full");
+      await expect(restored.locator(".runs-table tbody tr")).toHaveCount(1);
+      await restored.reload();
+      await expect(restored.locator(".runs-table tbody tr")).toHaveCount(1);
+      const broken = { ...contents, runs: [{ ...contents.runs[0], evidence: evidence.toString() + "\n" }] };
+      await input.setInputFiles({ name: "tampered.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) });
+      await expect(restored.getByRole("alert")).toContainText("integrity");
+      await expect(restored.locator(".runs-table tbody tr")).toHaveCount(1);
+      await restored.screenshot({ path: testInfo.outputPath(`restored-backup-${width}.png`), fullPage: true });
+      await restored.locator(".saved-runs .run-name").click();
+      await expect(restored.locator(".verdict.failed")).toBeVisible();
+      await expect(restored.getByRole("button", { name: "Replace attestation", exact: true })).toBeVisible();
+      await expect(restored.getByRole("status", { name: "Signature verification" })).toHaveCount(0);
+      await restored.getByRole("button", { name: "Public keys", exact: true }).click();
+      await expect(restored.getByRole("dialog")).toContainText("No public keys");
+    } finally { await recipient.close(); }
+  });
+
   test(`suite history keeps partial captures failed and rejects damaged snapshots at ${width}px`, async ({ page }) => {
     const files = await suiteBundle();
     const summary = JSON.parse(files[0].buffer.toString());
