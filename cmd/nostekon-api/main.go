@@ -27,10 +27,7 @@ func main() {
 }
 
 func run() error {
-	address := os.Getenv("NOSTEKON_ADDR")
-	if address == "" {
-		address = ":8080"
-	}
+	address := listenAddress()
 
 	stopSignals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -118,4 +115,11 @@ func run() error {
 		slog.Info("Nostekon API stopped")
 		return nil
 	}
+}
+
+func listenAddress() string {
+	if address := os.Getenv("NOSTEKON_ADDR"); address != "" {
+		return address
+	}
+	return "127.0.0.1:8080"
 }

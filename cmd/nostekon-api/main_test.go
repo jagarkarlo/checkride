@@ -7,6 +7,17 @@ import (
 	"testing"
 )
 
+func TestDefaultAddressIsLoopback(t *testing.T) {
+	t.Setenv("NOSTEKON_ADDR", "")
+	if got := listenAddress(); got != "127.0.0.1:8080" {
+		t.Fatalf("default address = %q, want explicit loopback", got)
+	}
+	t.Setenv("NOSTEKON_ADDR", ":8180")
+	if got := listenAddress(); got != ":8180" {
+		t.Fatalf("configured address = %q, want unchanged container override", got)
+	}
+}
+
 func TestRunReturnsBindError(t *testing.T) {
 	t.Setenv("NOSTEKON_STUDIO_DIR", "")
 	t.Setenv("NOSTEKON_LAB_EXECUTABLE", "")
