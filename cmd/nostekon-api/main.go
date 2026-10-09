@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -32,8 +33,16 @@ func run() error {
 	stopSignals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	executablePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("locate app executable: %w", err)
+	}
+	directory, err := studioDirectory(executablePath)
+	if err != nil {
+		return err
+	}
 	var studio fs.FS
-	if directory := os.Getenv("NOSTEKON_STUDIO_DIR"); directory != "" {
+	if directory != "" {
 		root, err := os.OpenRoot(directory)
 		if err != nil {
 			return fmt.Errorf("open Studio directory: %w", err)
@@ -69,7 +78,6 @@ func run() error {
 	}
 
 	var trustedKeys map[string]ed25519.PublicKey
-	var err error
 	if directory := os.Getenv("NOSTEKON_TRUSTED_KEYS_DIR"); directory != "" {
 		trustedKeys, err = attest.LoadTrustedPublicKeys(directory)
 		if err != nil {
@@ -122,4 +130,22 @@ func listenAddress() string {
 		return address
 	}
 	return "127.0.0.1:8080"
+}
+
+func studioDirectory(executablePath string) (string, error) {
+	if directory := os.Getenv("NOSTEKON_STUDIO_DIR"); directory != "" {
+		return directory, nil
+	}
+	directory := filepath.Join(filepath.Dir(executablePath), "studio")
+	info, err := os.Stat(directory)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("inspect bundled Studio: %w", err)
+	}
+	if !info.IsDir() {
+		return "", errors.New("bundled Studio must be a directory")
+	}
+	return directory, nil
 }

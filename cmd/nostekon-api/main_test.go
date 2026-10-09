@@ -18,6 +18,36 @@ func TestDefaultAddressIsLoopback(t *testing.T) {
 	}
 }
 
+func TestStudioDirectoryBesideExecutable(t *testing.T) {
+	t.Setenv("NOSTEKON_STUDIO_DIR", "")
+	root := t.TempDir()
+	executable := filepath.Join(root, "nostekon-api")
+	if directory, err := studioDirectory(executable); err != nil || directory != "" {
+		t.Fatalf("API-only selection = %q, %v", directory, err)
+	}
+	bundled := filepath.Join(root, "studio")
+	if err := os.Mkdir(bundled, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if directory, err := studioDirectory(executable); err != nil || directory != bundled {
+		t.Fatalf("bundled Studio selection = %q, %v; want %q", directory, err, bundled)
+	}
+	t.Setenv("NOSTEKON_STUDIO_DIR", "explicit/studio")
+	if directory, err := studioDirectory(executable); err != nil || directory != "explicit/studio" {
+		t.Fatalf("explicit Studio selection = %q, %v", directory, err)
+	}
+	t.Setenv("NOSTEKON_STUDIO_DIR", "")
+	if err := os.Remove(bundled); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bundled, []byte("not a directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := studioDirectory(executable); err == nil {
+		t.Fatal("invalid bundled Studio silently accepted")
+	}
+}
+
 func TestRunReturnsBindError(t *testing.T) {
 	t.Setenv("NOSTEKON_STUDIO_DIR", "")
 	t.Setenv("NOSTEKON_LAB_EXECUTABLE", "")
