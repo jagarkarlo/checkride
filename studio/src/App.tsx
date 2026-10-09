@@ -3,6 +3,7 @@ import nostekonMark from "../../site/src/content/docs/assets/nostekon-mark.svg";
 import { useCallback, useEffect, useState } from "react";
 import { request } from "./api";
 import { ReportView } from "./ReportView";
+import { AboutDialog } from "./AboutDialog";
 import { Studio } from "./Studio";
 import { RunLibrary } from "./RunLibrary";
 import { SuiteView } from "./SuiteView";
@@ -22,6 +23,7 @@ export function App() {
   const [apiState, setAPIState] = useState<APIState>("checking");
   const [selection, setSelection] = useState<{ source: string; sampleId: string; attestation?: string }>();
   const [suiteSelection, setSuiteSelection] = useState<Map<string, string>>();
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem("nostekon-theme") ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); }
     catch { return "dark"; }
@@ -83,12 +85,14 @@ export function App() {
         <button className="studio-theme" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
           {theme === "dark" ? <Sun size={18} data-theme-icon="sun" aria-hidden="true" /> : <Moon size={18} data-theme-icon="moon" aria-hidden="true" />}
         </button>
+        <button className="studio-theme" type="button" aria-label="About Nostekon" title="About Nostekon" onClick={() => setAboutOpen(true)}><Activity size={18} aria-hidden="true" /></button>
         <button className={`api-status ${apiState}`} type="button" onClick={() => void checkAPI()} title="Recheck the local API">
           <span className="status-dot" />
           {apiLabel}
           {apiState === "offline" && <RefreshCw size={13} />}
         </button>
       </header>
+      <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       {view === "runs" && <RunLibrary onOpen={(source, sampleId, attestation) => {
         setSelection({ source, sampleId, attestation });
         window.location.hash = "/report";

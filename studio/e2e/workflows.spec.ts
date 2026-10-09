@@ -297,6 +297,21 @@ for (const width of [390, 1440]) {
     await page.screenshot({ path: testInfo.outputPath(`suite-history-${width}.png`), fullPage: true });
   });
 
+  test(`app information exposes actual engine and storage origin at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(process.env.NOSTEKON_APP_URL ? "/#/runs" : "/demo/#/runs");
+    await page.getByRole("button", { name: "About Nostekon", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "About Nostekon" });
+    await expect(dialog).toContainText(process.env.NOSTEKON_APP_URL ? "Local Go API" : "Go in this browser");
+    await expect(dialog).toContainText("Lab execution");
+    await expect(dialog).toContainText("Disabled");
+    await expect(dialog).toContainText(new URL(page.url()).origin);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`about-${width}.png`), fullPage: true });
+    await page.getByRole("button", { name: "Close app information" }).click();
+    await expect(dialog).not.toBeVisible();
+  });
+
   test(`suite history keeps partial captures failed and rejects damaged snapshots at ${width}px`, async ({ page }) => {
     const files = await suiteBundle();
     const summary = JSON.parse(files[0].buffer.toString());

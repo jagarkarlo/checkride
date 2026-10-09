@@ -367,6 +367,11 @@ button.finding:hover { filter: brightness(1.12); }
 .runs-table input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); }
 .runs-table small { display: block; margin-top: 5px; color: var(--ink-3); font-size: 12px; overflow-wrap: anywhere; }
 .saved-runs .runs-table .attachment-label { display: flex; align-items: center; gap: 4px; }
+.app-info { margin: 20px 0; }
+.app-info > div { display: grid; grid-template-columns: 145px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.app-info dt { color: var(--ink-3); }
+.app-info dd { margin: 0; overflow-wrap: anywhere; }
+.about-dialog { width: min(580px, calc(100vw - 32px)); }
 .run-name { max-width: 260px; padding: 0; border: 0; background: transparent; color: var(--ink); font-weight: 700; text-align: left; overflow-wrap: anywhere; }
 .run-name:hover { color: var(--accent-ink); text-decoration: underline; }
 .verdict-tag { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); text-transform: capitalize; white-space: nowrap; }
