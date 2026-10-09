@@ -1,0 +1,57 @@
+---
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { ArrowDownToLine, ArrowUpRight } from "@lucide/astro";
+import ProductLayout from "../layouts/ProductLayout.astro";
+import Shot from "../components/Shot.astro";
+
+interface Artifact { name: string; size: number; sha256: string }
+interface AppBuild { kind: string; version: string; revision: string; artifacts: Artifact[] }
+const directory = join(process.cwd(), "public/downloads");
+const manifest = join(directory, "app-build.json");
+let build: AppBuild | undefined;
+if (existsSync(manifest)) {
+  const value: AppBuild = JSON.parse(readFileSync(manifest, "utf8"));
+  if (value.kind !== "AppBuild" || typeof value.version !== "string" || !/^[a-zA-Z0-9._+-]{1,80}$/.test(value.version) || !/^[a-f0-9]{40,64}$/.test(value.revision) || !Array.isArray(value.artifacts) || !value.artifacts.length || value.artifacts.length > 6 || new Set(value.artifacts.map(file => file.name)).size !== value.artifacts.length) throw new Error("Invalid local app build manifest.");
+  for (const file of value.artifacts) {
+    if (!/^nostekon-app_((linux|darwin)_(amd64|arm64)\.tar\.gz|windows_(amd64|arm64)\.zip)$/.test(file.name) || !/^[a-f0-9]{64}$/.test(file.sha256) || !Number.isSafeInteger(file.size) || file.size <= 0 || statSync(join(directory, file.name)).size !== file.size) throw new Error("Invalid or missing local app archive.");
+  }
+  if (!existsSync(join(directory, "SHA256SUMS"))) throw new Error("Missing local app checksums.");
+  build = value;
+}
+const platformName = (name: string) => name.replace("nostekon-app_", "").replace("linux_", "Linux ").replace("darwin_", "macOS ").replace("windows_", "Windows ").replace("amd64", "x86-64").replace("arm64", "ARM64").replace(".tar.gz", " (.tar.gz)").replace(".zip", " (.zip)");
+---
+<ProductLayout title="Download" description="Install Nostekon locally: portable Go app bundles, verified checksums, CI builds and an offline-capable browser interface." current="download">
+  <section class="page-title"><div class="wrap">
+    <h1>Download Nostekon</h1>
+    <p class="lead">A local Go application with Studio in your browser. No hosted account, Docker or language runtime is needed to review evidence.</p>
+    <div class="actions"><a class="btn primary" href="/docs/guides/portable-app/">Installation guide <ArrowUpRight size={16} /></a><a class="btn secondary" href="/demo/index.html#/runs">Open browser demo</a></div>
+  </div></section>
+  {build && <section class="section local-downloads"><div class="wrap">
+    <div class="section-head"><h2>Local development builds</h2><p class="section-lead">Version {build.version}, source {build.revision.slice(0, 12)}. These unsigned packages were built for this preview, not published as an official release.</p></div>
+    <div class="download-build">{build.artifacts.map(file => <div class="download-row">
+      <a class="btn secondary" href={`/downloads/${file.name}`} download><ArrowDownToLine size={17} /> {platformName(file.name)}</a>
+      <div><p>{(file.size / 1024 / 1024).toFixed(1)} MiB</p><code class="download-hash">SHA-256: {file.sha256}</code></div>
+    </div>)}</div>
+    <p class="prose"><a class="link" href="/downloads/SHA256SUMS" download>Download checksum file</a>. Verify it before running; checksums do not establish publisher identity.</p>
+  </div></section>}
+  <section class="section"><div class="wrap">
+    <div class="section-head"><h2>Choose your installation</h2><p class="section-lead">Nostekon is pre-alpha. A renamed tag release has not been published; the historical v0.1.0 package is not the current app.</p></div>
+    <dl class="facts">
+      <div><dt>CI build artifacts</dt><dd>A successful Studio job creates a Linux x86-64 archive and checksums. GitHub sign-in may be required, and artifacts expire after seven days. <a class="link" href="https://github.com/jagarkarlo/nostekon/actions/workflows/ci.yml">View CI builds</a></dd></div>
+      <div><dt>Build a portable app</dt><dd>The shared builder creates Linux, macOS and Windows packages for x86-64 and ARM64. Unix launchers and a Windows command launcher are included. <a class="link" href="/docs/guides/portable-app/#obtain-a-matching-build">Build from source</a></dd></div>
+      <div><dt>Use Docker</dt><dd>Studio and the same Go engine run in a confined localhost container with lab execution disabled. <a class="link" href="/docs/start/#run-the-packaged-app">Container installation</a></dd></div>
+      <div><dt>Keep your originals</dt><dd>Browser storage belongs to its host and port. Back up exact run evidence and sidecars before moving; restore re-evaluates recovery and never imports trust. <a class="link" href="/docs/guides/portable-app/#back-up-before-moving">Back up and move</a></dd></div>
+    </dl>
+  </div></section>
+  <section class="section"><div class="wrap">
+    <div class="section-head"><h2>The same evidence workbench, locally</h2><p class="section-lead">Evidence evaluation works without Kubernetes. Only an explicit Linux host opt-in enables the fixed isolated lab suite; a desktop window and automatic updater are not implemented.</p></div>
+    <Shot name="report-lab" height={900} alt="Nostekon Studio evaluating recorded PostgreSQL recovery evidence, showing V4 verification, recovery time and acknowledged-write data loss." caption="Recorded evidence, evaluated locally. A report judges supplied evidence; it is not proof of an independent production restore." />
+  </div></section>
+</ProductLayout>
+<style>
+  .download-row { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 24px; align-items: start; padding: 20px 0; border-bottom: 1px solid var(--line); }
+  .download-row p { margin: 0 0 8px; }
+  .download-hash { display: block; overflow-wrap: anywhere; font-size: 13px; }
+  @media (max-width: 700px) { .download-row { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
+</style>

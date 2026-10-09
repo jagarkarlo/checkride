@@ -312,6 +312,29 @@ for (const width of [390, 1440]) {
     await expect(dialog).not.toBeVisible();
   });
 
+  test(`download page distinguishes real local artifacts from unpublished releases at ${width}px`, async ({ page }, testInfo) => {
+    test.skip(!!process.env.NOSTEKON_APP_URL, "product route belongs to the static site");
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/download/");
+    await expect(page.getByRole("heading", { name: "Download Nostekon" })).toBeVisible();
+    await expect(page.getByRole("main")).toContainText("A renamed tag release has not been published");
+    await expect(page.getByRole("link", { name: "Installation guide", exact: true })).toHaveAttribute("href", "/docs/guides/portable-app/");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const link of await page.locator(".download-build a").all()) {
+      const bounds = await link.boundingBox();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      const response = await page.request.head((await link.getAttribute("href"))!);
+      expect(response.ok()).toBe(true);
+    }
+    const reportImage = page.getByRole("img", { name: /^Nostekon Studio evaluating/ });
+    await reportImage.scrollIntoViewIfNeeded();
+    await expect(reportImage).toHaveJSProperty("complete", true);
+    expect(await reportImage.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: testInfo.outputPath(`downloads-${width}.png`), fullPage: true });
+  });
+
   test(`run backup restores exact originals without cached verdicts or trust at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     const reportURL = process.env.NOSTEKON_APP_URL ? "/#/report" : "/demo/#/report";

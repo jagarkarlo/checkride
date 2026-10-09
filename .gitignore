@@ -16,6 +16,7 @@ htmlcov/
 node_modules/
 /site/public/demo/
 /site/public/docs/
+/site/public/downloads/
 
 # Local lab and drill output
 *.kubeconfig

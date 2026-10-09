@@ -48,6 +48,26 @@ original evidence and attachment, and reopening always requires a fresh local
 signature check. A stored attachment is not a stored trust decision or receipt.
 See [saved originals and removal](reference/drillrun-evidence.md#save-and-reopen-attached-originals).
 
+## Run the packaged app
+
+As an alternative to the development servers above, use Docker and Compose from
+the checkout. Stop an existing API on port 8080 first, or choose another port:
+
+```bash
+docker compose up --build -d
+# Or: NOSTEKON_PORT=8180 docker compose up --build -d
+```
+
+Open `http://127.0.0.1:8080` (or the selected localhost port). The one-process
+container serves Studio and the Go API with lab execution disabled, non-root
+permissions, a read-only filesystem and no cluster credentials. It needs no
+language runtime on the host. Stop it with `docker compose down`. Saved browser
+runs are separate from the container and its restart lifecycle.
+
+For checksum-verified binary bundles, see [portable installation](guides/portable-app.md).
+For corporate build-only CA configuration, see the
+[checkout instructions](https://github.com/jagarkarlo/nostekon#run-the-app).
+
 ## Run the isolated PostgreSQL lab drill
 
 Verified on 2026-09-29 with k3d v5.8.3, k3s v1.35.8-k3s1, PostgreSQL 16.8 and Docker 28.3.2. Requires Docker, k3d, kubectl, Python 3.12+ and Go. Use only the two disposable k3d lab clusters: the script creates and deletes uniquely named namespaces and **deletes the source namespace after taking the dump**. Never point these kube context names at shared clusters.

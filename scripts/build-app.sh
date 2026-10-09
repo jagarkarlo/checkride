@@ -65,4 +65,13 @@ done
 
 (cd "$output" && if command -v sha256sum >/dev/null; then sha256sum "${archives[@]}" > "$temporary/SHA256SUMS"; else shasum -a 256 "${archives[@]}" > "$temporary/SHA256SUMS"; fi)
 mv "$temporary/SHA256SUMS" "$output/SHA256SUMS"
+node -e '
+  const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto");
+  const [directory, version, revision, ...names] = process.argv.slice(1);
+  const artifacts = names.map(name => {
+    const file = path.join(directory, name);
+    return { name, size: fs.statSync(file).size, sha256: crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex") };
+  });
+  fs.writeFileSync(path.join(directory, "app-build.json"), JSON.stringify({ kind: "AppBuild", version, revision, artifacts }, null, 2) + "\n");
+' "$output" "$version" "$revision" "${archives[@]}"
 printf 'App version: %s; revision: %s\n' "$version" "$revision"
