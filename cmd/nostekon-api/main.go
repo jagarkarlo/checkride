@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/ed25519"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -16,19 +18,74 @@ import (
 	"time"
 
 	"github.com/jagarkarlo/nostekon/internal/attest"
+	"github.com/jagarkarlo/nostekon/internal/buildinfo"
 	"github.com/jagarkarlo/nostekon/internal/httpapi"
 	"github.com/jagarkarlo/nostekon/internal/labjobs"
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := command(os.Args[1:], os.Stdout); err != nil {
 		slog.Error("Nostekon API stopped with an error", "error", err)
 		os.Exit(1)
 	}
 }
 
+func command(arguments []string, output io.Writer) error {
+	options, err := parseLaunchOptions(arguments, output)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if options.version {
+		info := buildinfo.Current()
+		_, err := fmt.Fprintf(output, "Nostekon %s (%s; %s; %s)\n", info.Version, info.Revision, info.Platform, info.GoVersion)
+		return err
+	}
+	return runWithOptions(options)
+}
+
 func run() error {
-	address := listenAddress()
+	return runWithOptions(launchOptions{})
+}
+
+type launchOptions struct {
+	address string
+	studio  string
+	apiOnly bool
+	version bool
+}
+
+func parseLaunchOptions(arguments []string, output io.Writer) (launchOptions, error) {
+	var options launchOptions
+	flags := flag.NewFlagSet("nostekon-api", flag.ContinueOnError)
+	flags.SetOutput(output)
+	flags.StringVar(&options.address, "addr", listenAddress(), "listen address (default loopback)")
+	flags.StringVar(&options.studio, "studio-dir", "", "Studio directory; otherwise environment or bundled studio")
+	flags.BoolVar(&options.apiOnly, "api-only", false, "disable Studio, including bundled discovery")
+	flags.BoolVar(&options.version, "version", false, "print build information without starting")
+	flags.Usage = func() {
+		_, _ = fmt.Fprintln(output, "Nostekon local evidence app\nUsage: nostekon-api [options]")
+		flags.PrintDefaults()
+	}
+	if err := flags.Parse(arguments); err != nil {
+		return options, err
+	}
+	if flags.NArg() != 0 {
+		return options, errors.New("unexpected positional arguments")
+	}
+	if options.apiOnly && options.studio != "" {
+		return options, errors.New("--api-only and --studio-dir cannot be combined")
+	}
+	return options, nil
+}
+
+func runWithOptions(options launchOptions) error {
+	address := options.address
+	if address == "" {
+		address = listenAddress()
+	}
 
 	stopSignals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -37,9 +94,14 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("locate app executable: %w", err)
 	}
-	directory, err := studioDirectory(executablePath)
-	if err != nil {
-		return err
+	directory := options.studio
+	if options.apiOnly {
+		directory = ""
+	} else if directory == "" {
+		directory, err = studioDirectory(executablePath)
+		if err != nil {
+			return err
+		}
 	}
 	var studio fs.FS
 	if directory != "" {

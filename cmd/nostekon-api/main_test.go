@@ -1,11 +1,47 @@
 package main
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestVersionAndHelpDoNotStartServer(t *testing.T) {
+	t.Setenv("NOSTEKON_ADDR", "invalid-address")
+	t.Setenv("NOSTEKON_STUDIO_DIR", "/missing/studio")
+	for _, argument := range []string{"--version", "--help"} {
+		var output bytes.Buffer
+		if err := command([]string{argument}, &output); err != nil {
+			t.Fatalf("%s starts server or fails: %v", argument, err)
+		}
+		if !strings.Contains(output.String(), "Nostekon") {
+			t.Fatalf("%s output = %q", argument, output.String())
+		}
+	}
+}
+
+func TestLaunchOptionsValidateOverrides(t *testing.T) {
+	t.Setenv("NOSTEKON_ADDR", "127.0.0.1:8180")
+	options, err := parseLaunchOptions([]string{"--addr", "127.0.0.1:8181", "--api-only"}, io.Discard)
+	if err != nil || options.address != "127.0.0.1:8181" || !options.apiOnly {
+		t.Fatalf("launch flags = %+v, %v", options, err)
+	}
+	for _, arguments := range [][]string{{"unexpected"}, {"--unknown"}, {"--api-only", "--studio-dir", "studio"}} {
+		if _, err := parseLaunchOptions(arguments, io.Discard); err == nil {
+			t.Fatalf("invalid arguments accepted: %v", arguments)
+		}
+	}
+	t.Setenv("NOSTEKON_STUDIO_DIR", "/missing/studio")
+	t.Setenv("NOSTEKON_LAB_EXECUTABLE", "")
+	t.Setenv("NOSTEKON_LAB_DATA_DIR", "")
+	err = runWithOptions(launchOptions{address: "invalid-address", apiOnly: true})
+	if err == nil || !strings.Contains(err.Error(), "listen on") {
+		t.Fatalf("API-only did not bypass invalid Studio: %v", err)
+	}
+}
 
 func TestDefaultAddressIsLoopback(t *testing.T) {
 	t.Setenv("NOSTEKON_ADDR", "")
