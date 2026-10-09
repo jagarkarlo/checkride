@@ -189,9 +189,31 @@ go run ./cmd/nostekon-attest verify \
 
 This is an original-file archive, not a host-job bundle for **Import bundle**.
 Use **Import signed archive**, or import its extracted evidence and sidecar
-separately. **Save run** retains
-original evidence and the computed report, not the sidecar or local verification
-receipt; reopen and check the signature again when needed.
+separately.
+
+### Save and reopen attached originals
+
+Verified on 2026-10-09 in the native app and static browser demo. **Save run**
+retains original evidence, the currently attached sidecar and the computed
+recovery report atomically in this browser. Sidecars are capped at 16 KiB of
+UTF-8 JSON and are not reformatted. Old saved runs remain compatible without a
+database reset or migration replay.
+
+Run history shows **Attestation attached**, not a trusted-signature claim.
+Its download controls export exact evidence and sidecar originals separately.
+Opening a saved run restores the attachment and freshly evaluates recovery;
+local signature receipts are not saved or replayed. A matching key may be
+selected from your existing public-key library, but it must still be trusted
+locally and **Verify signature** must succeed again before signed ZIP export.
+Deleting or revoking a key does not delete the run or its attachment.
+
+**Remove attestation**, then **Save run**, explicitly clears the stored sidecar.
+Saving the same evidence from a suite without an attachment decision preserves
+an existing sidecar. Changed evidence has a different content identity and does
+not inherit the old signature. Invalid attachments and capacity/quota failures
+do not partially save or replace originals; unreadable stored attachments are
+reported without silently pruning records. Browser data is not a durable backup:
+keep authenticated public keys and originals outside site storage.
 
 The public-key library is local to this browser origin and capped at 20 keys;
 there is no silent eviction. Re-importing a key preserves its trust or revoked
