@@ -215,6 +215,14 @@ do not partially save or replace originals; unreadable stored attachments are
 reported without silently pruning records. Browser data is not a durable backup:
 keep authenticated public keys and originals outside site storage.
 
+Use **Back up saved runs** to transfer exact evidence/sidecar originals with
+per-original SHA-256 checks. **Restore run backup** validates versioned JSON,
+asks for confirmation, evaluates every run and atomically adds or updates them.
+It does not restore cached reports, sample labels, public keys or trust. Invalid
+input, failed evaluation and quota errors leave the library unchanged. Limits
+are 64 MiB and 50 runs; saved suites and host history remain separate.
+See [portable-app backups](../guides/portable-app.md#back-up-before-moving).
+
 The public-key library is local to this browser origin and capped at 20 keys;
 there is no silent eviction. Re-importing a key preserves its trust or revoked
 state. **Revoke local trust** prevents further checks and exports with that key;

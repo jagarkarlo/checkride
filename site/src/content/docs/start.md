@@ -3,6 +3,10 @@ title: Run locally
 description: Validate a recovery drill with the local Go API and Studio.
 ---
 
+For a downloaded local app, see [portable installation and backups](guides/portable-app.md).
+The Go app serves Studio in your browser without a hosted account. Source builds
+and Docker remain available below; historical `v0.1.0` predates Nostekon.
+
 The Studio is a local interactive application. Drill-spec validation checks the contract only. The separate DrillRun report evaluator calculates a verdict from caller-supplied evidence; optional configured signature verification checks provenance, not whether a restore really happened. The Go API listens on port 8080 and the Studio development server proxies requests to it. A separate disposable k3d script runs one isolated PostgreSQL restore. The packaged app disables execution by default; the optional host runner exposes only the fixed policy suite.
 
 From the repository root, start the API:

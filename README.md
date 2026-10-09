@@ -150,17 +150,27 @@ npm run build --prefix studio
 NOSTEKON_ADDR=127.0.0.1:8080 NOSTEKON_STUDIO_DIR=./studio/dist go run ./cmd/nostekon-api
 ```
 
-Future release builds assemble `nostekon-app_<os>_<arch>.tar.gz` with the API
-binary and Studio together. After extracting a matching archive, run from its
-directory:
+Build portable archives locally, or obtain the Linux artifact from a successful
+Studio CI job. No renamed Nostekon tag release is published yet:
 
 ```bash
-NOSTEKON_ADDR=127.0.0.1:8080 NOSTEKON_STUDIO_DIR=./studio ./nostekon-api
+NOSTEKON_VERSION=dev NOSTEKON_APP_TARGETS=linux/amd64 bash scripts/build-app.sh
+cd dist/app
+sha256sum --check SHA256SUMS
+mkdir nostekon-local
+tar -xzf nostekon-app_linux_amd64.tar.gz -C nostekon-local
+./nostekon-local/start-nostekon.sh
 ```
 
-On Windows, set those environment variables in PowerShell and run
-`./nostekon-api.exe`. Omitting `NOSTEKON_STUDIO_DIR` retains API-only mode.
-An invalid Studio directory stops startup instead of serving a broken UI.
+Studio is discovered beside the executable, independent of working directory;
+default listener is `127.0.0.1:8080`. `--addr` selects a port, `--studio-dir`
+overrides the UI root, `--api-only` disables Studio and `--version` identifies
+the build without starting. Windows ZIPs include `Start-Nostekon.cmd`; Unix
+archives include `start-nostekon.sh`. Six OS/architecture targets are supported.
+Invalid Studio directories fail startup. See
+[portable installation and browser backup](site/src/content/docs/guides/portable-app.md)
+for checksums, platform caveats and migration. The UI stays in your browser,
+but the app runs locally without a hosted site or language runtimes.
 Public-key signature verification still uses `NOSTEKON_TRUSTED_KEYS_DIR`;
 container installations must mount only trusted public keys read-only.
 
