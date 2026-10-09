@@ -19,7 +19,7 @@ func main() {
 		}
 		path := args[0].String()
 		method := http.MethodPost
-		if path == "/healthz" || path == "/api/v1/schemas/drillrun" {
+		if path == "/healthz" || path == "/api/v1/schemas/drillrun" || path == "/api/v1/info" {
 			method = http.MethodGet
 		}
 		request := httptest.NewRequest(method, path, strings.NewReader(args[1].String()))

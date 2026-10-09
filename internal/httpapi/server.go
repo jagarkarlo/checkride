@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"crypto/ed25519"
+	"encoding/json"
 	"io/fs"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/jagarkarlo/nostekon/internal/buildinfo"
 	"github.com/jagarkarlo/nostekon/internal/labjobs"
 	"github.com/jagarkarlo/nostekon/internal/schema"
 )
@@ -34,6 +36,14 @@ func NewHandlerWithLab(configuredKeys map[string]ed25519.PublicKey, studio fs.FS
 	}
 	mux.HandleFunc("GET /healthz", probe)
 	mux.HandleFunc("GET /readyz", probe)
+	mux.HandleFunc("GET /api/v1/info", func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"build":        buildinfo.Current(),
+			"capabilities": map[string]bool{"studio": studio != nil, "labExecution": lab != nil, "signatureVerification": true},
+		})
+	})
 	mux.HandleFunc("GET /api/v1/schemas/drillrun", func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/schema+json")
 		writer.WriteHeader(http.StatusOK)

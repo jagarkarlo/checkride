@@ -10,7 +10,49 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/jagarkarlo/nostekon/internal/buildinfo"
 )
+
+func TestAppInfoReportsBuildAndActualCapabilities(t *testing.T) {
+	for _, withStudio := range []bool{false, true} {
+		var studio fstest.MapFS
+		if withStudio {
+			studio = fstest.MapFS{"index.html": {Data: []byte("Nostekon")}}
+		}
+		var handler http.Handler = NewHandler()
+		if withStudio {
+			handler = NewHandlerWithStudio(nil, studio)
+		}
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/info", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("info status = %d", response.Code)
+		}
+		var info struct {
+			Build        buildinfo.Info `json:"build"`
+			Capabilities struct {
+				Studio                bool `json:"studio"`
+				LabExecution          bool `json:"labExecution"`
+				SignatureVerification bool `json:"signatureVerification"`
+			} `json:"capabilities"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
+			t.Fatal(err)
+		}
+		if info.Build != buildinfo.Current() || info.Capabilities.Studio != withStudio || info.Capabilities.LabExecution || !info.Capabilities.SignatureVerification {
+			t.Fatalf("incorrect app info: %+v", info)
+		}
+		if response.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("capability snapshot must not be cached")
+		}
+		wrongMethod := httptest.NewRecorder()
+		handler.ServeHTTP(wrongMethod, httptest.NewRequest(http.MethodPost, "/api/v1/info", nil))
+		if wrongMethod.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("POST info status = %d", wrongMethod.Code)
+		}
+	}
+}
 
 func TestStudioAndAPIServeFromOneOrigin(t *testing.T) {
 	studio := fstest.MapFS{

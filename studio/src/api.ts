@@ -33,7 +33,7 @@ function loadEngine(): Promise<void> {
 
 export async function request(path: string, body = "", signal?: AbortSignal, extraHeaders: Record<string, string> = {}): Promise<Response> {
   if (!browserDemo) {
-    return fetch(path, path === "/healthz" ? { signal } : {
+    return fetch(path, path === "/healthz" || path === "/api/v1/info" || path === "/api/v1/schemas/drillrun" ? { signal } : {
       method: "POST", headers: { "Content-Type": "application/json", ...extraHeaders }, body, signal,
     });
   }
